@@ -63,7 +63,8 @@ function Requests({ view }: { view: RequestListView }) {
  * «Мои заявки» покупателя: разделы чипами (группы статусов), строки-ссылки (название или «Черновик», что с заявкой — шаг
  * черновика или число предложений и дата, статус). Черновик ведёт в мастер на свой шаг, отправленная — на карточку заявки.
  * Пусто — обучающий экран с единственным действием «Заказать мебель». Телефон: одна колонка, действие в доке. Компьютер:
- * одна колонка 760 px по центру, карточка «Нужна ещё мебель?» с действием — над списком.
+ * одна колонка 760 px по центру, только список: «Заказать мебель» и так стоит в шапке каждого экрана, отдельная карточка
+ * над списком его повторяла бы и отодвигала заявки.
  */
 export default async function MyRequestsPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -85,20 +86,9 @@ export default async function MyRequestsPage({ searchParams }: Props) {
   }
 
   if (device === "desktop") {
-    // Одна колонка 760 px по центру (разбор 3.9): карточка «Нужна ещё мебель?» с главным действием — над списком, а не
-    // одна в правой колонке.
     return (
       <Stack gap="section" className="desktop:mx-auto desktop:w-full desktop:max-w-home">
         {title}
-        <Card>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex min-w-0 flex-1 basis-64 flex-col gap-1">
-              <h2 className="text-headline text-ink">{t.asideTitle}</h2>
-              <p className="text-body text-muted">{t.asideBody}</p>
-            </div>
-            <ButtonLink href={create.href}>{create.label}</ButtonLink>
-          </div>
-        </Card>
         <Requests view={view} />
       </Stack>
     );

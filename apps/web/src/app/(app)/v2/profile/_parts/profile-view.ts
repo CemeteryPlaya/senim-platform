@@ -13,13 +13,12 @@ const m = ru.app.masterProfile.rows;
 /** Строка раздела: подпись и адрес v2. */
 export type ProfileLink = { label: string; href: string };
 
-/** Строка истории: заголовок, статус с тоном, мастер, цена (тиыны), дата и адрес v2. */
+/** Строка истории: заголовок, статус с тоном (только у законченных; у идущего — `null`), мастер, цена (тиыны), дата и адрес v2. */
 export type HistoryRowModel = {
   id: string;
   title: string;
   href: string;
-  status: string;
-  tone: StatusTone;
+  status: { text: string; tone: StatusTone } | null;
   executorLabel: string | null;
   priceTiyn: bigint | null;
   date: string;
@@ -30,7 +29,11 @@ export type HistoryModel = {
   rows: HistoryRowModel[];
 };
 
-const TONES: Record<BuyerHistoryState, StatusTone> = { success: "accent", failed: "danger", cancelled: "neutral", progress: "warn" };
+/**
+ * Плашка истории — только у законченных: «Успешно», «Отменено», «Заказ не выполнен». Идущий заказ без пометки: жёлтый
+ * значит «нужно ваше действие» (rules.md), а здесь заказ просто идёт.
+ */
+const TONES: Record<Exclude<BuyerHistoryState, "progress">, StatusTone> = { success: "accent", failed: "danger", cancelled: "neutral" };
 
 /** Сводка и строки истории покупателя: порядок строк — как отдал модуль. Чистая функция. */
 export function historyModel(history: BuyerHistory): HistoryModel {
@@ -45,8 +48,7 @@ export function historyModel(history: BuyerHistory): HistoryModel {
       id: r.requestId,
       title: r.title,
       href: v2Href(r.href),
-      status: h.status[r.state],
-      tone: TONES[r.state],
+      status: r.state === "progress" ? null : { text: h.status[r.state], tone: TONES[r.state] },
       executorLabel: r.executorLabel,
       priceTiyn: r.priceTiyn,
       date: formatShortDate(r.at),
@@ -57,7 +59,8 @@ export function historyModel(history: BuyerHistory): HistoryModel {
 export type ProfileModel = {
   name: string;
   phone: string;
-  roleLine: string;
+  /** «Вы сейчас — …» — только когда у человека две роли; одна роль — строки нет (переключать нечего). */
+  roleLine: string | null;
   /** Разделы мастера (компания, документы, счёт, портфолио, финансы): только у активной роли «мастер»; у остальных пусто. */
   work: ProfileLink[];
   /**
@@ -86,9 +89,10 @@ export function roleLinks(user: Pick<CurrentUser, "role" | "roles">): ProfileLin
 }
 
 /**
- * Разделы мастера по статусу профиля. Одобренному — все: компания, документы, счёт для оплаты, портфолио, финансы,
- * публичный профиль. На проверке и после отказа — без финансов и публичной страницы (покупатели его ещё не видят), но со
- * ссылкой на статус проверки. Роль есть, анкеты нет — только регистрация.
+ * Разделы мастера по статусу профиля. Одобренному — все: компания, документы, счёт для оплаты, портфолио, финансы.
+ * Публичной страницы здесь нет: та же страница («Открыть публичную страницу») — в «Компании», рядом с тем, что видят
+ * покупатели. На проверке и после отказа — без финансов, но со ссылкой на статус проверки. Роль есть, анкеты нет — только
+ * регистрация.
  */
 export function masterLinks(executor: CurrentUser["executor"] | undefined): ProfileLink[] {
   const status = masterStatusOf({ executor: executor ?? null });
@@ -100,11 +104,7 @@ export function masterLinks(executor: CurrentUser["executor"] | undefined): Prof
     { label: m.portfolio, href: to("/executor/portfolio") },
   ];
   if (status !== "approved" || !executor) return [...links, { label: m.status, href: to("/register/executor") }];
-  return [
-    ...links,
-    { label: m.finance, href: to("/executor/finance") },
-    { label: m.publicProfile, href: to(`/executors/${executor.publicNumber}`) },
-  ];
+  return [...links, { label: m.finance, href: to("/executor/finance") }];
 }
 
 /** Что показать на экране профиля: имя как записано, телефон, активная роль, разделы и роли. Чистая функция. */
@@ -118,7 +118,7 @@ export function profileModel(user: ProfileUser, history?: BuyerHistory): Profile
   return {
     name: user.fullName ?? t.nameMissing,
     phone: formatPhone(user.phone),
-    roleLine: t.roleLine(t.roleNames[user.role]),
+    roleLine: switchTargets(user).length > 0 ? t.roleLine(t.roleNames[user.role]) : null,
     work: user.role === "EXECUTOR" ? masterLinks(user.executor) : [],
     sections,
     roles: roleLinks(user),

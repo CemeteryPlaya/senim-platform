@@ -66,9 +66,10 @@ export const notifications = {
       title: "Мастер отказался от приглашения",
       body: `${who} не возьмётся за заказ «${requestTitle}»: ${reason}`,
     }),
+    /** Покупателю — «предложение», как на всех его экранах; текст не повторяет заголовок. */
     offerReceived: (requestTitle: string, price: string, durationDays: number): Text => ({
-      title: "Новый отклик на заявку",
-      body: `На заявку «${requestTitle}» пришёл отклик: ${price}, срок ${days(durationDays)}.`,
+      title: "Новое предложение",
+      body: `«${requestTitle}»: ${price}, срок ${days(durationDays)}.`,
     }),
     offerChosen: (requestTitle: string): Text => ({
       title: "Отклик выбран",

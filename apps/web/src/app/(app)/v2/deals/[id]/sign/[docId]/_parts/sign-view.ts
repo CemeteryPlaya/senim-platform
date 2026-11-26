@@ -53,7 +53,8 @@ export type WhatInput = {
 
 /**
  * «Что вы подписываете»: документ, стороны, цена; для оферты — суммы стороны, срок и гарантия; для акта — когда сдана
- * работа. Покупатель: мастер — подпись модуля («Исполнитель №N» или имя по режиму ADR-006), к оплате (без доплат).
+ * работа. Покупатель: мастер — подпись модуля («Исполнитель №N» или имя по режиму ADR-006); в оферте цена и сумма к оплате —
+ * одна сумма (без доплат, ADR-015), одной строкой «Цена по оферте, без доплат».
  * Мастер: «Мастер — Вы», без строки покупателя (имени модуль мастеру не отдаёт), гарантия оплаты и клиента и «Вы получите»;
  * сумм покупателя (защита сделки, к оплате) у мастера нет.
  */
@@ -67,16 +68,16 @@ function buyerRows(i: WhatInput): WhatRow[] {
     { label: w.document, value: t.documentName(t.kinds[i.kind], i.number) },
     { label: w.master, value: i.executorLabel },
     { label: w.buyer, value: i.buyerName ?? w.you },
-    { label: w.price, amount: i.estimate.priceTiyn },
   ];
   if (i.kind === "CONTRACT") {
     rows.push(
-      { label: w.total, amount: i.estimate.totalTiyn, total: true },
+      { label: w.priceTotal, amount: i.estimate.totalTiyn, total: true },
       { label: w.duration, value: formatDays(i.durationDays) },
       { label: w.warranty, value: formatMonths(i.warrantyMonths) },
     );
-  } else if (i.readyAt) {
-    rows.push({ label: w.readyAt, value: formatDate(i.readyAt) });
+  } else {
+    rows.push({ label: w.price, amount: i.estimate.priceTiyn });
+    if (i.readyAt) rows.push({ label: w.readyAt, value: formatDate(i.readyAt) });
   }
   return rows;
 }

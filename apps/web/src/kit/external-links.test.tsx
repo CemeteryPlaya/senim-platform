@@ -41,6 +41,8 @@ describe("компоненты", () => {
     expect(m).toContain('rel="noopener noreferrer"');
     expect(m).toContain("Яндекс Карты");
     expect(m).toContain("Google Карты");
+    // «Открыть на карте:» — только для диктора, на экране — название карты.
+    expect(m).toContain('<span class="sr-only">Открыть на карте: </span>Яндекс Карты');
     expect(m.replace(/href="[^"]*"/g, "")).not.toContain("43.1");
   });
   it("MapLink без точки и адреса — пусто", () => {
@@ -48,6 +50,8 @@ describe("компоненты", () => {
   });
   it("ContactActions: позвонить, WhatsApp, копирование", () => {
     const m = html(<ContactActions phone="+77001234567" phoneDisplay="+7 700 123 45 67" />);
+    // Отступ сверху и снизу поровну: под разделителем списка кнопки не прижаты к линии.
+    expect(m).toContain("py-3");
     expect(m).toContain('href="tel:+77001234567"');
     expect(m).toContain('href="https://wa.me/77001234567"');
     expect(m).toContain('aria-label="Скопировать номер телефона"');

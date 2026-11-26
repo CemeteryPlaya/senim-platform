@@ -67,6 +67,16 @@ describe("Section", () => {
   it("от заголовка до карточек — зазор группы (12 px)", () => {
     expect(hasClass(first(html(<Section title="Т">x</Section>)), "gap-stack-group")).toBe(true);
   });
+
+  it("action — справа в строке заголовка, до содержимого; без него обёртки нет", () => {
+    const out = html(
+      <Section title="Мои заявки" action={<button type="button">Все</button>}>
+        x
+      </Section>,
+    );
+    expect(out).toMatch(/<div class="[^"]*justify-between[^"]*"><h2[^>]*>Мои заявки<\/h2><button type="button">Все<\/button><\/div>x/);
+    expect(html(<Section title="Т">x</Section>)).not.toContain("justify-between");
+  });
 });
 
 describe("Section с id (якорь)", () => {

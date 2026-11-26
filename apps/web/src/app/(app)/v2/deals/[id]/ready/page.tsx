@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { Narrow, NowNext, PageTitle, Stack } from "@/kit";
+import { Narrow, PageTitle, Stack } from "@/kit";
 import { getDevice } from "@/platform/device";
 import { pageHref, partyDeal, requireV2User } from "../../../../_shell/auth";
 import { dealHrefs } from "../_parts/deal-card";
@@ -15,7 +15,7 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<str
 
 /**
  * Сдача работы мастером. Ворота — `partyDeal`; сейчас не шаг мастера «Сдать работу» (покупатель, работа ещё не начата или
- * уже сдана, спор) — карточка сделки без ошибки. Порядок: «Назад: <сделка>», «Сейчас / Дальше», фото готовой мебели, место
+ * уже сдана, спор) — карточка сделки без ошибки. Порядок: «Назад: <сделка>», подзаголовок — что будет после, фото готовой мебели, место
  * сдачи с пояснением, одно главное действие «Сдать работу». Компьютер — `Narrow`.
  */
 export default async function ReadyPage({ params, searchParams }: Props) {
@@ -31,8 +31,7 @@ export default async function ReadyPage({ params, searchParams }: Props) {
   return (
     <Narrow>
       <Stack gap="section">
-        <PageTitle title={t.title} back={{ href: card, label: deal.title }} />
-        <NowNext now={t.now} next={t.next} />
+        <PageTitle title={t.title} back={{ href: card, label: deal.title }} lead={t.lead} />
         <ReadyForm dealId={deal.id} dealHref={card} device={device} />
       </Stack>
     </Narrow>

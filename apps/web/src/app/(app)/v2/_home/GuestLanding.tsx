@@ -1,10 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ChevronDown, ChevronRight, Hammer, HandCoins, Landmark, UserRound, Wallet } from "lucide-react";
+import { ArrowDown, ArrowRight, ChevronDown, ChevronRight, Hammer, Landmark, UserRound } from "lucide-react";
 import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
 import { computeDealMoney } from "@/modules/payments";
-import { ButtonLink, Explain, Money, PhoneFrame, TextLink, TopBarOverPhoto, TrustCapsule } from "@/kit";
+import { ButtonLink, Money, PhoneFrame, TextLink, TopBarOverPhoto } from "@/kit";
 import type { Device } from "@/platform/device";
 import { to } from "../../_shell/paths";
 import { ABOUT_ANCHORS } from "../about/anchors";
@@ -12,8 +12,10 @@ import type { HeroPhoto, LandingImage, WorkTile } from "./landing-media";
 import { loginHref } from "./links";
 
 /**
- * Части лендинга гостя (разбор 3.8): первый экран для телефона и компьютера и блоки ниже — три факта, «Как это
- * работает» со снимками экранов, тёмный раздел «Где ваши деньги», лента работ, «Помощь» и подвал. Сборка — GuestHome.
+ * Части лендинга гостя (разбор 3.8): первый экран для телефона и компьютера и блоки ниже — «Как это работает» со
+ * снимками экранов, тёмный раздел «Где ваши деньги», лента работ, «Помощь» и подвал (только компьютер). Сборка —
+ * GuestHome. «Деньги в банке… мастер получит, когда вы примете мебель» говорят заголовок, шаг 3 и «Где ваши деньги» —
+ * больше нигде (капсулы на фото и полосы фактов нет: аудит «лишнего», 26.11.2026).
  */
 
 const t = ru.app.guest.home;
@@ -26,7 +28,7 @@ const captionOf = (photo: HeroPhoto) => (photo.temporary ? t.photoCaption.tempor
 /**
  * Первый экран компьютера: фото на всю ширину области содержимого (на лендинге она во всю ширину окна — landing.css) под
  * стеклянной шапкой, затемнение слева, сверху и снизу (`scrim-hero`), заголовок 64 px белым, подзаголовок 21 px, белая
- * главная кнопка и ссылка мастера, внизу — капсула доверия на стекле и подпись фото; нижний край фото растворяется в
+ * главная кнопка и ссылка мастера, внизу справа — подпись фото; нижний край фото растворяется в
  * фоне страницы (`hero-fade`, ниже текста). Высота min(88vh, 860px), при крупном шрифте растёт. Кольцо фокуса — двойное.
  */
 export function DesktopHero({ photo }: { photo: HeroPhoto }) {
@@ -55,12 +57,7 @@ export function DesktopHero({ photo }: { photo: HeroPhoto }) {
             <ChevronRight aria-hidden className="size-4 shrink-0" />
           </Link>
         </div>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <TrustCapsule>
-            {t.trustCapsule} · {t.trustCapsuleMore}
-          </TrustCapsule>
-          <p className="text-small text-on-photo">{captionOf(photo)}</p>
-        </div>
+        <p className="self-end text-small text-on-photo">{captionOf(photo)}</p>
       </div>
     </section>
   );
@@ -68,8 +65,7 @@ export function DesktopHero({ photo }: { photo: HeroPhoto }) {
 
 /**
  * Первый экран телефона: название продукта, заголовок (`text-hero-mobile` — 36 px, три строки на 390 px), сразу под ним
- * фото 4:5 со скруглением 24 — капсула доверия у нижнего края фото на затемнении снизу (`scrim-photo`), подпись фото —
- * отдельно, под фото справа, тихим текстом. Подзаголовок и ссылка мастера — под фото: на первом экране фото видно
+ * фото 4:5 со скруглением 24, подпись фото — отдельно, под фото справа, тихим текстом. Подзаголовок и ссылка мастера — под фото: на первом экране фото видно
  * целиком над доком главной кнопки. Главная кнопка — в доке (GuestHome).
  */
 export function MobileHero({ photo }: { photo: HeroPhoto }) {
@@ -82,10 +78,6 @@ export function MobileHero({ photo }: { photo: HeroPhoto }) {
       <figure className="flex flex-col gap-2">
         <div className="photo-frame aspect-4/5 rounded-hero">
           <Image src={photo.src} alt={photo.alt} fill preload sizes="100vw" className="object-cover" />
-          <div aria-hidden className="scrim-photo" />
-          <div className="absolute inset-x-3 bottom-3 flex">
-            <TrustCapsule>{t.trustCapsule}</TrustCapsule>
-          </div>
         </div>
         <figcaption className="self-end text-small text-muted">{captionOf(photo)}</figcaption>
       </figure>
@@ -97,42 +89,12 @@ export function MobileHero({ photo }: { photo: HeroPhoto }) {
   );
 }
 
-const FACT_ICONS = [Wallet, Landmark, HandCoins] as const;
-
-/**
- * Три факта под первым экраном — блоки с весом: карточка `surface`, значок 24 px `ink` в круге `fill` (нейтрально:
- * зелёный остаётся деньгам под защитой и прогрессу — разбор 2, раздел 5 п. 7), значение 22 px (`title-2`), пояснение
- * 17 px. Компьютер — три в ряд, телефон — столбиком.
- */
-export function Facts() {
-  return (
-    <section aria-label={t.factsLabel}>
-      <ul className="grid gap-3 desktop:grid-cols-3 desktop:gap-5">
-        {t.facts.map((fact, index) => {
-          const Icon = FACT_ICONS[index] ?? Wallet;
-          return (
-            <li key={fact.value} className="flex min-w-0 flex-wrap items-start gap-4 rounded-card bg-surface p-5 desktop:flex-col desktop:flex-nowrap desktop:p-7">
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-fill text-ink">
-                <Icon aria-hidden className="size-6" />
-              </span>
-              {/* При крупном шрифте текст уходит под значок, а не за край экрана. */}
-              <div className="flex min-w-0 flex-1 basis-40 flex-col gap-1 wrap-break-word desktop:basis-auto">
-                <p className="text-title-2 text-ink">{fact.value}</p>
-                <p className="text-body text-muted">{fact.note}</p>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
-
 /**
  * «Как это работает»: три шага, у каждого снимок нашего экрана в рамке телефона и номер шага крупно (40 px, muted;
  * для читалки — «Шаг N»), заголовок шага 22 px. Компьютер — три колонки, рамка 19,5rem сверху (снимок читается).
  * Телефон — столбиком (разбор 2, 3.1): номер и заголовок в строку, абзац на всю ширину колонки, ниже снимок шириной
- * 70 % по центру — текст читается строками, а не по два слова, и снимок крупнее.
+ * 70 % по центру — текст читается строками, а не по два слова, и снимок крупнее. Рамка обрезана снизу (`cropped`):
+ * виден верх экрана — главное, без меню и мелких строк.
  */
 export function Steps({ device, screens }: { device: Device; screens: LandingImage[] }) {
   return (
@@ -145,7 +107,7 @@ export function Steps({ device, screens }: { device: Device; screens: LandingIma
           const shot = screens[index];
           return (
             <li key={step.title} className="flex flex-col gap-6">
-              {shot && device === "desktop" && <PhoneFrame {...shot} sizes="20rem" className="mx-auto w-78" />}
+              {shot && device === "desktop" && <PhoneFrame {...shot} sizes="20rem" className="mx-auto w-78" cropped />}
               <div className="flex min-w-0 flex-col gap-2 desktop:gap-3">
                 <div className="flex flex-wrap items-baseline gap-x-3 desktop:flex-col desktop:gap-3">
                   <p className="text-display text-muted">
@@ -156,7 +118,7 @@ export function Steps({ device, screens }: { device: Device; screens: LandingIma
                 </div>
                 <p className="text-body text-ink">{step.text}</p>
               </div>
-              {shot && device === "mobile" && <PhoneFrame {...shot} sizes="70vw" className="mx-auto w-7/10" />}
+              {shot && device === "mobile" && <PhoneFrame {...shot} sizes="70vw" className="mx-auto w-7/10" cropped />}
             </li>
           );
         })}
@@ -169,8 +131,8 @@ const FLOW_ICONS = [UserRound, Landmark, Hammer] as const;
 
 /**
  * «Где ваши деньги» — единственный тёмный раздел, тёмный в обеих темах: роли цветов внутри — тёмной темы
- * (`data-theme="dark"` на разделе), фон `surface` тёмной темы. Слева схема «Вы → банк → мастер» с состояниями и три
- * абзаца с пояснением «Что такое защита сделки?», справа пример суммы крупными цифрами. От края до края: на компьютере —
+ * (`data-theme="dark"` на разделе), фон `surface` тёмной темы. Слева схема «Вы → банк → мастер» с состояниями и два
+ * абзаца (счета сервиса, спор), справа пример: цена мастера и одна крупная сумма «Вы платите» со словами «Без доплат». От края до края: на компьютере —
  * во всю ширину области содержимого лендинга (`w-full`), на телефоне — за поля колонки (`rail-bleed`, внутри — те же
  * поля) без `w-full`: ширину по отрицательным полям даёт растяжение в колонке, а `width: 100%` оставил бы раздел шириной
  * колонки, сдвинутым влево (разбор 2, 3.1). Метка `data-landing-money` — для дока над тёмным разделом (landing.css).
@@ -213,15 +175,9 @@ export function MoneySection({ device }: { device: Device }) {
                 {text}
               </p>
             ))}
-            <p className="text-body">
-              <Explain label={t.explainLabel} title={t.explainTitle} device={device}>
-                <p>{t.explainBody}</p>
-              </Explain>
-            </p>
           </div>
         </div>
         <div className="flex min-w-0 flex-col gap-6 desktop:justify-center">
-          <p className="text-sub text-muted">{t.example.title}</p>
           <div className="flex flex-col gap-1">
             <p className="text-body text-muted">{t.example.price}</p>
             <p className="text-title-2 tabular-nums text-ink desktop:text-amount">
@@ -282,15 +238,16 @@ export function Works({ device, tiles }: { device: Device; tiles: WorkTile[] }) 
 }
 
 /**
- * «Помощь» на лендинге: три вопроса аккордеоном (`<details>`: открывается с клавиатуры, без JavaScript), в ответе —
- * тексты «О сервисе» и ссылка «Подробнее» на раздел; ниже — связь с поддержкой. Колонка 680 px на компьютере.
+ * «Помощь» на лендинге: два вопроса аккордеоном (`<details>`: открывается с клавиатуры, без JavaScript), в ответе —
+ * тексты «О сервисе»; у вопроса о цене — ссылка «Подробнее» на раздел (там пример для обеих сторон), ответ о споре — тот
+ * же текст, что на «О сервисе», ссылки нет. Последняя строка карточки — связь с поддержкой. Колонка 680 px на компьютере.
+ * О деньгах вопроса нет: на него отвечает раздел «Где ваши деньги» выше.
  */
 export function Help() {
   const about = ru.app.guest.about;
   const items = [
-    { question: t.helpMoney, answer: about.money.paragraphs, anchor: ABOUT_ANCHORS.money },
-    { question: t.helpPrice, answer: [about.price.buyerTitle, about.price.buyerNote], anchor: ABOUT_ANCHORS.price },
-    { question: t.helpRefusal, answer: about.refusal.paragraphs, anchor: ABOUT_ANCHORS.refusal },
+    { question: t.helpPrice, answer: [about.price.buyerTitle, about.price.buyerNote], anchor: ABOUT_ANCHORS.price, more: true },
+    { question: t.helpRefusal, answer: about.refusal.paragraphs, anchor: ABOUT_ANCHORS.refusal, more: false },
   ];
   return (
     <section aria-labelledby="landing-help" className="flex flex-col gap-6 desktop:max-w-help">
@@ -299,7 +256,7 @@ export function Help() {
       </h2>
       <div className="flex flex-col rounded-card bg-surface">
         {items.map((item) => (
-          <details key={item.anchor} className="group border-b border-line last:border-b-0">
+          <details key={item.anchor} className="group border-b border-line">
             <summary className="flex min-h-control cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-headline text-ink [&::-webkit-details-marker]:hidden">
               {item.question}
               <ChevronDown aria-hidden className="size-5 shrink-0 text-muted transition-transform duration-200 group-open:rotate-180" />
@@ -310,15 +267,18 @@ export function Help() {
                   {text}
                 </p>
               ))}
-              <div>
-                <TextLink href={`${to("/about")}#${item.anchor}`}>{t.helpMore}</TextLink>
-              </div>
+              {item.more && (
+                <div>
+                  <TextLink href={`${to("/about")}#${item.anchor}`}>{t.helpMore}</TextLink>
+                </div>
+              )}
             </div>
           </details>
         ))}
-      </div>
-      <div>
-        <a href={`mailto:${encodeURI(brand.support.email)}`} className="inline-flex min-h-control items-center text-body font-medium text-accent no-underline hover:underline">
+        <a
+          href={`mailto:${encodeURI(brand.support.email)}`}
+          className="flex min-h-control items-center px-5 py-4 text-body font-medium text-accent no-underline hover:underline"
+        >
           {ru.app.kit.help.contact}
         </a>
       </div>
@@ -326,15 +286,15 @@ export function Help() {
   );
 }
 
-/** Подвал: название и обещание продукта, разделы. */
+/**
+ * Подвал компьютера: название продукта и разделы. На телефоне подвала нет — разделы есть в панели вкладок (вернуть,
+ * когда появятся юридические ссылки).
+ */
 export function Footer() {
   const nav = ru.app.shell.nav;
   return (
-    <footer className="flex flex-col gap-4 border-t border-line pt-8 desktop:flex-row desktop:items-start desktop:justify-between">
-      <div className="flex flex-col gap-1">
-        <p className="text-headline text-ink">{ru.common.brand}</p>
-        <p className="text-sub text-muted">{ru.common.tagline}</p>
-      </div>
+    <footer className="flex flex-row items-start justify-between gap-4 border-t border-line pt-8">
+      <p className="text-headline text-ink">{ru.common.brand}</p>
       <ul className="flex flex-wrap gap-x-6">
         <li>
           <Link href={to("/catalog")} className="inline-flex min-h-control items-center text-sub text-muted no-underline hover:underline">

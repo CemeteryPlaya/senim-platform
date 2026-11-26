@@ -7,6 +7,7 @@ import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { pageHref, requireMaster } from "../../../../_shell/auth";
 import { to } from "../../../../_shell/paths";
+import { masterBack } from "../_parts/company-view";
 import { kycNow, showAgainLink, showForm } from "./kyc-view";
 import { KycForm } from "./KycForm";
 
@@ -43,13 +44,7 @@ export default async function KycPage({ searchParams }: Props) {
   return (
     <Narrow>
       <Stack gap="section">
-        <PageTitle
-          title={t.title}
-          back={{
-            href: to("/executor/profile"),
-            label: ru.app.masterCompany.shared.backCompany,
-          }}
-        />
+        <PageTitle title={t.title} back={masterBack(status === "approved")} />
         <Stack>
           <NowNext
             now={{

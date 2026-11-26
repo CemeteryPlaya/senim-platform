@@ -97,6 +97,8 @@ async function lockedState(tx: Tx, doc: LoadedDocument) {
  * После каждой подписи (в той же транзакции): все требуемые подписи есть — документ SIGNED,
  * deal-core.onDocumentSigned (оферта заключена / акт → ACCEPTED и выплата), письмо с актом обеим сторонам.
  * Иначе, если сторона поставила все свои подписи, — уведомление второй стороне.
+ * Своего уведомления «документ подписан всеми» нет: подписываются только оферта и акт, и о каждом обеим сторонам уже
+ * сообщает deal-core («Оферта заключена», «Мебель принята») — второе было бы дублем того же события.
  */
 async function afterSignature(tx: Tx, doc: LoadedDocument, user: CurrentUser, party: SignParty): Promise<{ fullySigned: boolean }> {
   const fresh = await loadDocument(tx, doc.id);
@@ -124,7 +126,6 @@ async function afterSignature(tx: Tx, doc: LoadedDocument, user: CurrentUser, pa
     before: { status: "SIGNING" },
     after: { status: "SIGNED", sha256: doc.sha256 },
   });
-  await notify(tx, { userId: otherUserId, kind: "document.fully_signed", title: t.notify.fullySigned.title(kind), body: t.notify.fullySigned.body(doc.number), link });
   await onDocumentSigned(tx, doc.id);
   if (doc.kind === "ACCEPTANCE_ACT") await enqueueJob(tx, { kind: EMAIL_ACT_JOB, payload: { documentId: doc.id }, dedupeKey: `${EMAIL_ACT_JOB}:${doc.id}` });
   return { fullySigned: true };

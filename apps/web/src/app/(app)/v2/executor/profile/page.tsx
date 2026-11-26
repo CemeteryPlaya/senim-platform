@@ -7,7 +7,7 @@ import { getDevice, type Device } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
 import { requireMaster } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
-import { companyNow, initialValues, placeLine, publicHref, sectionLinks, type CompanyProfile } from "./_parts/company-view";
+import { companyNow, initialValues, publicHref, sectionLinks, type CompanyProfile } from "./_parts/company-view";
 import { CompanyForm } from "./CompanyForm";
 
 const t = ru.app.masterCompany;
@@ -15,17 +15,18 @@ const REGISTER = to("/register/executor");
 
 export const metadata: Metadata = { title: t.company.metaTitle };
 
-/** Карточка «Как вас видят покупатели»: номер исполнителя, город и район, название для оферты и пояснение, что скрыто. */
+/**
+ * Карточка «Как вас видят покупатели»: до оферты — номер исполнителя, после — название для оферты; одно пояснение, что
+ * скрыто (в том числе что видно из адреса и маска «О себе»). Город и район здесь не повторяются: они в полях адреса.
+ */
 function Seen({ profile, device }: { profile: CompanyProfile; device: Device }) {
   const s = t.company.seen;
-  const place = placeLine(profile);
   const publicPage = publicHref(profile);
   return (
     <Section title={s.title}>
       <Card padded={false}>
         <List>
           <ListRow label={s.as} value={profile.label} />
-          {place !== null && <ListRow label={s.place} value={place} stacked />}
           <ListRow label={s.legalName} value={profile.legalName} stacked />
         </List>
       </Card>
@@ -43,13 +44,16 @@ function Seen({ profile, device }: { profile: CompanyProfile; device: Device }) 
   );
 }
 
+/** Разделы личного — только у неодобренного мастера (у одобренного они на экране «Профиль»). */
 function Sections({ profile }: { profile: CompanyProfile }) {
+  const links = sectionLinks(profile.status);
+  if (links.length === 0) return null;
   return (
     <Section title={t.company.sections.title}>
       <nav aria-label={t.company.sections.title}>
         <Card padded={false}>
           <List>
-            {sectionLinks(profile.status).map((row) => (
+            {links.map((row) => (
               <ListRow key={row.href} label={row.label} href={row.href} />
             ))}
           </List>
@@ -63,7 +67,7 @@ function Now({ profile }: { profile: CompanyProfile }) {
   const now = companyNow(profile);
   return (
     <Stack gap="tight">
-      <NowNext now={{ title: now.title, ...(now.body ? { body: now.body } : {}) }} next={now.next} />
+      <NowNext now={{ title: now.title, ...(now.body ? { body: now.body } : {}) }} {...(now.next ? { next: now.next } : {})} />
       {now.fixHref && now.fixLabel && (
         <ButtonLink variant="quiet" href={now.fixHref}>
           {now.fixLabel}
@@ -74,8 +78,8 @@ function Now({ profile }: { profile: CompanyProfile }) {
 }
 
 /**
- * «Компания» мастера: как его видят покупатели, разделы личного (документы, счёт для оплаты, портфолио, финансы) и форма
- * (о себе, опыт, что делает, условия замера, адрес). Открыта и мастеру на проверке, и после отказа — компанию можно
+ * «Компания» мастера: как его видят покупатели, разделы личного (документы, счёт для оплаты, портфолио — только у
+ * неодобренного: одобренный пришёл с «Профиля», где они стоят) и форма (о себе, опыт, что делает, условия замера, адрес). Открыта и мастеру на проверке, и после отказа — компанию можно
  * заполнять до одобрения; нет профиля мастера — на регистрацию (там анкета и статус). «Назад» — «Профиль» у одобренного
  * (у неодобренного «Компания» — корневая вкладка). Телефон — «Сейчас» → «Как вас видят» → разделы → форма с главным
  * действием в доке; компьютер — форма слева, остальное справа.

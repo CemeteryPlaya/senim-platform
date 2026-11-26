@@ -167,7 +167,7 @@ describe("экран подписи акта приёмки", () => {
     expect(out).toContain(`>${t.title.ACCEPTANCE_ACT}<`);
     expect(plain(out)).toContain(t.act.meaning);
     expect(plain(out)).toContain(t.act.notLiked);
-    expect(plain(out)).not.toContain(t.what.total);
+    expect(plain(out)).not.toContain(t.what.priceTotal);
     expect(plain(out)).not.toContain(t.act.farTitle);
     expect(primaries(out)).toHaveLength(1);
     expect(shown(out)).not.toMatch(FORBIDDEN);
@@ -237,7 +237,7 @@ describe("экран подписи мастера", () => {
   // С ADR-015 сумма покупателя равна цене по оферте (её мастер видит): скрыта только строка «к оплате» покупателя.
   function noBuyerSums(out: string) {
     expect(m.buyerTotalTiyn).toBe(m.priceTiyn);
-    expect(plain(out)).not.toContain(t.what.total);
+    expect(plain(out)).not.toContain(t.what.priceTotal);
     expect(plain(out)).not.toMatch(/Защита сделки/);
   }
 

@@ -87,7 +87,7 @@ test("новый номер: роль → номер → код → соглас
   await expect(page).toHaveURL(/\/v2\/consent$/);
 });
 
-test("неверный код: ошибка у поля; «Изменить номер» возвращает к номеру, номер сохранён", async ({ page }) => {
+test("неверный код: ошибка у поля; «Назад» возвращает к номеру, номер сохранён", async ({ page }) => {
   const phone = freshPhone();
   await open(page, "/v2/login");
   // «Уже регистрировались? Войти по номеру» — кнопка: действие забывает прежний выбор роли и ведёт на шаг номера.
@@ -106,7 +106,8 @@ test("неверный код: ошибка у поля; «Изменить но
   await expect(page.getByText(new RegExp(`^${t.code.resend} через \\d:\\d\\d$`))).toBeVisible();
   await expect(page.getByRole("button", { name: new RegExp(`^${t.code.resend}`) })).toHaveCount(0);
 
-  await page.getByRole("link", { name: t.code.changePhone }).click();
+  // Ссылки «Изменить номер» нет: к номеру ведёт «Назад» (её подпись — название шага номера).
+  await page.getByRole("link", { name: new RegExp(t.code.backLabel) }).click();
   await expect(heading(page, t.phone.title)).toBeVisible();
   await expect(page).toHaveURL(/\/v2\/login\?step=phone$/);
   // В поле — номер без приставки «+7» (она стоит в поле отдельно): «700 123 45 67».

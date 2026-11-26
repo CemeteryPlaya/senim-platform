@@ -78,9 +78,10 @@ function Preview({ item, className, showName = true }: { item: UploaderItem; cla
 
 /**
  * Выбор и показ фото: кнопка добавления (внутри скрытый `input type="file"`), сетка превью с ходом загрузки, ошибка и
- * «Повторить» / «Убрать» у файла, счётчик «N из max». Компонент «глупый»: состояние загрузки, отправка и повторы — у
- * вызывающего (автомат `src/features/upload`), сюда приходят готовые `items`. На компьютере файлы можно перетащить на
- * область (необязательное улучшение). Клиентский компонент.
+ * «Повторить» / «Убрать» у файла, счётчик «N из max» (когда что-то добавлено и `max` > 1). Компонент «глупый»:
+ * состояние загрузки, отправка и повторы — у вызывающего (автомат `src/features/upload`), сюда приходят готовые `items`.
+ * На компьютере файлы можно перетащить на область (необязательное улучшение; подсказка — только при `max` > 1).
+ * Клиентский компонент.
  */
 export function Uploader({ items, onAdd, onRemove, onRetry, onReject, max, accept = "image/*", capture, label, name }: UploaderProps) {
   const t = ru.app.kit.uploader;
@@ -88,6 +89,7 @@ export function Uploader({ items, onAdd, onRemove, onRetry, onReject, max, accep
   const camera = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const full = items.length >= max;
+  const showCounter = items.length > 0 && max > 1;
 
   const add = (files: readonly File[]) => {
     const { accepted, wrongType, overLimit } = sortFiles(files, items.length, max, accept);
@@ -196,11 +198,14 @@ export function Uploader({ items, onAdd, onRemove, onRetry, onReject, max, accep
             </span>
           </Button>
         )}
+        {/* Область статуса стоит всегда (диктор объявит первое добавление), текст — только когда он что-то сообщает:
+            пока ничего не добавлено, «0 из N» — шум; при одном файле счётчик «1 из 1» ничего не добавляет к превью. */}
         <p role="status" className="text-sub text-muted">
-          {t.counter(items.length, max)}
+          {showCounter && t.counter(items.length, max)}
         </p>
       </div>
-      {!full && <p className="text-sub text-muted mobile:hidden">{t.drop}</p>}
+      {/* Подсказка о перетаскивании — только там, где файлов может быть несколько: у поля на один скан хватает кнопки. */}
+      {!full && max > 1 && <p className="text-sub text-muted mobile:hidden">{t.drop}</p>}
       <input
         ref={input}
         type="file"

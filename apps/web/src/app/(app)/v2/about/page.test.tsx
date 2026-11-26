@@ -33,8 +33,9 @@ beforeEach(() => {
 });
 
 describe("/v2/about: структура", () => {
-  it("один h1 и «Назад: Главная»", async () => {
+  it("один h1 и «Назад: Главная»; подзаголовка-оглавления нет", async () => {
     const out = await render();
+    expect(out).not.toContain("сколько это стоит и что делать");
     expect(count(out, "<h1")).toBe(1);
     expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe(t.title);
     expect(out).toContain('href="/v2"');
@@ -54,7 +55,7 @@ describe("/v2/about: структура", () => {
     const ids = [...out.matchAll(/<h2 id="([a-z]+)"/g)].map((m) => m[1]);
     const home = html(<GuestHome device="desktop" />);
     const hashes = [...home.matchAll(/href="\/v2\/about#([a-z]+)"/g)].map((m) => m[1]);
-    expect(hashes).toHaveLength(3);
+    expect(hashes).toHaveLength(1);
     for (const hash of hashes) expect(ids).toContain(hash);
   });
 
@@ -162,7 +163,8 @@ describe("/v2/about: оформление", () => {
     // Раздел — после всех четырёх (оглавление справа на компьютере стоит в разметке позже, но это другая колонка).
     expect(out.indexOf(`>${text.section}</h2>`)).toBeGreaterThan(out.indexOf(`>${t.master.title}</h2>`));
     const section = out.slice(out.indexOf(`>${text.section}</h2>`));
-    expect(section).toContain(text.sectionLegend);
+    // Подпись группы — только для диктора: раздел уже назван заголовком.
+    expect(section).toContain(`<legend class="sr-only">${text.sectionLegend}</legend>`);
     for (const label of [text.system, text.light, text.dark]) expect(section).toContain(`>${label}</button>`);
     expect(section.match(/aria-pressed="true"[^>]*>([^<]*)</)?.[1]).toBe(text.dark);
   });

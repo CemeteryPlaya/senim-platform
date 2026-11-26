@@ -18,11 +18,13 @@ const client: User = { role: "CLIENT", roles: ["CLIENT"], fullName: "Сапар�
 const render = (user: User, device: Device, history?: BuyerHistory) => html(<ProfileView model={profileModel(user, history)} theme="system" device={device} />);
 
 describe("profileModel", () => {
-  it("имя как записано, телефон форматированный, активная роль строкой", () => {
+  it("имя как записано, телефон форматированный; активная роль строкой — только когда ролей две", () => {
     const m = profileModel(client);
     expect(m.name).toBe("Сапаров Ерлан");
     expect(m.phone).toBe("+7 700 123 45 67");
-    expect(m.roleLine).toBe("Вы сейчас — покупатель");
+    expect(m.roleLine).toBeNull();
+    expect(profileModel({ ...client, roles: ["CLIENT", "EXECUTOR"] }).roleLine).toBe("Вы сейчас — покупатель");
+    expect(profileModel({ ...client, role: "EXECUTOR", roles: ["EXECUTOR"] }).roleLine).toBeNull();
   });
 
   it("без имени — «Имя не указано»", () => {
@@ -66,8 +68,8 @@ const hrefs = (user: User) => profileModel(user).work.map((r) => r.href);
 const WORK = ["/v2/executor/profile", "/v2/executor/profile/kyc", "/v2/executor/profile/payout", "/v2/executor/portfolio"];
 
 describe("разделы мастера", () => {
-  it("одобренный: компания, документы, счёт, портфолио, финансы, публичный профиль; общие разделы после них", () => {
-    expect(hrefs(master("APPROVED"))).toEqual([...WORK, "/v2/executor/finance", "/v2/executors/17"]);
+  it("одобренный: компания, документы, счёт, портфолио, финансы (публичная страница — в «Компании»); общие разделы после них", () => {
+    expect(hrefs(master("APPROVED"))).toEqual([...WORK, "/v2/executor/finance"]);
     expect(profileModel(master("APPROVED")).sections.map((s) => s.href)).toEqual(["/v2/profile/contacts", "/v2/profile/data", "/v2/notifications", "/v2/help"]);
   });
 
@@ -87,7 +89,8 @@ describe("разделы мастера", () => {
   it.each(["mobile", "desktop"] as const)("%s: раздел «Работа мастера» с ссылками; у покупателя его нет; главного действия нет", (device) => {
     const out = render(master("APPROVED"), device);
     expect(out).toContain(`>${ru.app.masterProfile.sectionsTitle}</h2>`);
-    for (const href of [...WORK, "/v2/executor/finance", "/v2/executors/17"]) expect(out).toContain(`href="${href}"`);
+    for (const href of [...WORK, "/v2/executor/finance"]) expect(out).toContain(`href="${href}"`);
+    expect(out).not.toContain('href="/v2/executors/17"');
     expect(count(out, "data-primary-action")).toBe(0);
     expect(count(out, "<h1")).toBe(1);
     expect(render(client, device)).not.toContain(ru.app.masterProfile.sectionsTitle);
@@ -106,9 +109,22 @@ describe.each(["mobile", "desktop"] as const)("ProfileView (%s)", (device) => {
     expect(out).toContain("+7 700 123 45 67");
   });
 
-  it("раздел «Роль» только когда есть что менять", () => {
-    expect(render(client, device)).toContain(`>${t.role.title}</h2>`);
-    expect(render({ ...client, role: "OPERATOR", roles: ["OPERATOR"] }, device)).not.toContain(`>${t.role.title}</h2>`);
+  it("смена роли — только когда есть что менять: на компьютере разделом «Роль», на телефоне — последней строкой разделов", () => {
+    const out = render(client, device);
+    expect(out).toContain('href="/v2/register/executor"');
+    expect(out).toContain(t.role.becomeMaster);
+    if (device === "desktop") expect(out).toContain(`>${t.role.title}</h2>`);
+    else {
+      expect(out).not.toContain(`>${t.role.title}</h2>`);
+      expect(out.indexOf(t.role.becomeMaster)).toBeGreaterThan(out.indexOf('href="/v2/help"'));
+    }
+    const staff = render({ ...client, role: "OPERATOR", roles: ["OPERATOR"] }, device);
+    expect(staff).not.toContain(`>${t.role.title}</h2>`);
+    expect(staff).not.toContain(t.role.becomeMaster);
+  });
+
+  it("«Оформление»: подпись переключателя — только для диктора", () => {
+    expect(render(client, device)).toContain(`<legend class="sr-only">${t.theme.legend}</legend>`);
   });
 });
 
@@ -143,8 +159,13 @@ describe("история покупателя", () => {
     ]);
     expect(m.rows.map((r) => r.title)).toEqual(["Шкаф", "Стол", "Кровать", "Полка"]);
     expect(m.rows.map((r) => r.href)).toEqual(["/v2/deals/d1", "/v2/deals/d2", "/v2/requests/r1", "/v2/requests/d"]);
-    expect(m.rows.map((r) => r.tone)).toEqual(["accent", "danger", "neutral", "warn"]);
-    expect(m.rows.map((r) => r.status)).toEqual([h.status.success, h.status.failed, h.status.cancelled, h.status.progress]);
+    // Плашка — только у законченных; идущий заказ без пометки (жёлтый — только «нужно ваше действие»).
+    expect(m.rows.map((r) => r.status)).toEqual([
+      { text: h.status.success, tone: "accent" },
+      { text: h.status.failed, tone: "danger" },
+      { text: h.status.cancelled, tone: "neutral" },
+      null,
+    ]);
   });
 
   it("без истории (мастер, сотрудник, не передана) — модель без блока", () => {
@@ -159,6 +180,9 @@ describe("история покупателя", () => {
     for (const label of [h.stats.orders, h.stats.deals, h.stats.successful]) expect(out).toContain(label);
     for (const href of ["/v2/deals/d1", "/v2/deals/d2", "/v2/requests/r1", "/v2/requests/d"]) expect(out).toContain(`href="${href}"`);
     for (const label of Object.values(h.status)) expect(count(out, `>${label}</span>`)).toBe(1);
+    expect(out).not.toContain("В процессе");
+    // Три числа сводки в одну строку.
+    expect(out).toMatch(/role="group" aria-label="[^"]*" class="[^"]*\*:last:flex-1/);
     expect(out).toContain("Мастер Асет");
     expect(out).toContain("120");
     expect(count(out, "data-primary-action")).toBe(0);

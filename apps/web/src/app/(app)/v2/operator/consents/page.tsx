@@ -50,7 +50,7 @@ export default async function ConsentRevocationsPage() {
             {queue.map((item) => (
               <QueueCard
                 key={item.id}
-                title={item.fullName ? t.person(item.fullName) : t.noName}
+                title={item.fullName ?? t.noName}
                 meta={
                   <span className="flex flex-col items-start gap-2">
                     {item.dueAt < now && <StatusChip tone="danger">{t.overdue}</StatusChip>}

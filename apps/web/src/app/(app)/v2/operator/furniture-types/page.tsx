@@ -22,9 +22,7 @@ export default async function FurnitureTypesPage() {
     <Narrow>
       <Stack gap="section">
         <PageTitle title={t.title} lead={t.lead} />
-        <Section title={t.addTitle} id="type-add">
-          <AddTypeForm />
-        </Section>
+        <AddTypeForm />
         <Section title={t.listTitle(types.length)} id="types-list">
           {types.length === 0 ? (
             <EmptyState title={t.empty.title} body={t.empty.body} />

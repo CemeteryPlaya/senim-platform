@@ -29,11 +29,11 @@ export type PayoutInput = z.input<typeof payoutSchema>;
 
 export type PayoutNow = { title: string; body: string; next?: string };
 
-/** Карточка «Сейчас / Дальше»: оплата в обработке — смена закрыта; иначе по тому, указан ли счёт. */
+/** Карточка «Сейчас / Дальше»: оплата в обработке — смена закрыта; иначе по тому, указан ли счёт (указан — номер в заголовке). */
 export function payoutNow(last4: string | null, locked: boolean): PayoutNow {
   if (locked) return { ...t.now.locked };
   if (last4 === null) return { ...t.now.none };
-  return { ...t.now.set };
+  return { title: t.now.set.title(last4), body: t.now.set.body };
 }
 
 /** Строка «Счёт»: последние 4 знака или «Не указан». */

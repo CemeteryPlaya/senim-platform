@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { formatDays } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
-import { Card, List, ListRow, Narrow, NowNext, PageTitle, Section, Stack } from "@/kit";
+import { Card, Narrow, NowNext, PageTitle, Section, Stack } from "@/kit";
 import { getDevice } from "@/platform/device";
 import { pageHref, partyDeal, requireV2User } from "../../../../_shell/auth";
 import { dealHrefs } from "../_parts/deal-card";
@@ -17,7 +17,7 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<str
 /**
  * «Начать работу» мастером. Ворота — `partyDeal` (сторона в активной роли; в другой своей роли — переключение с возвратом
  * сюда; оператор — v1; чужая — 404). Сейчас не шаг мастера «Начать работу» (покупатель, оплата ещё не в банке, работа уже
- * идёт, спор) — карточка сделки без ошибки. Порядок: «Назад: <сделка>», «Сейчас / Дальше», что изменится (срок по оферте и
+ * идёт, спор) — карточка сделки без ошибки. Порядок: «Назад: <сделка>», «Сейчас», что изменится (срок по оферте и
  * последствия), одно главное действие с подтверждением. Компьютер — `Narrow`.
  */
 export default async function StartPage({ params, searchParams }: Props) {
@@ -35,16 +35,11 @@ export default async function StartPage({ params, searchParams }: Props) {
     <Narrow>
       <Stack gap="section">
         <PageTitle title={t.title} back={{ href: card, label: deal.title }} />
-        <NowNext now={t.now} next={t.next} />
+        <NowNext now={t.now} />
         <Section title={t.section}>
-          <Card padded={false}>
-            <List>
-              <ListRow label={t.duration} value={days} />
-            </List>
-          </Card>
           <Card>
             <ul className="flex list-disc flex-col gap-2 pl-6 text-body text-ink marker:text-muted">
-              {t.points.map((point) => (
+              {t.points(days).map((point) => (
                 <li key={point}>{point}</li>
               ))}
             </ul>

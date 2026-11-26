@@ -28,7 +28,7 @@ export function SegmentForm({ profileId, current }: { profileId: string; current
       <Card>
         <form ref={formRef} onSubmit={form.onSubmit} noValidate>
           <Stack>
-            <p className="text-body text-muted">{c.segmentChange.current(q.segments[current])}</p>
+            <p className="text-body text-muted">{c.segmentChange.note}</p>
             <HiddenField name="profileId" value={profileId} />
             <HiddenField name="from" value={current} />
             <Select label={c.segmentChange.to} name="to" required defaultValue={others[0]} error={form.fieldErrors.to}>

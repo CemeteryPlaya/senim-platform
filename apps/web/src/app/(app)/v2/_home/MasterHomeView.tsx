@@ -29,26 +29,30 @@ export type MasterHomeData = {
   moreDeals: number;
   /** До трёх новых заявок. */
   fresh: IncomingListItem[];
-  /** Числа сводки из модулей: новые заявки, сделки в работе, получено за месяц (журнал денег). */
-  stats: { fresh: number; inWork: number; earnedTiyn: bigint };
+  /** Числа из модулей: сколько всего новых заявок (для ссылки «Все заявки») и получено за месяц (журнал денег). */
+  stats: { fresh: number; earnedTiyn: bigint };
   /** Обложка карточки-героя — последнее фото отчёта сделки из «Сейчас»; `null` — без обложки. */
   cover?: DealCover | null;
 };
 
-/** Содержимое карточки «Сейчас / Дальше» по выбору `masterHome`. */
-function nowText(view: View): { title: string; body?: string; next?: string } {
+/**
+ * Содержимое карточки «Сейчас / Дальше» по выбору `masterHome`. `inHero` — карточка-герой сделки: её название уже стоит
+ * заголовком героя, второй раз в теле его не пишем (у обычной карточки «Сейчас» название нужно).
+ */
+function nowText(view: View, inHero: boolean): { title: string; body?: string; next?: string } {
   const n = t.now;
   const { kind, deal, counter, freshCount } = view.now;
   const dealTitle = deal?.title ?? "";
+  const about = (s: { lead: string; body: (deal: string) => string }) => (inHero ? s.lead : s.body(dealTitle));
   switch (kind) {
     case "sign-offer":
-      return { title: n.signOffer.title, body: n.signOffer.body(dealTitle), next: n.signOffer.next };
+      return { title: n.signOffer.title, body: about(n.signOffer), next: n.signOffer.next };
     case "bank-consent":
-      return { title: n.bankConsent.title, body: n.bankConsent.body(dealTitle), next: n.bankConsent.next };
+      return { title: n.bankConsent.title, body: about(n.bankConsent), next: n.bankConsent.next };
     case "start":
-      return { title: n.start.title, body: n.start.body(dealTitle), next: n.start.next };
+      return { title: n.start.title, body: about(n.start), next: n.start.next };
     case "sign-act":
-      return { title: n.signAct.title, body: n.signAct.body(dealTitle), next: n.signAct.next };
+      return { title: n.signAct.title, body: about(n.signAct), next: n.signAct.next };
     case "counter":
       return { title: n.counter.title, body: counter ? n.counter.body(counter.requestTitle, formatMoney(counter.amountTiyn)) : undefined, next: n.counter.next };
     case "fresh":
@@ -62,7 +66,7 @@ function nowText(view: View): { title: string; body?: string; next?: string } {
     case "kyc-pending":
       return { title: n.kycPending.title, body: n.kycPending.body };
     case "in-work":
-      return { title: n.inWork.title, body: n.inWork.body(dealTitle) };
+      return { title: n.inWork.title, body: about(n.inWork) };
     case "empty":
       return { title: n.empty.title, body: n.empty.body };
   }
@@ -88,15 +92,15 @@ function secondaryLabel(kind: View["now"]["kind"]): string {
 }
 
 /**
- * Сводка числами: ничего не считается на экране — значения пришли из модулей. Телефон — три числа в одну строку (`inline`),
- * сумма компактная с маленьким «₸». Нули приглушены (разбор 3.1): крупный «0» не спорит с тем, что есть.
+ * Сводка — одно число «Получено за месяц» из журнала денег (на экране ничего не считается). Счётчики заявок и сделок не
+ * показываем: сами заявки и сделки лежат ниже на этом же экране. Пока за месяц ничего не получено — сводки нет
+ * (пустое не показываем).
  */
-function Summary({ stats, device }: { stats: MasterHomeData["stats"]; device: Device }) {
+function Summary({ stats }: { stats: MasterHomeData["stats"] }) {
+  if (stats.earnedTiyn === 0n) return null;
   return (
-    <StatRow label={t.stats.label} inline={device === "mobile"}>
-      <Stat label={t.stats.fresh} value={stats.fresh} muted={stats.fresh === 0} />
-      <Stat label={t.stats.inWork} value={stats.inWork} muted={stats.inWork === 0} />
-      <Stat label={t.stats.earned} value={<Money tiyn={stats.earnedTiyn} large tone={stats.earnedTiyn === 0n ? "inherit" : "ink"} />} compact muted={stats.earnedTiyn === 0n} />
+    <StatRow label={t.stats.label}>
+      <Stat label={t.stats.earned} value={<Money tiyn={stats.earnedTiyn} large tone="ink" />} compact />
     </StatRow>
   );
 }
@@ -122,12 +126,16 @@ function Deals({ deals, more }: { deals: MasterHomeData["deals"]; more: number }
   );
 }
 
-function FreshRequests({ fresh }: { fresh: IncomingListItem[] }) {
+/**
+ * Новые заявки (до трёх). Метки «Новая» в строках нет: раздел так и называется. «Все заявки» — в строке заголовка и только
+ * когда новых больше, чем показано («Заявки» есть и в меню).
+ */
+function FreshRequests({ fresh, total }: { fresh: IncomingListItem[]; total: number }) {
   if (fresh.length === 0) return null;
+  const all = total > fresh.length ? <TextLink href={to("/executor/requests")}>{t.requests.all}</TextLink> : undefined;
   return (
-    <Section title={t.requests.section}>
-      <IncomingRows cards={fresh.map((r) => incomingCard(r))} />
-      <TextLink href={to("/executor/requests")}>{t.requests.all}</TextLink>
+    <Section title={t.requests.section} action={all}>
+      <IncomingRows cards={fresh.map((r) => incomingCard(r, new Date(), { markFresh: false }))} />
     </Section>
   );
 }
@@ -136,11 +144,14 @@ function FreshRequests({ fresh }: { fresh: IncomingListItem[] }) {
  * Показ главной мастера по готовому выбору. Одна колонка на обоих устройствах (компьютер — 760 px по центру, разбор 3.9):
  * «Сейчас» — карточкой-героем, когда речь о сделке (обложка из отчёта, «Вы получите…», ход, кнопка внутри на компьютере),
  * иначе «Сейчас / Дальше» с кнопкой внутри на компьютере; под ним первые шаги и «Как взять заказ» (до первого
- * предложения); затем сводка, остальные сделки, новые заявки. Телефон — главное действие в доке в конце экрана.
+ * предложения); затем сводка (получено за месяц), остальные сделки, новые заявки. Телефон — главное действие в доке в конце экрана.
  */
 export function MasterHomeView({ data, name, device }: { data: MasterHomeData; name: string | null; device: Device }) {
   const { view } = data;
-  const text = nowText(view);
+  // Герой — сделка, о которой «Сейчас» (она первая в блоке сделок); остальные — карточками ниже.
+  const heroDeal = view.now.deal ? data.deals.find((d) => d.item.id === view.now.deal?.id) : undefined;
+  const rest = heroDeal ? data.deals.filter((d) => d !== heroDeal) : data.deals;
+  const text = nowText(view, heroDeal !== undefined);
   const action = view.primary && (
     <ActionDock>
       <ButtonLink href={view.primary.href}>{PRIMARY_LABEL[view.primary.kind]}</ButtonLink>
@@ -149,9 +160,6 @@ export function MasterHomeView({ data, name, device }: { data: MasterHomeData; n
   // Компьютер: кнопка внутри карточки «Сейчас». Телефон: в доке последним элементом экрана.
   const inCard = device === "desktop" ? action : null;
   const secondary = view.secondary && <TextLink href={view.secondary.href}>{secondaryLabel(view.now.kind)}</TextLink>;
-  // Герой — сделка, о которой «Сейчас» (она первая в блоке сделок); остальные — карточками ниже.
-  const heroDeal = view.now.deal ? data.deals.find((d) => d.item.id === view.now.deal?.id) : undefined;
-  const rest = heroDeal ? data.deals.filter((d) => d !== heroDeal) : data.deals;
   const now = (
     <Stack>
       {heroDeal ? (
@@ -179,9 +187,9 @@ export function MasterHomeView({ data, name, device }: { data: MasterHomeData; n
     <Stack gap="section" className="desktop:mx-auto desktop:w-full desktop:max-w-home">
       <PageTitle title={t.title(name)} />
       {now}
-      <Summary stats={data.stats} device={device} />
+      <Summary stats={data.stats} />
       <Deals deals={rest} more={data.moreDeals} />
-      <FreshRequests fresh={data.fresh} />
+      <FreshRequests fresh={data.fresh} total={data.stats.fresh} />
       {device === "mobile" && action}
     </Stack>
   );

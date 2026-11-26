@@ -8,7 +8,7 @@ import type { OperationRow } from "./money-view";
 
 const t = ru.app.deal.money;
 
-export type MoneyDocument = { id: string; name: string; status: string; href: string; open: string; shareable: boolean };
+export type MoneyDocument = { id: string; name: string; status: string | null; href: string; open: string; shareable: boolean };
 
 export type MoneyHistoryModel = {
   /** Чьими глазами: покупатель или мастер (тексты и состав экрана). */
@@ -32,7 +32,9 @@ export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; 
   const m = model.money;
   const master = model.side === "EXECUTOR";
   const tx = master ? ru.app.masterMoney : t;
-  const e = master ? ru.app.masterDeal.card.money.explain : ru.app.deal.card.money.explain;
+  // Пояснение «Что это?» — по факту состояния из вида денег (до приёмки — деньги в банке, после — оплата мастеру).
+  const label = master ? ru.app.masterDeal.card.money.explain.label : ru.app.deal.card.money.explain.label;
+  const explain = m.explain && { label, title: m.explain.title, body: <p>{m.explain.body}</p> };
   const items: TimelineItem[] = model.operations.map((row) => ({
     title: row.title,
     time: row.time,
@@ -49,7 +51,7 @@ export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; 
           tone={m.tone}
           title={m.title}
           amount={m.amount}
-          rows={m.rows.map(({ explain, ...row }) => (explain ? { ...row, explain: { label: e.label, title: e.title, body: <p>{e.body}</p> } } : row))}
+          rows={m.rows.map(({ explain: here, ...row }) => (here && explain ? { ...row, explain } : row))}
           {...(m.note ? { note: m.note } : {})}
           device={device}
         />
@@ -75,7 +77,7 @@ export function MoneyHistoryView({ model, device }: { model: MoneyHistoryModel; 
                 <div className="flex flex-col gap-2 px-card py-3">
                   <span className="flex flex-col gap-1">
                     <span className="text-body text-ink wrap-break-word">{doc.name}</span>
-                    <span className="text-sub text-muted">{doc.status}</span>
+                    {doc.status && <span className="text-sub text-muted">{doc.status}</span>}
                   </span>
                   <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
                     <TextLink href={doc.href} external>

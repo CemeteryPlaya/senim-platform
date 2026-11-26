@@ -48,7 +48,8 @@ function primaryAction(role: string | null): Action {
  * главным действием; внизу страницы кнопки нет. Телефон — одна колонка и `ActionDock` в конце. Вошедшему заказчику
  * действие ведёт на новую заявку, мастеру и оператору главного действия нет, и ссылка регистрации мастера им не
  * показывается. Якоря и порядок — в `anchors.ts`. Вошедший с непройденными первыми шагами — на шаг с возвратом сюда.
- * Внизу — раздел «Оформление» с переключателем темы (гостю другого места для него нет).
+ * Внизу — раздел «Оформление» с переключателем темы (гостю другого места для него нет); группу называет заголовок
+ * раздела, подпись группы — только для диктора.
  */
 export default async function AboutPage() {
   const [user, device, theme] = await Promise.all([userPastOnboarding(to("/about")), getDevice(), getTheme()]);
@@ -87,7 +88,7 @@ export default async function AboutPage() {
 
   return (
     <Stack gap="section">
-      <PageTitle title={t.title} lead={t.lead} back={{ href: to("/"), label: t.backLabel }} />
+      <PageTitle title={t.title} back={{ href: to("/"), label: t.backLabel }} />
       <Split
         stickyAside={device === "desktop"}
         main={
@@ -112,7 +113,6 @@ export default async function AboutPage() {
                   {t.price.masterPrice} <Money tiyn={money.priceTiyn} /> — {t.price.masterGets}{" "}
                   <Money tiyn={money.payoutTiyn} />
                 </p>
-                <p className="mt-1 text-body text-muted">{t.price.masterNote}</p>
               </Card>
             </Section>
             <Section id={ABOUT_ANCHORS.refusal} title={t.refusal.title}>
@@ -128,7 +128,7 @@ export default async function AboutPage() {
             </Section>
             <Section title={themeText.section}>
               <Card>
-                <ThemeSwitch current={theme} legend={themeText.sectionLegend} />
+                <ThemeSwitch current={theme} legend={themeText.sectionLegend} legendHidden />
               </Card>
             </Section>
           </Stack>

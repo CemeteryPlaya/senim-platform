@@ -239,27 +239,26 @@ test.describe("шрифт 200% при 360 px", () => {
 // ───────── 9, 15. Заглушка раздела ─────────
 
 test.describe("заглушка раздела", () => {
-  test("9. /v2/executor/orders/1 — заглушка со ссылкой на /executor/orders/1", async ({ page }) => {
-    // Экраны покупателя уже перенесены; заглушку проверяем на разделе мастера (этап 4).
-    await page.goto("/v2/executor/orders/1");
+  test("9. /v2/executor/measurements — экран есть только в v1: заглушка со ссылкой на /executor/measurements", async ({ page }) => {
+    // Экран замеров ещё не перенесён в v2, в v1 он есть (_shell/legacy-routes.ts).
+    await page.goto("/v2/executor/measurements");
     await expect(page.getByRole("heading", { level: 1, name: shell.movingTitle })).toBeVisible();
-    await expect(page.getByRole("link", { name: shell.openOld })).toHaveAttribute("href", "/executor/orders/1");
+    await expect(page.getByRole("link", { name: shell.openOld })).toHaveAttribute("href", "/executor/measurements");
   });
 
   test("15a. параметры адреса сохраняются в ссылке", async ({ page }) => {
-    await page.goto("/v2/executor/orders/1?tab=money");
-    await expect(page.getByRole("link", { name: shell.openOld })).toHaveAttribute("href", "/executor/orders/1?tab=money");
+    await page.goto("/v2/executor/measurements?tab=money");
+    await expect(page.getByRole("link", { name: shell.openOld })).toHaveAttribute("href", "/executor/measurements?tab=money");
   });
 
-  test("15b. /v2//example.com: Next нормализует адрес, ссылка ведёт на /example.com, а не на чужой сайт", async ({ page }) => {
-    await page.goto("/v2//example.com");
-    // Наблюдаемый итог (Next 16.4.3): двойной слеш схлопывается ещё до страницы, адрес становится /v2/example.com.
-    expect(new URL(page.url()).pathname).toBe("/v2/example.com");
-    const link = page.getByRole("link", { name: shell.openOld });
-    await expect(link).toBeVisible();
-    // Страховка самой заглушки (пустые сегменты отбрасываются) проверена модульным тестом page.test.tsx.
-    await expect(link).toHaveAttribute("href", "/example.com");
-    expect((await link.getAttribute("href"))?.startsWith("//")).toBe(false);
+  test("15b. выдуманный адрес (/v2/executor/orders/1, /v2//example.com) — «Страница не найдена», не перенос", async ({ page }) => {
+    for (const path of ["/v2/executor/orders/1", "/v2//example.com"]) {
+      const response = await page.goto(path);
+      expect(response?.status(), path).toBe(404);
+      await expect(page.getByRole("heading", { level: 1, name: shell.notFoundTitle }), path).toBeVisible();
+      await expect(page.getByText(shell.movingTitle), path).toHaveCount(0);
+      await expect(page.getByRole("link", { name: shell.openOld }), path).toHaveCount(0);
+    }
   });
 
   // Сегмент с закодированными «//» и «\»: что бы ни сделал сервер (404, переадресация или заглушка), ссылка заглушки,

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import type { ChatListItem, ChatView } from "@/modules/companies";
-import { chatHref, chatRoomModel, chatRows, closedText, contextLink, contextOf, counterpartOf, dayLabel, messageTime } from "./chat-view";
+import { formatTime } from "@/features/format/format";
+import { chatHref, chatRoomModel, chatRows, closedText, contextLink, contextOf, counterpartOf, dayLabel, messageTime, rowTime } from "./chat-view";
 import { createGate, shouldPoll } from "./single-flight";
 
 const t = ru.app.chat;
@@ -61,11 +62,11 @@ describe("время и разделители дней", () => {
 });
 
 describe("модель ленты", () => {
-  it("до оферты — системная строка первой; свои справа, автор для диктора из модуля", () => {
+  it("до оферты — без системной строки о контактах (о них — строка под заголовком); свои справа, автор для диктора из модуля", () => {
     const model = chatRoomModel(view(), NOW);
     expect(model.beforeOffer).toBe(true);
-    expect(model.messages[0]).toMatchObject({ kind: "system", text: t.room.hiddenSystem });
-    expect(model.messages.slice(1).filter((m) => m.kind !== "day").map((m) => [m.id, m.mine, m.author])).toEqual([
+    expect(model.messages.some((m) => m.kind === "system")).toBe(false);
+    expect(model.messages.filter((m) => m.kind !== "day").map((m) => [m.id, m.mine, m.author])).toEqual([
       ["m1", false, "Исполнитель №7"],
       ["m2", true, "Вы"],
     ]);
@@ -112,7 +113,7 @@ describe("вложения в ленте", () => {
       }),
       NOW,
     );
-    const [, first, second] = model.messages.filter((m) => m.kind !== "day");
+    const [first, second] = model.messages.filter((m) => m.kind !== "day");
     expect(first.attachments?.map((a) => [a.id, a.name, a.url, a.previewUrl])).toEqual([
       ["f1", t.room.photo(1), "/api/files/a", "/api/files/a"],
       ["f2", t.room.photo(2), "/api/files/b", "/api/files/b"],
@@ -150,6 +151,13 @@ describe("список диалогов", () => {
     expect(row.time).toBeTruthy();
   });
 
+  it("время строки: сегодня — часы и минуты, раньше — короткая дата без «назад»", () => {
+    const nb = String.fromCharCode(160);
+    expect(rowTime(new Date("2026-11-20T09:30:00Z"), new Date("2026-11-20T12:00:00Z"))).toBe(formatTime(new Date("2026-11-20T09:30:00Z")));
+    expect(rowTime(new Date("2026-11-15T09:30:00Z"), new Date("2026-11-20T12:00:00Z"))).toBe(`15${nb}нояб`);
+    expect(chatRows([item({ lastAt: new Date("2026-11-15T09:30:00Z") })], new Date("2026-11-20T12:00:00Z"))[0]?.time).not.toMatch(/назад/);
+  });
+
   it("диалоги без сообщений в список не попадают; закрытый с сообщениями остаётся", () => {
     const rows = chatRows([item({ offerId: "empty", lastMessage: null, lastAt: null }), item({ offerId: "closed", closed: true })], NOW);
     expect(rows.map((r) => [r.offerId, r.closed])).toEqual([["closed", true]]);
@@ -174,7 +182,7 @@ describe("чаты мастера: собеседник, причины и «к 
     expect(counterpartOf("Заказчик", "EXECUTOR")).toBe(tm.counterpart);
     expect(counterpartOf("Исполнитель №7", "CLIENT")).toBe("Исполнитель №7");
     const model = chatRoomModel(masterView(), NOW, "EXECUTOR");
-    expect(model.messages.filter((m) => m.kind !== "day").slice(1).map((m) => m.author)).toEqual([tm.counterpart, "Вы"]);
+    expect(model.messages.filter((m) => m.kind !== "day").map((m) => m.author)).toEqual([tm.counterpart, "Вы"]);
     expect(JSON.stringify(model)).not.toMatch(/заказчик/i);
   });
 

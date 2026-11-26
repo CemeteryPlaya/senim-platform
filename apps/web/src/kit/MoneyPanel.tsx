@@ -24,9 +24,16 @@ export type MoneyPanelProps = {
   title: string;
   /** Главная сумма в тиынах. */
   amount: bigint;
+  /**
+   * Подпись прямо под главной суммой («К оплате, без доплат»), с пояснением по нажатию. Для сметы из одной суммы:
+   * вместо строк, которые повторяли бы ту же сумму. Без пропа подписи нет.
+   */
+  caption?: { text: string; explain?: MoneyRow["explain"] };
   rows?: readonly MoneyRow[];
   /** Поясняющая строка под строками. */
   note?: string;
+  /** Пояснение по нажатию в конце примечания («Что это?»), когда строк с пояснением нет. Без `note` не показывается. */
+  noteExplain?: { label: string; title: string; body: ReactNode };
   /** Ссылка внизу («История денег»). */
   action?: { label: string; href: string };
   /** Нужен пояснениям строк (`Explain`). */
@@ -51,7 +58,7 @@ const TONES: Record<MoneyTone, { box: string; title: string; divider: string }> 
  * примечание и ссылка внизу. Суммы — тиыны через `Money`, формулы здесь нет: все числа приходят из журнала денег.
  * Клиентская часть — только `Explain` внутри строк.
  */
-export function MoneyPanel({ tone, title, amount, rows = [], note, action, device }: MoneyPanelProps) {
+export function MoneyPanel({ tone, title, amount, caption, rows = [], note, noteExplain, action, device }: MoneyPanelProps) {
   const styles = TONES[tone];
   const titleId = useId();
   const textTone = tone === "protected" ? "text-ink" : "text-muted";
@@ -66,6 +73,17 @@ export function MoneyPanel({ tone, title, amount, rows = [], note, action, devic
         <p className="text-display-amount tabular-nums text-ink">
           <Money tiyn={amount} large />
         </p>
+        {caption && (
+          // div, а не p: внутри пояснения (поповер, шторка) — блочное содержимое.
+          <div className={cn("flex min-w-0 flex-wrap items-baseline gap-x-2 text-body", textTone)}>
+            <span>{caption.text}</span>
+            {caption.explain && (
+              <Explain label={caption.explain.label} title={caption.explain.title} device={device}>
+                {caption.explain.body}
+              </Explain>
+            )}
+          </div>
+        )}
       </div>
       {rows.length > 0 && (
         <dl className="flex flex-col">
@@ -89,7 +107,16 @@ export function MoneyPanel({ tone, title, amount, rows = [], note, action, devic
           ))}
         </dl>
       )}
-      {note && <p className={cn("text-sub", tone === "protected" ? "text-ink" : "text-muted")}>{note}</p>}
+      {note && (
+        <div className={cn("flex flex-wrap items-baseline gap-x-2 text-sub", tone === "protected" ? "text-ink" : "text-muted")}>
+          <p>{note}</p>
+          {noteExplain && (
+            <Explain label={noteExplain.label} title={noteExplain.title} device={device}>
+              {noteExplain.body}
+            </Explain>
+          )}
+        </div>
+      )}
       {action && <TextLink href={action.href}>{action.label}</TextLink>}
     </section>
   );

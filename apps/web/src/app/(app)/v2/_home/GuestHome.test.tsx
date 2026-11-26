@@ -42,47 +42,55 @@ describe("главная гостя (лендинг)", () => {
         expect(out).not.toContain(t.photoCaption.work);
       });
 
-      it("капсула доверия на стекле glass-clear поверх затемнённого фото", () => {
-        const capsule = tagWith(out, "glass-clear");
-        expect(capsule).not.toBe("");
-        expect(out.slice(out.indexOf(capsule))).toContain(t.trustCapsule);
-        expect(out).toMatch(/class="(scrim-hero|scrim-photo)"/);
+      it("на фото нет капсулы «Деньги в банке под защитой»: это говорят заголовок, шаг 3 и «Где ваши деньги»", () => {
+        expect(out).not.toContain("glass-clear");
+        expect(out).not.toContain('class="scrim-photo"');
+        const hero = out.slice(0, out.indexOf(`>${t.stepsTitle}</h2>`));
+        expect(hero).not.toContain("под защитой");
       });
 
-      it("ниже первого экрана по порядку: факты, «Как это работает», «Где ваши деньги», работы, «Помощь», подвал", () => {
+      it("ниже первого экрана по порядку: «Как это работает», «Где ваши деньги», работы, «Помощь»; полосы фактов нет", () => {
         const order = [
-          out.indexOf(t.facts[0].value),
           out.indexOf(`>${t.stepsTitle}</h2>`),
           out.indexOf(`>${t.trustTitle}</h2>`),
           out.indexOf(`>${ru.app.guest.catalog.title}</h2>`),
           out.indexOf(`>${ru.app.kit.help.title}</h2>`),
-          out.indexOf("<footer"),
         ];
         expect(order.every((i) => i > out.indexOf("<h1"))).toBe(true);
         expect([...order].sort((x, y) => x - y)).toEqual(order);
-        for (const fact of t.facts) expect(out).toContain(`>${fact.value}</p>`);
+        expect(out).not.toContain("Оплата один раз");
+        expect(out).not.toContain("rounded-card bg-surface p-5");
       });
 
       it("три шага: снимок нашего экрана в рамке телефона, номер крупно, для читалки — «Шаг N»", () => {
         expect(t.steps).toHaveLength(3);
-        expect(count(out, "phone-frame")).toBe(3);
+        expect(count(out, "phone-frame shrink-0")).toBe(3);
         for (const [i, step] of t.steps.entries()) {
           expect(out).toContain(`>${step.title}</h3>`);
           expect(out).toContain(`<span class="sr-only">${t.stepLabel(i + 1)}</span>`);
           expect(out).toContain(`alt="${t.stepShots[i]}"`);
         }
         for (const file of ["request-new", "request-offers", "deal-money"]) expect(out).toContain(`%2Fapp-screens%2F${file}.webp`);
+        // Виден верх экрана: рамка обрезана снизу.
+        expect(count(out, "phone-frame-cut")).toBe(3);
       });
 
-      it("«Где ваши деньги» — тёмный раздел в обеих темах: схема «Вы → банк → мастер», пример суммы и пояснение", () => {
+      it("«Где ваши деньги» — тёмный раздел в обеих темах: схема «Вы → банк → мастер», пример: одна крупная сумма и «Без доплат»", () => {
         const section = tagWith(out, 'data-theme="dark"');
         expect(section).toMatch(/^<section /);
         expect(hasClass(section, "bg-surface")).toBe(true);
         expect(count(out, 'data-theme="dark"')).toBe(1);
         for (const node of t.flow) expect(out).toContain(`>${node.label}</p>`);
+        expect(out).toContain(`>${t.flow[0].state}</p>`);
+        expect(t.flow[0].state).toContain("без авансов");
         expect(out).toContain(formatMoney(200_000n * 100n));
         expect(out).not.toContain(formatMoney(204_000n * 100n));
-        expect(out).toContain(t.explainLabel);
+        expect(out).toContain(`>${t.example.price}</p>`);
+        expect(out).toContain(`>${t.example.note}</p>`);
+        expect(t.example.note).toMatch(/без доплат/i);
+        // Пояснения «Сколько я заплачу?» рядом с ответом нет.
+        expect(out).not.toContain("Сколько я заплачу?");
+        expect(t.trustParagraphs).toHaveLength(2);
         for (const text of t.trustParagraphs) expect(out).toContain(text);
       });
 
@@ -92,12 +100,15 @@ describe("главная гостя (лендинг)", () => {
         expect(out).toMatch(new RegExp(`<a [^>]*href="/v2/catalog"[^>]*>${t.worksAll}`));
       });
 
-      it("«Помощь» — три вопроса аккордеоном, в ответах ссылки на разделы «О сервисе», ниже — поддержка", () => {
-        expect(count(out, "<details")).toBe(3);
-        for (const q of [t.helpMoney, t.helpPrice, t.helpRefusal]) expect(out).toMatch(new RegExp(`<summary[^>]*>${q.replace("?", "\\?")}`));
+      it("«Помощь» — два вопроса аккордеоном (о деньгах — раздел выше), «Подробнее» только у цены, поддержка — последняя строка карточки", () => {
+        expect(count(out, "<details")).toBe(2);
+        for (const q of [t.helpPrice, t.helpRefusal]) expect(out).toMatch(new RegExp(`<summary[^>]*>${q.replace("?", "\\?")}`));
         const helpLinks = [...out.matchAll(/<a [^>]*href="(\/v2\/about#[a-z]+)"/g)].map((m) => m[1]);
-        expect(helpLinks).toEqual([`/v2/about#${ABOUT_ANCHORS.money}`, `/v2/about#${ABOUT_ANCHORS.price}`, `/v2/about#${ABOUT_ANCHORS.refusal}`]);
-        expect(out).toContain(`>${ru.app.kit.help.contact}</a>`);
+        expect(helpLinks).toEqual([`/v2/about#${ABOUT_ANCHORS.price}`]);
+        const help = out.slice(out.indexOf(`>${ru.app.kit.help.title}</h2>`));
+        const card = help.slice(help.indexOf("rounded-card bg-surface"), help.indexOf("</section>"));
+        expect(card.lastIndexOf("</details>")).toBeLessThan(card.indexOf(`>${ru.app.kit.help.contact}</a>`));
+        expect(card).toMatch(/<a [^>]*href="mailto:[^"]*"[^>]*>/);
       });
     });
   }
@@ -117,29 +128,18 @@ describe("главная гостя (лендинг)", () => {
     expect(hasClass(primary, "bg-on-photo")).toBe(true);
     expect(out.indexOf("data-primary-action")).toBeLessThan(out.indexOf("</section>"));
     expect(out).not.toContain("data-action-dock");
-    // Капсула — полная версия через «·».
-    expect(out).toContain(`${t.trustCapsule} · ${t.trustCapsuleMore}`);
+    // Подвал — название и разделы, без обещания продукта (оно — заголовок первого экрана).
+    const footer = out.slice(out.indexOf("<footer"));
+    expect(footer).toContain(`>${ru.common.brand}</p>`);
+    expect(footer).not.toContain(ru.common.tagline);
+    expect(out.indexOf("<footer")).toBeGreaterThan(out.indexOf(`>${ru.app.kit.help.title}</h2>`));
   });
 
-  it("компьютер: факты и шаги, работы, «Помощь» и подвал — в колонке содержимого; тёмный раздел — от края до края", () => {
+  it("компьютер: шаги, работы, «Помощь» и подвал — в колонке содержимого; тёмный раздел — от края до края", () => {
     const out = html(<GuestHome device="desktop" />);
     const columns = out.match(/<div class="mx-auto flex w-full max-w-content flex-col gap-24 px-6">/g) ?? [];
     expect(columns).toHaveLength(2);
     expect(hasClass(tagWith(out, 'data-theme="dark"'), "desktop:w-full")).toBe(true);
-  });
-
-  it("факты — блоки с весом: карточка, значок 24 px ink в нейтральном круге (зелёный — деньгам), значение title-2, пояснение 17 px", () => {
-    for (const device of ["mobile", "desktop"] as const) {
-      const out = html(<GuestHome device={device} />);
-      for (const fact of t.facts) {
-        expect(out).toContain(`<p class="text-title-2 text-ink">${fact.value}</p>`);
-        expect(out).toContain(`<p class="text-body text-muted">${fact.note}</p>`);
-      }
-      expect(count(out, "rounded-card bg-surface p-5")).toBe(3);
-      const facts = out.slice(out.indexOf(`aria-label="${t.factsLabel}"`), out.indexOf(`>${t.stepsTitle}</h2>`));
-      expect(count(facts, "rounded-full bg-fill text-ink")).toBe(3);
-      expect(facts).not.toMatch(/accent/);
-    }
   });
 
   it("шаги на компьютере: рамка телефона 19,5rem сверху, заголовок шага 22 px", () => {
@@ -166,7 +166,7 @@ describe("главная гостя (лендинг)", () => {
     }
   });
 
-  it("телефон: название продукта над заголовком 36 px, сразу фото 4:5 со скруглением 24, капсула у нижнего края фото, подпись — отдельно под фото; подзаголовок под фото; кнопка — в доке последней", () => {
+  it("телефон: название продукта над заголовком 36 px, сразу фото 4:5 со скруглением 24, подпись — отдельно под фото; подзаголовок под фото; подвала нет; кнопка — в доке последней", () => {
     const out = html(<GuestHome device="mobile" />);
     expect(out.indexOf(`>${ru.common.brand}</p>`)).toBeLessThan(out.indexOf("<h1"));
     const h1 = out.match(/<h1[^>]*>/)?.[0] ?? "";
@@ -175,10 +175,7 @@ describe("главная гостя (лендинг)", () => {
     const photo = tagWith(out, "aspect-4/5");
     expect(hasClass(photo, "rounded-hero")).toBe(true);
     expect(hasClass(photo, "photo-frame")).toBe(true);
-    // Капсула — у нижнего края фото над затемнением снизу; подпись — не на фото, а под ним справа, тихим текстом.
-    const frame = out.slice(out.indexOf(photo));
-    expect(frame.indexOf('class="scrim-photo"')).toBeLessThan(frame.indexOf(t.trustCapsule));
-    expect(frame).toContain('<div class="absolute inset-x-3 bottom-3 flex">');
+    // Подпись — не на фото, а под ним справа, тихим текстом.
     expect(out).toContain(`<figcaption class="self-end text-small text-muted">${t.photoCaption.temporary}</figcaption>`);
     expect(out.indexOf(photo)).toBeLessThan(out.indexOf(`>${t.lead}</p>`));
     // Тёмный раздел — за поля колонки, растяжением без w-full (иначе он шириной колонки, сдвинутый влево).
@@ -189,7 +186,8 @@ describe("главная гостя (лендинг)", () => {
     const dock = out.slice(out.indexOf("data-action-dock"));
     expect(count(dock, "<a ")).toBe(1);
     expect(dock).toContain("data-primary-action");
-    expect(out.indexOf("data-primary-action")).toBeGreaterThan(out.indexOf("<footer"));
+    expect(out).not.toContain("<footer");
+    expect(out.indexOf("data-primary-action")).toBeGreaterThan(out.indexOf(`>${ru.app.kit.help.title}</h2>`));
     expect(out.indexOf("role=executor")).toBeLessThan(out.indexOf(`>${t.stepsTitle}</h2>`));
     expect(out.indexOf("role=executor")).toBeGreaterThan(out.indexOf("<h1"));
   });
@@ -201,6 +199,6 @@ describe("главная гостя (лендинг)", () => {
     expect(all).not.toMatch(/Защита сделки|2\s?%\)/);
     expect(all).toContain("без доплат");
     expect(t.title).toContain("в банке");
-    expect(JSON.stringify(t.facts)).toContain("Не проходят через счета сервиса");
+    expect(JSON.stringify(t.trustParagraphs)).toContain("не проходят через счета сервиса");
   });
 });

@@ -164,7 +164,8 @@ describe("страницы профиля", () => {
     for (const href of ["/v2/executor/profile", "/v2/executor/profile/kyc", "/v2/executor/profile/payout", "/v2/executor/portfolio", "/v2/executor/finance"]) {
       expect(full).toContain(`href="${href}"`);
     }
-    expect(full).toContain(`href="/v2/executors/${approved.executor.publicNumber}"`);
+    // Строки «Публичный профиль» нет (аудит, master-47): профиль по номеру открывается из «Компании».
+    expect(full).not.toContain(`href="/v2/executors/${approved.executor.publicNumber}"`);
 
     const pending = await makeExecutor({ status: "PENDING" });
     await db.user.update({ where: { id: pending.id }, data: { emailVerifiedAt: new Date() } });
@@ -188,7 +189,7 @@ describe("страницы профиля", () => {
     expect(out).toContain(`href="/v2/deals/${done.dealId}"`);
     expect(out).toContain(`href="/v2/requests/${open.requestId}"`);
     expect(out).toContain(h.status.success);
-    expect(out).toContain(h.status.progress);
+    expect(out).not.toContain("В процессе");
     expect(out).toContain(h.faq.statuses.title);
     expect(out.split("data-primary-action").length - 1).toBe(0);
 

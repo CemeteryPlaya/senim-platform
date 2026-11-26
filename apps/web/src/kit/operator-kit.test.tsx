@@ -23,6 +23,14 @@ const table = (over: Partial<Parameters<typeof DataTable<Row>>[0]> = {}) =>
   html(<DataTable caption="Сделки" columns={COLUMNS} rows={ROWS} rowKey={(row) => row.id} empty={EMPTY} {...over} />);
 
 describe("DataTable", () => {
+  it("nowrap: id в ячейке без переноса (строка не растёт вдвое), прочие текстовые — с переносом по словам", () => {
+    const out = html(
+      <DataTable caption="Записи" columns={[{ key: "id", header: "id", cell: (row: Row) => row.id, rowHeader: true, nowrap: true }, COLUMNS[1]!]} rows={ROWS} rowKey={(row) => row.id} empty={EMPTY} />,
+    );
+    expect(out).toMatch(/<th scope="row" class="[^"]*text-left whitespace-nowrap/);
+    expect(out).toMatch(/<td class="[^"]*text-left wrap-break-word/);
+  });
+
   it("область прокрутки — именованный регион с tabIndex=0, прокрутка вбок внутри, а не у страницы", () => {
     const out = table();
     expect(out).toContain('role="region"');
@@ -101,6 +109,16 @@ describe("KeyValueList", () => {
     expect(out).toMatch(/<dt[^>]*>Исполнитель<\/dt><dd[^>]*>ИП «Арман»<\/dd>/);
     expect(out).toContain("desktop:grid-cols-key-value");
     expect(out).toContain("first:border-t-0");
+    // По умолчанию на телефоне подпись над значением.
+    expect(out).toContain("flex-col");
+    expect(out).not.toContain("ml-auto");
+  });
+
+  it("inline: на телефоне подпись слева, короткое значение справа в одной строке (длинное переносится строкой ниже)", () => {
+    const out = html(<KeyValueList inline items={[{ label: "Получен", value: "6 ноября 2026, 12:36" }]} />);
+    expect(out).toContain("flex-row flex-wrap items-baseline");
+    expect(out).toMatch(/<dd class="[^"]*ml-auto desktop:ml-0/);
+    expect(out).toContain("desktop:grid-cols-key-value");
   });
 });
 

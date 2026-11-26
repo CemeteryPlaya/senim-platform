@@ -54,7 +54,7 @@ export default async function ContactsPage({ searchParams }: Props) {
             )}
             <TextLink href={emailStepHref("address", null, true)}>{contacts.email ? t.email.change : t.email.add}</TextLink>
           </Card>
-          <ContactsForm initial={contacts.instagram ?? ""} device={device} />
+          <ContactsForm initial={contacts.instagram ?? ""} />
         </Stack>
         {params.email === "changed" && <EmailChangedToast href={to("/profile/contacts")} />}
       </Stack>

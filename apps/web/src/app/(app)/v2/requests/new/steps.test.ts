@@ -206,11 +206,13 @@ describe("уровень", () => {
     PREMIUM: { source: "materials" as const, from: 1, to: 2, typical: null },
   };
 
-  it("цена — только по предложениям мастеров; подсказка по материалам (флаг) не показывается", () => {
+  it("цена — только по предложениям мастеров; без вилки строки цены нет (о цене — один раз в подзаголовке)", () => {
     const [economy, comfort, premium] = segmentOptions(prices);
-    expect(economy.description).toContain(t.segment.noPrice);
+    expect(economy.description).toBe(`${ru.requests.wizard.segment.explain.ECONOMY}.`);
     expect(comfort.description).toContain(t.segment.price(formatMoney(40_000_000n), formatMoney(90_000_000n)));
-    expect(premium.description).toContain(t.segment.noPrice);
+    expect(premium.description).toBe(`${ru.requests.wizard.segment.explain.PREMIUM}.`);
+    for (const o of segmentOptions(prices)) expect(o.description).not.toContain("назовут");
+    expect(t.segment.lead).toContain("назовут цену");
     expect(JSON.stringify(segmentOptions(prices))).not.toMatch(/демо/i);
     expect(segmentPriceNote(prices)).toBe(t.segment.priceNote(4));
     expect(t.segment.priceNote(4)).toMatch(/^Вилка — по 4 предложениям мастеров .* Точную цену назовут мастера.$/);
@@ -258,7 +260,7 @@ describe("сводка", () => {
       [s.photos, s.photosCount(1), "room"],
       [s.description, "до потолка", "room"],
       [s.address, "Астана, ул. Достык, 5", "place"],
-      [s.date, s.notSet, "place"],
+      [s.missing.label, "Дата", "place"],
     ]);
   });
 
@@ -267,11 +269,16 @@ describe("сводка", () => {
     expect(row?.value).toBe("Астана, Есиль, ЖК Highvill, ул. Достык, 5");
   });
 
-  it("без размеров — «уточнит замер», без стиля — «не важно», без фото — «без фото»", () => {
+  it("неуказанное — одной строкой «Не указано: …» последней; ведёт на первый такой шаг", () => {
     const rows = summaryRows({ ...draft, style: null, details: {}, photos: [] });
-    expect(rows.find((r) => r.label === t.send.size)?.value).toBe(t.start.sizeUnknown);
-    expect(rows.find((r) => r.label === t.send.style)?.value).toBe(t.start.styleAny);
-    expect(rows.find((r) => r.label === t.send.photos)?.value).toBe(t.send.noPhotos);
+    for (const label of [t.send.size, t.send.style, t.send.photos, t.send.date]) expect(rows.some((r) => r.label === label)).toBe(false);
+    const last = rows.at(-1);
+    expect(last?.label).toBe(t.send.missing.label);
+    expect(last?.value).toBe("Стиль, размеры, фото, дата");
+    expect(last?.href.split("step=")[1]).toBe("start");
+    // Всё указано — строки «Не указано» нет.
+    const full = summaryRows({ ...draft, desiredDate: new Date("2026-12-20T00:00:00Z") });
+    expect(full.some((r) => r.label === t.send.missing.label)).toBe(false);
   });
 
   it("сноска: прямой заявке — кто её увидит, тендеру — мастера уровня", () => {

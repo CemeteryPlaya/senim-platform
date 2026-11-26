@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { Card, Money, Section, Stack, TextLink } from "@/kit";
-import { computeDealMoney } from "@/modules/payments";
+import { Card, Section, TextLink } from "@/kit";
 import { getDevice } from "@/platform/device";
 import { userPastOnboarding } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
@@ -14,12 +13,10 @@ const t = ru.app.profile.help;
 
 export const metadata: Metadata = { title: t.metaTitle };
 
-/** Цена в примере раздела «Сколько это стоит»: 200 000 ₸ в тиынах (как на «О сервисе»). Суммы считает `computeDealMoney`. */
-const EXAMPLE_PRICE_TIYN = 200_000n * 100n;
-
 /**
  * «Помощь»: вопросы и ответы покупателя простыми разделами с якорями (без раскрывающихся блоков): как это работает, сколько
- * стоит, где деньги, если мебель не подошла, как отменить, контакты мастера, поддержка. Открыта и гостю, и вошедшему
+ * стоит (одной фразой: покупатель платит цену мастера, пример «200 000 = 200 000» ничего не добавлял), где деньги, если
+ * мебель не подошла, как отменить, контакты мастера, поддержка (заголовок-вопрос и ссылка). Открыта и гостю, и вошедшему
  * (вошедший с непройденными первыми шагами уходит на шаг с возвратом сюда). Главного действия на экране нет; на компьютере
  * справа оглавление, на телефоне оно сверху.
  */
@@ -27,7 +24,6 @@ export default async function HelpPage() {
   const [user, device] = await Promise.all([userPastOnboarding(to("/help")), getDevice()]);
   // Мастер видит свои вопросы; покупатель, гость, оператор — вопросы покупателя (как раньше).
   if (user?.role === "EXECUTOR") return <MasterHelp device={device} />;
-  const money = computeDealMoney(EXAMPLE_PRICE_TIYN);
   const toc = [
     { id: HELP_ANCHORS.how, label: t.how.title },
     { id: HELP_ANCHORS.price, label: t.price.title },
@@ -35,11 +31,11 @@ export default async function HelpPage() {
     { id: HELP_ANCHORS.notFit, label: t.notFit.title },
     { id: HELP_ANCHORS.cancel, label: t.cancel.title },
     { id: HELP_ANCHORS.contacts, label: t.contacts.title },
-    { id: HELP_ANCHORS.support, label: t.support.title },
+    { id: HELP_ANCHORS.support, label: t.support.tocLabel },
   ];
 
   return (
-    <HelpFrame title={t.title} lead={t.lead} back={t.back} tocTitle={t.tocTitle} toc={toc} device={device}>
+    <HelpFrame title={t.title} back={t.back} tocTitle={t.tocTitle} toc={toc} device={device}>
       <Section id={HELP_ANCHORS.how} title={t.how.title}>
         <Card>
           <ol className="flex list-decimal flex-col gap-2 pl-6 text-body text-ink">
@@ -51,12 +47,7 @@ export default async function HelpPage() {
       </Section>
       <Section id={HELP_ANCHORS.price} title={t.price.title}>
         <Card>
-          <Stack>
-            <p className="text-body text-ink">{t.price.intro}</p>
-            <p className="text-body text-ink">
-              {t.price.example} <Money tiyn={money.priceTiyn} /> — {t.price.pays} <Money tiyn={money.buyerTotalTiyn} />
-            </p>
-          </Stack>
+          <p className="text-body text-ink">{t.price.intro}</p>
         </Card>
       </Section>
       <Section id={HELP_ANCHORS.money} title={t.money.title}>
@@ -73,12 +64,7 @@ export default async function HelpPage() {
       </Section>
       <Section id={HELP_ANCHORS.support} title={t.support.title}>
         <Card>
-          <Stack gap="tight">
-            <p className="text-body text-ink">{t.support.body}</p>
-            <div>
-              <TextLink href={SUPPORT_HREF}>{t.support.action}</TextLink>
-            </div>
-          </Stack>
+          <TextLink href={SUPPORT_HREF}>{t.support.action}</TextLink>
         </Card>
       </Section>
     </HelpFrame>

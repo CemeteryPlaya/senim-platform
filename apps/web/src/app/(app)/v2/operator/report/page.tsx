@@ -18,11 +18,15 @@ type Props = { searchParams: Promise<SearchParams> };
 
 type Row = { key: string; label: string; count: number; sumTiyn: bigint };
 
-/** Таблица «что — сколько — на какую сумму» с итогом внизу; на узком окне прокручивается в своей области. */
+/**
+ * Таблица «что — сколько — на какую сумму» с итогом внизу; на узком окне прокручивается в своей области. Телефон — одна
+ * карточка со строками «статус — 4 — 2 755 000 ₸» (`compact`): подписи столбцов только для диктора.
+ */
 function Totals({ caption, head, rows, empty }: { caption: string; head: string; rows: Row[]; empty: { title: string; body: string } }) {
   const total = rows.reduce((acc, row) => ({ count: acc.count + row.count, sum: acc.sum + row.sumTiyn }), { count: 0, sum: 0n });
   return (
     <TableOrCards
+      compact
       caption={caption}
       captionHidden
       rows={rows}
@@ -54,7 +58,7 @@ export default async function ReportPage({ searchParams }: Props) {
 
   return (
     <Stack gap="section">
-      <PageTitle title={r.title} lead={r.lead} />
+      <PageTitle title={r.title} />
       <StatRow label={r.stats}>
         <Stat label={r.statDeals} value={deals.count} />
         <Stat label={r.statDiscrepancies} value={report.discrepancies.length} muted={report.discrepancies.length === 0} />
@@ -86,7 +90,7 @@ export default async function ReportPage({ searchParams }: Props) {
       </div>
 
       <Section title={r.discrepancies} id="discrepancies">
-        <p className="text-body text-muted desktop:max-w-measure">{r.discrepanciesHint(staleDays)}</p>
+        <p className="text-body text-muted desktop:max-w-measure">{r.discrepanciesHint}</p>
         <form method="get" action={to("/operator/report")} noValidate>
           <div className="flex flex-col gap-stack-group desktop:flex-row desktop:items-end">
             <TextField
@@ -110,6 +114,8 @@ export default async function ReportPage({ searchParams }: Props) {
           rows={report.discrepancies}
           rowKey={(row) => row.transactionId}
           empty={r.discrepanciesEmpty}
+          // Телефон: операция, сколько ждёт и сумма; точная дата создания — в таблице компьютера и в карточке сделки.
+          phoneKeys={["type", "waiting", "amount"]}
           columns={[
             {
               key: "deal",

@@ -180,7 +180,7 @@ test("полная сделка покупателя в v2: оферта → о�
   await expect(master.locator("h1")).toHaveText(ms.sign.title.CONTRACT);
   // Что подписывает мастер: «Вы получите»; суммы покупателя (к оплате с защитой сделки) нет.
   await expect(master.locator("main")).toContainText(ms.sign.what.youGet);
-  await expect(master.locator("main")).not.toContainText(t.sign.what.total);
+  await expect(master.locator("main")).not.toContainText(t.sign.what.priceTotal);
   await expect(master.getByRole("region", { name: t.pay.consent.textLabel })).toBeVisible();
   const masterAgree = master.getByRole("checkbox", { name: ms.sign.consent.agree });
   await expect(masterAgree).not.toBeChecked();
@@ -305,20 +305,24 @@ test("полная сделка покупателя в v2: оферта → о�
   // ── 7. Оператор (manual): раскрытие и обе выплаты → сделка завершена ──
   await open(buyer, dealPath);
   await expect(buyer.locator("[data-primary-action]").filter({ hasText: now.accept.action })).toHaveCount(0);
-  if (!(await nowHeading(buyer, [now.done.title, now.review.title]).isVisible())) {
+  // Завершённая сделка: «Сейчас» — только с отзывом (без шага карточки «Сейчас» нет), плашка «Завершена» — у оконченной.
+  const ended = buyer.locator("main [data-status-chip]").filter({ hasText: t.status.done });
+  if (!(await ended.isVisible())) {
     await confirmOperationV2(operator, { type: "RELEASE", deal: dealNumber, docNumber: "E2E-V2-REL", totpSecret: OPERATOR_TOTP_SECRET });
     await confirmOperationV2(operator, { type: "SPLIT_MASTER", deal: dealNumber, docNumber: "E2E-V2-PAY", totpSecret: OPERATOR_TOTP_SECRET });
     await confirmOperationV2(operator, { type: "SPLIT_PLATFORM", deal: dealNumber, docNumber: "E2E-V2-INC", totpSecret: OPERATOR_TOTP_SECRET });
   }
-  await expectNow(buyer, dealPath, [now.done.title, now.review.title]);
-  await expect(buyer.locator("main")).toContainText(t.status.done);
+  await open(buyer, dealPath);
+  await expect(buyer.locator("h1")).toHaveText(DEAL_TITLE);
+  await expect(ended).toBeVisible();
   expect((await facts(dealId)).holds).toBe(1);
   await Promise.all([buyerCtx.close(), masterCtx.close(), operatorCtx.close()]);
 
   // ── Вид компьютера: та же сделка завершена; экраны подписи и оплаты уводят на карточку ──
   const desktop = await browser.newContext({ ...devices["Desktop Chrome"], baseURL, locale: "ru-RU", timezoneId: "Asia/Almaty", storageState });
   const screen = await desktop.newPage();
-  await expectNow(screen, dealPath, [now.done.title, now.review.title]);
+  await open(screen, dealPath);
+  await expect(screen.locator("main [data-status-chip]").filter({ hasText: t.status.done })).toBeVisible();
   await open(screen, `${dealPath}/pay`);
   await expect(screen).toHaveURL(new RegExp(`${dealPath}$`));
   await desktop.close();

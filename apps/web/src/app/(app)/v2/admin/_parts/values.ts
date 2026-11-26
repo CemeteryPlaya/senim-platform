@@ -81,3 +81,22 @@ export function recordsQueryOf(params: SearchParams): RecordsQuery {
 /** Адрес таблицы и карточки (пути без префикса v2: через `to`/`pageHref`). */
 export const tablePath = (model: string) => `/admin/data/${encodeURIComponent(model)}`;
 export const recordPath = (model: string, id: string) => `${tablePath(model)}/${encodeURIComponent(id)}`;
+
+/** Поля, которые узнают в строке списка на телефоне, — в порядке показа (номер, название, сумма, статус, дата). */
+const PHONE_FIELDS = ["number", "publicNumber", "name", "title", "legalName", "slug", "type", "priceTiyn", "amountTiyn", "status", "createdAt"];
+/** Сколько полей, кроме ключа, помещается в карточку телефона. */
+const PHONE_MAX = 5;
+
+/**
+ * Столбцы карточки телефона для таблицы модели: узнаваемые поля из `PHONE_FIELDS`, не больше пяти (у Deal — number, title,
+ * priceTiyn, status, createdAt); у модели без таких полей — первые поля, кроме связей (`…Id`). Ключ — заголовок карточки
+ * и ссылка в запись, где видны все поля. Компьютер — таблица со всеми столбцами.
+ */
+export function phoneFields(fields: readonly Pick<AdminFieldInfo, "name">[], idField: string | null): string[] {
+  const names = fields.map((f) => f.name).filter((name) => name !== idField);
+  const known = PHONE_FIELDS.filter((name) => names.includes(name));
+  return (known.length > 0 ? known : names.filter((name) => !/Id$/.test(name))).slice(0, PHONE_MAX);
+}
+
+/** Значение-идентификатор (ключ записи или связь `…Id`): в таблице без переноса, чтобы строка не росла вдвое. */
+export const isIdField = (name: string, idField: string | null): boolean => name === idField || /Id$/.test(name);

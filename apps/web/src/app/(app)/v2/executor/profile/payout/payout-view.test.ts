@@ -37,7 +37,8 @@ describe("что показывает экран", () => {
 
   it("карточка: не указан, указан, оплата в обработке (смена закрыта)", () => {
     expect(payoutNow(null, false).title).toBe(t.now.none.title);
-    expect(payoutNow("0100", false).title).toBe(t.now.set.title);
+    // Указан — номер (последние 4 знака) в заголовке карточки, отдельной строки «Счёт» нет.
+    expect(payoutNow("0100", false)).toEqual({ title: "Счёт KZ •••• 0100", body: t.now.set.body });
     expect(payoutNow("0100", true).title).toBe(t.now.locked.title);
     expect(payoutNow(null, true).title).toBe(t.now.locked.title);
   });

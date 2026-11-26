@@ -1,19 +1,19 @@
 import { ru } from "@/i18n/ru";
 import { ActionDock, ButtonLink } from "@/kit";
 import type { Device } from "@/platform/device";
-import { DesktopHero, Facts, Footer, Help, MobileHero, MoneySection, Steps, Works } from "./GuestLanding";
+import { DesktopHero, Footer, Help, MobileHero, MoneySection, Steps, Works } from "./GuestLanding";
 import { heroPhoto, stepScreens, workTiles } from "./landing-media";
 import { loginHref } from "./links";
 
 const t = ru.app.guest.home;
 
 /**
- * Главная гостя — лендинг (разбор 3.8, спека раздел 18). Порядок: первый экран, три факта, «Как это работает» со
- * снимками наших экранов, тёмный раздел «Где ваши деньги», «Работы мастеров», «Помощь», подвал.
+ * Главная гостя — лендинг (разбор 3.8, спека раздел 18). Порядок: первый экран, «Как это работает» со снимками наших
+ * экранов, тёмный раздел «Где ваши деньги», «Работы мастеров», «Помощь», подвал (только на компьютере).
  *
  * Компьютер: первый экран — фото на всю ширину окна под стеклянной шапкой, белый заголовок 64 px, единственная главная
  * кнопка — белая (`inverse`) на затемнении фото, рядом ссылка мастера. Дока нет: кнопка — в первом экране.
- * Телефон: название продукта, заголовок 40 px, подзаголовок, фото 4:5 с капсулой доверия, ссылка мастера; главная
+ * Телефон: название продукта, заголовок 36 px, фото 4:5, подзаголовок, ссылка мастера; подвала нет; главная
  * кнопка — одна в `ActionDock`, последним ребёнком колонки (прилипает над панелью вкладок с первого экрана).
  * На странице один `h1` и одно главное действие (`data-primary-action`).
  */
@@ -29,7 +29,6 @@ export function GuestHome({ device }: { device: Device }) {
       <div data-landing className="flex flex-col gap-24">
         <DesktopHero photo={photo} />
         <div className="mx-auto flex w-full max-w-content flex-col gap-24 px-6">
-          <Facts />
           <Steps device={device} screens={screens} />
         </div>
         <MoneySection device={device} />
@@ -45,12 +44,10 @@ export function GuestHome({ device }: { device: Device }) {
   return (
     <div className="flex flex-col gap-14">
       <MobileHero photo={photo} />
-      <Facts />
       <Steps device={device} screens={screens} />
       <MoneySection device={device} />
       <Works device={device} tiles={tiles} />
       <Help />
-      <Footer />
       <ActionDock>
         <ButtonLink href={loginHref("client")}>{t.clientAction}</ButtonLink>
       </ActionDock>

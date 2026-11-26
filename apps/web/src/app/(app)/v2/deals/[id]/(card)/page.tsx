@@ -39,6 +39,9 @@ export const metadata: Metadata = { title: t.metaTitle };
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
+/** Оконченная сделка (завершена, отменена, деньги возвращены): только у неё на карточке плашка статуса. */
+const ENDED: ReadonlySet<DealView["status"]> = new Set(["SPLIT_PAYOUT", "CANCELLED", "REFUNDED"]);
+
 /**
  * Адрес заказа для мастера — только то, что отдаёт модуль заявок (`getIncomingRequest`: адрес — мастеру выбранного
  * предложения), и только после заключения оферты. Сбой чтения или неодобренный мастер (`notApproved`) не роняют карточку:
@@ -132,8 +135,8 @@ function cardView({ deal, side, documents, contacts, bank, place, showcase, all,
   const manual = deal.paymentProvider === "MANUAL";
   // Мастеру — его смета (`deal.estimate` модуля по стороне: цена − гарантия 6%) и журнал; сумм покупателя нет.
   const money = master
-    ? masterMoneyView({ block: deal.moneyBlock, estimate: deal.estimate })
-    : moneyView({ block: deal.moneyBlock, estimate: deal.estimate, snapshot: deal.money, manual });
+    ? masterMoneyView({ block: deal.moneyBlock, estimate: deal.estimate }, "card")
+    : moneyView({ block: deal.moneyBlock, estimate: deal.estimate, snapshot: deal.money, manual }, "card");
   const now = nowView({
     id: deal.id,
     side,
@@ -155,28 +158,29 @@ function cardView({ deal, side, documents, contacts, bank, place, showcase, all,
     title: deal.title,
     lead: master ? tm.lead(deal.number) : t.lead(deal.number, deal.executorLabel),
     number: deal.number,
-    chip: dealChip({
-      side,
-      status: deal.status,
-      hasOpenDispute: openDispute,
-      next: deal.next,
-      payWaitsMaster: payWaitsMaster(deal.next, bank),
-      consentMissing: masterConsentMissing(deal.next, bank),
-      money: deal.moneyBlock,
-      paymentProvider: deal.paymentProvider,
-    }),
+    // Плашка — только у оконченной сделки: у идущей шаг называют «Сейчас» и капсула на фото (в списке и на главной остаются плашки действия и ожидания — `quietChip`).
+    chip: ENDED.has(deal.status)
+      ? dealChip({
+          side,
+          status: deal.status,
+          hasOpenDispute: openDispute,
+          next: deal.next,
+          payWaitsMaster: payWaitsMaster(deal.next, bank),
+          consentMissing: masterConsentMissing(deal.next, bank),
+          money: deal.moneyBlock,
+          paymentProvider: deal.paymentProvider,
+        })
+      : null,
     now,
     steps: dealStepsView(deal.status, openDispute, outcome, side),
     // Обложка — только фото отчёта хода работ (Ruling 6); отчётов с фото нет — без обложки.
     cover: coverOf(deal.progressReports),
-    money: { ...money, historyHref: hrefs.money },
+    money: { ...money, historyHref: money.operations ? hrefs.money : null },
     order: orderRows({
-      title: deal.title,
       city: deal.subject.city,
       address: place.address,
       location: place.location,
       plannedReadyAt: deal.dates.plannedReadyAt,
-      signedAt: deal.dates.signedAt,
       durationDays: deal.durationDays,
       warrantyMonths: deal.warrantyMonths,
       // Плановую дату называет «Сейчас»: покупателю — «Мастер изготавливает мебель», мастеру — «Изготовьте мебель и сдайте работу».
@@ -185,15 +189,14 @@ function cardView({ deal, side, documents, contacts, bank, place, showcase, all,
     design: designView(deal.design, t.design),
     documents: documentRows(documents, outcome),
     party: {
-      // Имени покупателя модуль экрану сделки не отдаёт: раздел «Покупатель» без строки имени.
-      label: master ? null : deal.executorLabel,
       contacts,
       chatHref: to(`/chats/${encodeURIComponent(deal.offerId)}`),
     },
     delivery: deliveryView(deal.ready),
     reports: master ? reportsBlock(deal, now.kind === "ready" ? null : hrefs.progress) : buyerReports(deal),
     review: reviewRows(deal.review),
-    showcase: showcase?.changeable ? showcaseLine(deal.id, showcase) : null,
+    // До ответа строки нет: «Изменить» нечего, тот же выбор ждёт на экране отзыва.
+    showcase: showcase?.changeable && showcase.answered ? showcaseLine(deal.id, showcase) : null,
     history: { ...historyView(deal.history, { all, limit: HISTORY_SHOWN[device] }, side), allHref: hrefs.history },
     actions: {
       cancelText: cancelText({ side, canCancel: deal.can.cancel, status: deal.status, block: deal.moneyBlock, manual }),

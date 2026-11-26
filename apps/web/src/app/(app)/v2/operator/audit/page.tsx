@@ -31,7 +31,7 @@ export default async function AuditPage({ searchParams }: Props) {
 
   return (
     <Stack gap="section">
-      <PageTitle title={t.title} lead={t.lead} />
+      <PageTitle title={t.title} />
       <details open={active > 0 || !parsed.success} className="group rounded-card bg-surface">
         <summary className="flex min-h-control cursor-pointer list-none items-center gap-2 rounded-card px-card py-3 text-headline text-ink [&::-webkit-details-marker]:hidden">
           <span className="min-w-0 flex-1">

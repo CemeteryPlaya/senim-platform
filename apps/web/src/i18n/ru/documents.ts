@@ -130,10 +130,6 @@ export const documents = {
       title: (kind: string) => `${kind}: вторая сторона подписала`,
       body: (number: string) => `Документ № ${number} ждёт вашей подписи.`,
     },
-    fullySigned: {
-      title: (kind: string) => `${kind} подписан`,
-      body: (number: string) => `Документ № ${number} подписан всеми сторонами.`,
-    },
   },
 
   email: {

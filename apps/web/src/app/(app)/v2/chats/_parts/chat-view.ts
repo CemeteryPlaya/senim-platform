@@ -1,4 +1,4 @@
-import { formatDate, formatDayMonth, formatRelative, formatTime } from "@/features/format/format";
+import { formatDate, formatDayMonth, formatShortDate, formatTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
 import type { ChatMessage } from "@/kit";
 import type { ChatListItem, ChatView } from "@/modules/companies";
@@ -46,7 +46,8 @@ export function closedText(view: Pick<ChatView, "canWrite" | "closedCode">, side
 export const counterpartOf = (moduleLabel: string, side: DealSide): string => (side === "EXECUTOR" ? tm.counterpart : moduleLabel);
 
 /**
- * Диалог → модель ленты глазами стороны. Системная строка про скрытые контакты стоит первой, пока оферта не заключена; над сообщениями каждого дня — разделитель дня.
+ * Диалог → модель ленты глазами стороны. Над сообщениями каждого дня — разделитель дня. Системной строки «Контакты
+ * скрыты…» в ленте нет: о скрытых контактах до оферты говорит строка под заголовком с «Почему?» (`beforeOffer`).
  * Вложения — адреса из `view.attachments` (запрошены у модуля; подпись «Фото N» по порядку в сообщении). Автор чужих
  * сообщений — собеседник (`counterpartOf`).
  */
@@ -73,7 +74,6 @@ export function chatRoomModel(view: ChatView, now: Date = new Date(), side: Deal
         .map((file, index) => ({ id: file.id, url: file.url, previewUrl: file.url, name: t.room.photo(index + 1) })),
     });
   }
-  if (beforeOffer) messages.unshift({ id: "system:contacts-hidden", kind: "system", text: t.room.hiddenSystem, time: "" });
   return {
     messages,
     canWrite: view.canWrite,
@@ -119,6 +119,14 @@ export type ChatRowView = {
 export const chatHref = (offerId: string): string => to(`/chats/${encodeURIComponent(offerId)}`);
 
 /**
+ * Время строки списка: сегодня — часы и минуты («14:30»), раньше — короткая дата («20 нояб», как в «Моих заявках»):
+ * относительное «5 дней назад» теснило имя собеседника и рвало его на две строки.
+ */
+export function rowTime(at: Date, now: Date): string {
+  return formatDate(at) === formatDate(now) ? formatTime(at) : formatShortDate(at, now);
+}
+
+/**
  * Строки списка диалогов стороны: адрес — всегда экран диалога v2. Только диалоги с сообщениями: пустой диалог по
  * предложению открывается с экрана предложения (покупатель) или заявки (мастер). Модуль не отдаёт «непрочитанное» — признака нет.
  */
@@ -129,7 +137,7 @@ export function chatRows(items: readonly ChatListItem[], now: Date = new Date(),
     counterpart: counterpartOf(item.counterpart, side),
     title: item.title,
     last: item.lastMessage ?? "",
-    time: item.lastAt ? formatRelative(item.lastAt, now) : null,
+    time: item.lastAt ? rowTime(item.lastAt, now) : null,
     closed: item.closed,
   }));
 }

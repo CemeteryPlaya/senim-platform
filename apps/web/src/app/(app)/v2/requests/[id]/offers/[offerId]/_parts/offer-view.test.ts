@@ -175,12 +175,21 @@ describe("offerView: действия, смета и тексты по сост�
     // Сумма к оплате — в блоке денег сразу ниже, в «Сейчас» не повторяется.
     expect(view.now).toEqual({ title: t.now.masterPrice.title(price) });
     expect(view.proposeDescription).toBe(t.propose.masterPrice(price));
+    // Без доплат цена и «К оплате» совпадают: одна сумма с подписью «К оплате, без доплат», строк нет.
+    expect(view.money).toEqual({ title: t.money.title, amountTiyn: m.buyerTotalTiyn, caption: t.money.caption, rows: [] });
+    expect(t.money.caption).toContain("без доплат");
+  });
+
+  it("если смета вдруг не «без доплат» (суммы разные) — строки «Цена — К оплате» вместо подписи", () => {
+    const n = { ...negotiation([round("p1", "EXECUTOR", 1, "PROPOSED")]), estimate: { ...estimate(10_000n), totalTiyn: 10_500n } };
+    const view = offerView(offer(), n);
     expect(view.money).toEqual({
       title: t.money.title,
-      amountTiyn: m.buyerTotalTiyn,
+      amountTiyn: 10_500n,
+      caption: null,
       rows: [
-        { label: t.money.price.master, amountTiyn: m.priceTiyn },
-        { label: t.money.total, amountTiyn: m.buyerTotalTiyn, total: true, explain: true },
+        { label: t.money.price.master, amountTiyn: 10_000n },
+        { label: t.money.total, amountTiyn: 10_500n, total: true, explain: true },
       ],
     });
   });
@@ -188,7 +197,7 @@ describe("offerView: действия, смета и тексты по сост�
   it("суммы — из сметы модуля как есть: к оплате — цена без доплат (10 001 тиын), экран не пересчитывает", () => {
     const n = { ...negotiation([round("p1", "EXECUTOR", 1, "PROPOSED")]), estimate: estimate(10_001n) };
     const view = offerView(offer(), n);
-    expect(view.money?.rows.map((r) => r.amountTiyn)).toEqual([10_001n, 10_001n]);
+    expect(view.money?.rows).toEqual([]);
     expect(view.money?.amountTiyn).toBe(10_001n);
   });
 
@@ -206,8 +215,11 @@ describe("offerView: действия, смета и тексты по сост�
     expect(view.primary).toBeNull();
     expect(view.secondary).toEqual({ kind: "withdraw", proposalId: "p2" });
     expect(view.now.title).toBe(t.now.waiting.title);
-    expect(view.money?.rows[0]).toEqual({ label: t.money.price.yours, amountTiyn: 980_000_00n });
+    expect(view.money?.amountTiyn).toBe(980_000_00n);
     expect(view.money?.title).toBe(t.money.titleWaiting);
+    // Своя цена — в блоке денег, в «Сейчас» не повторяется.
+    expect(view.now).toEqual({ title: t.now.waiting.title, body: t.now.waiting.body });
+    expect(view.now.body).not.toContain(formatMoney(980_000_00n));
     expect(view.proposeDescription).toBe(t.propose.description);
   });
 
@@ -271,9 +283,9 @@ describe("offerView: действия, смета и тексты по сост�
   it("история: кто и какую цену предложил, отозванные и заменённые помечены", () => {
     const n = negotiation([round("p1", "EXECUTOR", 500_000, "SUPERSEDED"), round("p2", "CLIENT", 450_000, "WITHDRAWN"), round("p3", "EXECUTOR", 480_000, "PROPOSED")]);
     expect(offerView(offer(), n).history.map(({ title, text, amountTiyn }) => [title, text, amountTiyn])).toEqual([
-      [t.history.master, t.history.status.SUPERSEDED, 500_000_00n],
+      [t.history.master, undefined, 500_000_00n],
       [t.history.you, t.history.status.WITHDRAWN, 450_000_00n],
-      [t.history.master, t.history.status.PROPOSED, 480_000_00n],
+      [t.history.master, undefined, 480_000_00n],
     ]);
     expect(offerView(offer(), n).history[0].time).toMatch(/2026/);
   });

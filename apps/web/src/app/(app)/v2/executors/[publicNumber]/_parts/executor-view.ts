@@ -46,11 +46,13 @@ export type DealView = {
   review?: DealReviewView;
 };
 
-export type OffPlatformWork = WorkCardView & { byline: string };
+export type OffPlatformWork = WorkCardView;
 export type ExplainView = { label: string; title: string; paragraphs: readonly string[] };
 
 export type ExecutorViewModel = {
   title: string;
+  /** Монограмма у заголовка — только у открытого имени (ADR-006): у «Исполнитель №N» она повторяла бы номер. */
+  monogram: boolean;
   backHref: string;
   /** Шапка: рейтинг (подпись — число отзывов), «Сделок», «Успешных». */
   stats: StatView[];
@@ -151,6 +153,7 @@ export function executorView(page: ExecutorPageData, opts: { requestId?: string 
   const { view } = page;
   return {
     title: view.label,
+    monogram: view.nameShown,
     // «Назад» — в список мастеров, откуда пришли (с тем же заказом в адресе, если он был).
     backHref: opts.requestId ? `${to("/executors")}?${new URLSearchParams({ request: opts.requestId })}` : to("/executors"),
     stats: statsOf(view, page.stats),
@@ -162,7 +165,7 @@ export function executorView(page: ExecutorPageData, opts: { requestId?: string 
     highlights: page.highlights.map(highlightView),
     deals: page.dealHistory.map(dealView),
     offPlatform: {
-      works: page.offPlatform.map((card) => ({ ...workCardView(card), byline: t.offPlatformMark })),
+      works: page.offPlatform.map(workCardView),
       gallery: workGallery(page.offPlatform),
     },
     explain: view.nameShown ? t.explain.shown : t.explain.hidden,

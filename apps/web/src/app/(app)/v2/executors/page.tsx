@@ -4,6 +4,7 @@ import { Columns, EmptyState, PageTitle, Pagination, Stack, WorkCard } from "@/k
 import { listExecutors } from "@/modules/companies";
 import { getDevice } from "@/platform/device";
 import { pageHref, userPastOnboarding } from "../../_shell/auth";
+import { cardMedia } from "../_parts/work-card";
 import { executorsListView, parseExecutorsSearch } from "./_parts/list-view";
 import { inviteContext } from "./_parts/load";
 
@@ -17,7 +18,8 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
  * Общий список мастеров: карточка — фото работы, метка мастера (ADR-006), уровень, оценка, число сделок и доля успешных;
  * ведёт на профиль мастера. Открыт гостю, как профиль мастера и каталог. Порядок задаёт модуль. Главного действия нет; в
  * пустых состояниях оно одно — в `EmptyState`. С `?request=<id>` своей открытой заявки (путь ТЗ, на всех мастеров) список
- * открыт для неё: подзаголовок с номером и «Назад» к заявке; чужая или неподходящая заявка — обычный список без ошибки.
+ * открыт для неё: подзаголовок с номером и «Назад» к заявке; чужая или неподходящая заявка — обычный список без ошибки
+ * (без подзаголовка). На телефоне у карточки без фото пустой рамки нет (`cardMedia`).
  */
 export default async function ExecutorsPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -28,7 +30,7 @@ export default async function ExecutorsPage({ searchParams }: Props) {
 
   return (
     <Stack gap="section">
-      <PageTitle title={t.title} lead={view.lead} {...(view.back ? { back: view.back } : {})} />
+      <PageTitle title={t.title} {...(view.lead ? { lead: view.lead } : {})} {...(view.back ? { back: view.back } : {})} />
       {view.empty && <EmptyState title={view.empty.title} body={view.empty.body} action={view.empty.action} />}
       {view.cards.length > 0 && (
         <Columns count={3}>
@@ -39,7 +41,7 @@ export default async function ExecutorsPage({ searchParams }: Props) {
               title={card.title}
               meta={card.meta}
               byline={card.byline}
-              media={view.media}
+              media={cardMedia(view.media, card, device)}
               headingLevel={2}
               priority={index < (device === "desktop" ? 3 : 1)}
               {...(card.photo ? { photo: card.photo } : {})}

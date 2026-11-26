@@ -219,7 +219,13 @@ export async function listIncomingRequests(user: CurrentUser, filter: { mode?: "
     include: {
       furnitureType: { select: { name: true } },
       // Последняя попытка исполнителя (повтор разрешает оператор, №16).
-      offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, select: { status: true } },
+      offers: {
+        where: { executorId: executor.id },
+        orderBy: { round: "desc" },
+        take: 1,
+        // Открытая цена торга (одна на отклик): чья она — чей ход.
+        select: { status: true, proposals: { where: { status: "PROPOSED" }, take: 1, select: { party: true } } },
+      },
       _count: { select: { offers: { where: { status: { not: "WITHDRAWN" } } } } },
       invitations: { where: { executorId: executor.id }, select: { status: true }, take: 1 },
       photos: coverPhoto,
@@ -239,6 +245,8 @@ export async function listIncomingRequests(user: CurrentUser, filter: { mode?: "
     publishedAt: r.publishedAt,
     offersCount: r._count.offers,
     myOfferStatus: r.offers[0]?.status ?? null,
+    /** Открыта встречная цена покупателя по моему отклику: торг идёт, ход за исполнителем. */
+    buyerPriceOpen: r.status === "OPEN" && r.offers[0]?.status === "SENT" && r.offers[0].proposals[0]?.party === "CLIENT",
     /** Покупатель пригласил этого мастера и приглашение в силе (ждёт ответа или мастер откликнулся). */
     invited: isInvited(r.invitations[0]?.status),
   }));

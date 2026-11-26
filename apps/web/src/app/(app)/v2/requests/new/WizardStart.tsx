@@ -84,7 +84,7 @@ export function WizardStart({ base, types, photos, initial }: Props) {
   const typeError = e.furnitureTypeId;
 
   return (
-    <WizardFrame base={base} title={t.title} lead={t.lead} form={form}>
+    <WizardFrame base={base} title={t.title} form={form}>
       <PhotoChoiceGroup legend={t.typeLegend} error={type.main === OTHER ? undefined : typeError}>
         {popular.map((item) => (
           <PhotoChoice

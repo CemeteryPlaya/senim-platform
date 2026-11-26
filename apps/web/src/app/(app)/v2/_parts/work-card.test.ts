@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PortfolioCard } from "@/modules/companies";
-import { workCardView, workGallery } from "./work-card";
+import { cardMedia, workCardView, workGallery } from "./work-card";
 
 const card = (photos: PortfolioCard["photos"]): PortfolioCard => ({
   id: "w1",
@@ -26,5 +26,20 @@ describe("карточка работы: уменьшенная копия фо�
 
   it("превью нет (старый файл) — обложка из исходника", () => {
     expect(workCardView(card([{ id: "f1", src: "/api/files/old.jpg", alt: "Кухня, фото 1" }])).photo?.src).toBe("/api/files/old.jpg");
+  });
+});
+
+describe("карточка работы: строка под названием и область фото", () => {
+  it("под названием — только место: тип мебели не повторяется; места нет — строки нет", () => {
+    expect(workCardView(card([])).meta).toBe("Астана");
+    expect(workCardView({ ...card([]), place: null }).meta).toBe("");
+  });
+
+  it("телефон: пустой рамки у карточки без фото нет; компьютер — общая область у всех (ряд одной высоты)", () => {
+    const photo = { src: "/api/files/1.jpg", alt: "К" };
+    expect(cardMedia("slot", {}, "mobile")).toBe("none");
+    expect(cardMedia("slot", { photo }, "mobile")).toBe("slot");
+    expect(cardMedia("slot", {}, "desktop")).toBe("slot");
+    expect(cardMedia("none", { photo }, "mobile")).toBe("none");
   });
 });

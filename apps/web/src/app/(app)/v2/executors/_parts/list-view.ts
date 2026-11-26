@@ -23,7 +23,7 @@ export type ExecutorCardView = {
   href: string;
   /** Метка мастера, как отдал модуль (режим показа имени). */
   title: string;
-  /** «Комфорт · 4,8 · 12 отзывов» или «Пока без отзывов». */
+  /** «Комфорт · 4,8 · 12 отзывов»; без отзывов — только уровень («Пока без отзывов» не пишем: пустое не показываем). */
   meta: string;
   /** «Сделок: 15 · Успешных: 92%». */
   byline: string;
@@ -35,7 +35,8 @@ type EmptyView = { title: string; body: string; action: { href: string; label: s
 
 export type ExecutorsListView = {
   state: "results" | "empty" | "beyond";
-  lead: string;
+  /** Подзаголовок — только когда список открыт для заявки («Для заявки №7»); иначе null. */
+  lead: string | null;
   /** «Назад» к заявке, с которой пришли; без заявки — нет (список — экран верхнего уровня, как каталог). */
   back: { href: string; label: string } | null;
   cards: ExecutorCardView[];
@@ -73,7 +74,7 @@ function listHref(page: number, invite: InviteContext | null): string {
 
 function cardView(item: ExecutorListItem, invite: InviteContext | null): ExecutorCardView {
   const rating =
-    item.reviewsCount > 0 ? t.rating(item.ratingAvg.toLocaleString("ru-RU", { maximumFractionDigits: 1 }), ru.app.guest.catalog.reviews(item.reviewsCount)) : t.noReviews;
+    item.reviewsCount > 0 ? t.rating(item.ratingAvg.toLocaleString("ru-RU", { maximumFractionDigits: 1 }), ru.app.guest.catalog.reviews(item.reviewsCount)) : null;
   return {
     key: String(item.publicNumber),
     // С заявкой в адресе профиль тоже открыт для неё: оттуда мастера приглашают к этому заказу.
@@ -106,7 +107,7 @@ export function executorsListView(
   const cards = result.items.map((item) => cardView(item, invite));
   return {
     state,
-    lead: invite ? t.forRequest(invite.number) : t.lead,
+    lead: invite ? t.forRequest(invite.number) : null,
     back: invite ? { href: to(`/requests/${encodeURIComponent(invite.requestId)}`), label: t.backToRequest } : null,
     cards,
     media: cardsMedia(cards),

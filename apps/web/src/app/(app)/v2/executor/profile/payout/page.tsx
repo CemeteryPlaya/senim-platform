@@ -9,6 +9,7 @@ import { isAppError } from "@/platform/errors";
 import { requireMaster } from "../../../../_shell/auth";
 import { to } from "../../../../_shell/paths";
 import { SUPPORT_HREF } from "../../../../_shell/support";
+import { masterBack } from "../_parts/company-view";
 import { accountLine, payoutNow } from "./payout-view";
 import { PayoutForm } from "./PayoutForm";
 
@@ -41,20 +42,17 @@ export default async function PayoutPage() {
   return (
     <Narrow>
       <Stack gap="section">
-        <PageTitle
-          title={t.title}
-          back={{
-            href: to("/executor/profile"),
-            label: ru.app.masterCompany.shared.backCompany,
-          }}
-        />
+        <PageTitle title={t.title} back={masterBack(status === "approved")} />
         <Stack>
           <NowNext now={{ title: now.title, body: now.body }} {...(now.next ? { next: now.next } : {})} />
-          <Card padded={false}>
-            <List>
-              <ListRow label={t.account} value={<span className="tabular-nums">{accountLine(last4)}</span>} />
-            </List>
-          </Card>
+          {/* Указанный счёт (смена открыта) — номер уже в заголовке карточки: отдельной строки «Счёт» нет. */}
+          {(locked || last4 === null) && (
+            <Card padded={false}>
+              <List>
+                <ListRow label={t.account} value={<span className="tabular-nums">{accountLine(last4)}</span>} />
+              </List>
+            </Card>
+          )}
           {locked && <TextLink href={SUPPORT_HREF}>{t.support}</TextLink>}
         </Stack>
         {!locked && <PayoutForm device={device} />}

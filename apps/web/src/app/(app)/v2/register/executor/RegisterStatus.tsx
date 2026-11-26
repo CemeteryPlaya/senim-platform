@@ -150,12 +150,10 @@ export function RegisterGuest() {
         <PageTitle title={g.title} back={{ href: to("/"), label: t.backHome }} lead={g.lead} />
         <Section title={g.stepsTitle}>
           <Card>
-            <ol className="flex flex-col gap-4">
-              {g.steps.map((step, index) => (
-                <li key={step}>
-                  <p className="text-small text-muted">{g.stepLabel(index + 1)}</p>
-                  <p className="mt-1 text-body text-ink">{step}</p>
-                </li>
+            {/* Номер шага — номер пункта списка: подписи «Шаг N» над каждым пунктом не нужны. */}
+            <ol className="flex list-decimal flex-col gap-4 pl-6 text-body text-ink">
+              {g.steps.map((step) => (
+                <li key={step}>{step}</li>
               ))}
             </ol>
           </Card>

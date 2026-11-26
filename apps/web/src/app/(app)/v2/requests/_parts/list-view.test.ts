@@ -57,8 +57,8 @@ describe("«Мои заявки»", () => {
     // Дата короткая, неразрывными пробелами: год текущий — без года, иначе с годом.
     const nb = String.fromCharCode(160);
     const at = (now: string, over: Partial<MyRequestRow>) => requestListView([row(over)], undefined, new Map(), new Date(now)).cards[0]?.meta;
-    expect(at("2026-11-15T10:00:00Z", { id: "s", mode: "DIRECT" })).toBe(`${t.direct} · ${t.sentOn(`12${nb}нояб`)}`);
-    expect(at("2027-01-15T10:00:00Z", { id: "s" })).toBe(t.sentOn(`12${nb}нояб${nb}2026`));
+    expect(at("2026-11-15T10:00:00Z", { id: "s", mode: "DIRECT" })).toBe(`${t.direct} · 12${nb}нояб`);
+    expect(at("2027-01-15T10:00:00Z", { id: "s" })).toBe(`12${nb}нояб${nb}2026`);
   });
 
   it("статус — общая requestState: только действующие предложения; со сделкой — «Идёт сделка», не «Договор»", () => {

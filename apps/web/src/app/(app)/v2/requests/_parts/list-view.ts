@@ -61,10 +61,11 @@ const groupHref = (group: RequestGroup | "all") => (group === "all" ? to("/reque
  */
 function cardOf(r: MyRequestRow, offers: readonly RequestOfferInput[], now: Date): RequestCard {
   const draft = r.status === "DRAFT";
-  // Дата — короткая («21 окт», год — только если не текущий): строка списка, а не документ.
+  // Дата — короткая («21 окт», год — только если не текущий): строка списка, а не документ. Без «отправлена»: у
+  // отправленной заявки дата и так читается как дата отправки, а слово повторялось бы в каждой строке.
   const meta = draft
     ? t.draftProgress(Math.min(r.wizardStep, WIZARD_SCREENS.length), WIZARD_SCREENS.length)
-    : [r.mode === "DIRECT" ? t.direct : null, t.sentOn(formatShortDate(r.publishedAt ?? r.createdAt, now))].filter(Boolean).join(" · ");
+    : [r.mode === "DIRECT" ? t.direct : null, formatShortDate(r.publishedAt ?? r.createdAt, now)].filter(Boolean).join(" · ");
   const state = requestState({ status: r.status, offers });
   return {
     id: r.id,

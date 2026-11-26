@@ -16,16 +16,16 @@ export type WorkRow = {
   id: string;
   href: string;
   title: string;
-  /** «Опубликована» / «Скрыта» — в `StatusChip`. */
-  status: string;
-  /** Вторая строка: «Тип · стиль · фото: N». */
+  /** «Скрыта» — в `StatusChip`; опубликованную (обычный случай) не подписываем — `null`. */
+  status: string | null;
+  /** Вторая строка: «Тип · стиль». */
   details: string;
   published: boolean;
   priceFrom?: bigint;
   photo?: { src: string; alt: string };
 };
 
-export type WorkListView = { rows: WorkRow[]; media: "none" | "slot"; countText: string };
+export type WorkListView = { rows: WorkRow[]; media: "none" | "slot" };
 
 export const workHref = (id: string): string => to(`/executor/portfolio/${id}`);
 
@@ -35,8 +35,8 @@ export function workRow(item: OwnPortfolioItem): WorkRow {
     id: item.id,
     href: workHref(item.id),
     title: item.title,
-    status: item.published ? t.list.published : t.list.hidden,
-    details: [item.furnitureType.name, item.style.name, t.list.photos(item.photos.length)].join(" · "),
+    status: item.published ? null : t.list.hidden,
+    details: [item.furnitureType.name, item.style.name].join(" · "),
     published: item.published,
     // Ноль — «цена не указана», а не «бесплатно».
     ...(item.priceFrom !== null && item.priceFrom > 0 ? { priceFrom: toTiyn(item.priceFrom) } : {}),
@@ -46,7 +46,7 @@ export function workRow(item: OwnPortfolioItem): WorkRow {
 
 export function workListView(items: readonly OwnPortfolioItem[]): WorkListView {
   const rows = items.map(workRow);
-  return { rows, media: cardsMedia(rows), countText: t.list.count(rows.length) };
+  return { rows, media: cardsMedia(rows) };
 }
 
 /** Значения формы: все поля — строки (число — как его вводят). */
@@ -74,10 +74,14 @@ export function initialValues(item: OwnPortfolioItem): WorkValues {
   };
 }
 
-/** Варианты стиля для выбора карточками: название и подсказка из справочника мебели. */
-export const STYLE_OPTIONS: readonly { value: StyleKey; label: string; description: string }[] = (Object.entries(STYLES) as [StyleKey, (typeof STYLES)[StyleKey]][]).map(
-  ([value, s]) => ({ value, label: s.name, description: s.hint }),
-);
+/**
+ * Варианты стиля для выбора карточками: только название из справочника мебели. Подсказки стилей (`STYLES.hint`) нужны
+ * покупателю в заявке; мебельщик стили знает, а описания удлиняли форму на экран.
+ */
+export const STYLE_OPTIONS: readonly { value: StyleKey; label: string }[] = (Object.entries(STYLES) as [StyleKey, (typeof STYLES)[StyleKey]][]).map(([value, s]) => ({
+  value,
+  label: s.name,
+}));
 
 /** Число из поля ввода: пробелы-разделители (в том числе неразрывные) допустимы, пустое поле — null. */
 export function toPrice(raw: string): number | null {

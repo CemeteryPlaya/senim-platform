@@ -92,7 +92,7 @@ describe("пределы схем v2 совпадают с модулями", ()
 });
 
 describe("«Компания»", () => {
-  it("одобренный мастер: «как вас видят», публичная страница, разделы, одно главное действие, «Назад» — «Профиль»", async () => {
+  it("одобренный мастер: «как вас видят», публичная страница, без раздела «Ещё по компании», одно главное действие, «Назад» — «Профиль»", async () => {
     const executor = await master({ legalName: "ИП «Дала»" });
     for (const device of ["mobile", "desktop"] as const) {
       h.device = device;
@@ -101,11 +101,12 @@ describe("«Компания»", () => {
       expect(out).toContain(ru.common.executorLabel(executor.executor.publicNumber));
       expect(out).toContain("ИП «Дала»");
       expect(out).toContain(`href="/v2/executors/${executor.executor.publicNumber}"`);
+      // Разделы — на экране «Профиль», откуда одобренный мастер пришёл: здесь их нет.
       for (const href of ["/v2/executor/profile/kyc", "/v2/executor/profile/payout", "/v2/executor/portfolio", "/v2/executor/finance"]) {
-        expect(out).toContain(`href="${href}"`);
+        expect(out).not.toContain(`href="${href}"`);
       }
       expect(out).toContain('href="/v2/profile"');
-      expect(out).toContain(m.company.form.about.explain.label);
+      expect(out).toContain(m.company.seen.explain.label);
       expect(h1(out)).toBe(1);
       expect(primaries(out)).toBe(1);
       expect(out).not.toMatch(/заказчик|платформ|комисси|эскроу/i);
@@ -351,7 +352,7 @@ describe("«Счёт для оплаты»", () => {
 
     const out = await renderPayout();
     expect(out).toContain("KZ •••• 0100");
-    expect(out).toContain(m.payout.now.set.title);
+    expect(out).toContain(m.payout.now.set.title("0100"));
     for (const secret of [IBAN, GROUPED, "125KZT", "5004100"]) expect(out).not.toContain(secret);
     expect(logs.filter((line) => line.includes("86125") || line.includes("5004100"))).toEqual([]);
   });

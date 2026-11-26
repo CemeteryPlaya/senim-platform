@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { DisputeReason } from "@/generated/prisma/enums";
-import { ActionDock, Button, Card, ConfirmDialog, Explain, Narrow, NowNext, PageTitle, RadioCard, RadioGroup, Stack, TextArea, toast, Uploader } from "@/kit";
+import { ActionDock, Button, Card, ConfirmDialog, Explain, Narrow, PageTitle, RadioCard, RadioGroup, Stack, TextArea, toast, Uploader } from "@/kit";
 import { PHOTO_ACCEPT } from "@/features/upload/transfer";
 import type { Device } from "@/platform/device";
 import { FormError } from "../../../../_shell/FormError";
@@ -66,7 +66,6 @@ export function DisputeForm({ dealId, side, dealTitle, backHref, device }: Props
     <Narrow>
       <Stack gap="section">
         <PageTitle title={t.title} back={{ href: backHref, label: dealTitle }} lead={t.lead} />
-        <NowNext now={{ title: t.nowTitle }} next={t.nowNext} />
         <Card>
           <form id={FORM} method="post" onSubmit={submit} noValidate>
             <Stack gap="section">
@@ -87,7 +86,6 @@ export function DisputeForm({ dealId, side, dealTitle, backHref, device }: Props
               />
               <Stack>
                 <p className="text-sub font-medium text-ink">{t.photosTitle}</p>
-                <p className="text-sub text-muted">{t.photosLead}</p>
                 <Uploader
                   items={uploads.items}
                   max={MAX_PHOTOS}

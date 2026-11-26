@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDays, formatMonths } from "@/features/format/format";
+import { formatDays, formatMonths, formatRelative } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
 import { formatMoney } from "@/kit";
 import { partyEstimate } from "@/modules/payments";
@@ -146,7 +146,8 @@ describe("requestView: экран заявки мастера", () => {
     expect(v.contactsNote).toBe(t.request.contacts);
     expect([v.history, v.conditions]).toEqual([[], []]);
     expect(v.back).toEqual({ href: "/v2/executor/requests", label: t.back });
-    expect(v.lead).toEqual({ number: t.numberLine(18), direct: null, invited: null });
+    // Когда опубликована — в строке номера под заголовком (кнопка копирует только номер); в разделе «Что нужно» её нет.
+    expect(v.lead).toEqual({ number: t.numberLine(18), published: t.published(formatRelative(at, now)), direct: null, invited: null });
   });
 
   it("цена покупателя: «Принять X» с подтверждением и суммой «Вы получите» из partyEstimate(\"EXECUTOR\"); своя цена — второстепенное", () => {
@@ -154,7 +155,8 @@ describe("requestView: экран заявки мастера", () => {
     const v = requestView(request({ canOffer: false, myOffer: myOffer() }), n, now);
     const e = partyEstimate("EXECUTOR", 980_000_00n);
     const price = formatMoney(980_000_00n);
-    expect(v.now).toEqual({ title: t.now.buyerPrice.title(price), body: t.now.buyerPrice.body });
+    // Тело не пересказывает кнопки «Принять X» и «Предложить свою цену».
+    expect(v.now).toEqual({ title: t.now.buyerPrice.title(price) });
     expect(v.primary).toEqual({
       kind: "accept",
       proposalId: "b",
@@ -165,20 +167,21 @@ describe("requestView: экран заявки мастера", () => {
     expect(v.primary?.kind === "accept" && v.primary.confirmDescription).toContain(formatMoney(921_200_00n));
     expect(v.secondary).toEqual({ kind: "propose" });
     expect(v.proposeDescription).toBe(t.propose.buyerPrice(price));
+    // «Вы получите» — заголовок над крупной суммой; строкой итога она не повторяется.
     expect(v.money).toEqual({
       title: t.money.title,
       amountTiyn: e.totalTiyn,
       rows: [
         { label: t.money.price.buyer, amountTiyn: 980_000_00n },
         { label: t.money.guarantee, amountTiyn: e.extraTiyn, explain: true },
-        { label: t.money.youGet, amountTiyn: e.totalTiyn, total: true },
       ],
     });
     expect(v.withdrawOffer).toEqual({ offerId: "offer-1" });
     expect(v.chat).toEqual({ href: "/v2/chats/offer-1", label: t.actions.chat });
     expect(v.history.map((h) => [h.title, h.text])).toEqual([
       [t.history.you, t.history.status.SUPERSEDED],
-      [t.history.buyer, t.history.status.PROPOSED],
+      // Открытая цена покупателя ждёт ответа мастера — так и сказано.
+      [t.history.buyer, t.history.buyerOpen],
     ]);
     expect(v.conditions).toEqual([
       { label: t.conditions.duration, value: formatDays(30) },
@@ -195,6 +198,9 @@ describe("requestView: экран заявки мастера", () => {
     expect(v.now.body).toBe(t.now.waiting.body(formatMoney(1_050_000_00n)));
     expect(v.money?.title).toBe(t.money.titleWaiting);
     expect(v.money?.rows[0]).toEqual({ label: t.money.price.yours, amountTiyn: 1_050_000_00n });
+    // Заголовок — условие, поэтому сумму называет строка итога; своя открытая цена — «ждёт ответа покупателя».
+    expect(v.money?.rows.at(-1)).toMatchObject({ label: t.money.youGet, total: true });
+    expect(v.history.map((h) => h.text)).toEqual([t.history.status.PROPOSED]);
     expect(v.proposeDescription).toBe(t.propose.description);
   });
 
@@ -217,6 +223,10 @@ describe("requestView: экран заявки мастера", () => {
     expect(v.withdrawOffer).toBeNull();
     expect(v.money).toBeNull();
     const map = { point: { lat: 51.1282, lng: 71.4304 }, address: "ул. Тестовая, 1" };
+    // Адрес без города — строка «Город» остаётся; адрес начинается с города — её нет.
+    expect(v.details.map((row) => row.label)).toContain(t.request.city);
+    const withCity = requestView(request({ status: "CONTRACTING", canOffer: false, address: "Астана, ул. Тестовая, 1", myOffer: myOffer({ status: "ACCEPTED" }) }), n, now);
+    expect(withCity.details.map((row) => row.label)).not.toContain(t.request.city);
     expect(v.details).toContainEqual({ label: t.request.address, value: "ул. Тестовая, 1", stacked: true, map });
     // Сырых координат на экране нет: ссылки на карты — под адресом.
     expect(JSON.stringify(v.details.map((row) => row.value))).not.toContain("51.1282");
@@ -257,6 +267,8 @@ describe("requestView: экран заявки мастера", () => {
     expect(rows[t.request.city]).toBe("Астана");
     expect(rows[t.request.wishes]).toBe("Верхние шкафы до потолка");
     expect(t.request.location in rows).toBe(false);
+    // Что за мебель — заголовок экрана: строки «Что делаем» в разделе нет.
+    expect(Object.values(rows)).not.toContain("Кухня");
     expect(v.photos).toEqual([{ id: "p1", src: "/files/p1", alt: t.request.photoAlt(1, 1) }]);
     expect(photoView([{ id: "a", src: null }, { id: "b", src: "/b" }])).toEqual([{ id: "b", src: "/b", alt: t.request.photoAlt(1, 1) }]);
   });

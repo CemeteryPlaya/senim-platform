@@ -29,6 +29,7 @@ function StatusTable<S extends string>({ id, title, rows }: { id: StatusTableKin
   return (
     <Section title={title} id={id}>
       <TableOrCards
+        compact
         caption={title}
         captionHidden
         rows={rows}
@@ -69,7 +70,6 @@ export default async function AdminHome({ searchParams }: Props) {
         </StatRow>
       </Section>
       <Section title={t.funnel.title} id="funnel">
-        <p className="text-body text-muted">{t.funnel.lead}</p>
         <StatRow label={t.funnel.title}>
           {FUNNEL.map((step) => (
             <Stat key={step} label={t.funnel.steps[step]} value={stats.funnel[step]} muted={stats.funnel[step] === 0} />

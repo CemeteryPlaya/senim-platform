@@ -19,7 +19,7 @@ import { requireParty, requireRole, scopeOf } from "./state";
  */
 
 /** Редакция текста вопроса «что показать» (ru.app.deal.showcase): записывается с каждым выбором. */
-export const SHOWCASE_TEXT_VERSION = "2026-11-18";
+export const SHOWCASE_TEXT_VERSION = "2026-11-26";
 
 export type ShowcaseChoice = { photos: boolean; price: boolean; address: ShowcaseAddress; signature: ShowcaseSignature };
 

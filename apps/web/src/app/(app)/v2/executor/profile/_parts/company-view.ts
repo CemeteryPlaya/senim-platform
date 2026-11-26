@@ -24,7 +24,7 @@ export type CompanyProfile = {
 };
 
 /** Карточка «Сейчас / Дальше» по статусу профиля. После отказа — ссылка на анкету. */
-export type CompanyNow = { title: string; body?: string; next: string; fixHref?: string; fixLabel?: string };
+export type CompanyNow = { title: string; body?: string; next?: string; fixHref?: string; fixLabel?: string };
 
 export function companyNow(profile: Pick<CompanyProfile, "status" | "rejectReason">): CompanyNow {
   switch (profile.status) {
@@ -43,27 +43,27 @@ export function companyNow(profile: Pick<CompanyProfile, "status" | "rejectReaso
   }
 }
 
-/** «Астана, Есильский район»: город и район через запятую; пусто — null. Улицу и дом покупатель до оферты не видит. */
-export function placeLine(profile: Pick<CompanyProfile, "city" | "district">): string | null {
-  const line = [profile.city, profile.district].filter((part) => part !== "").join(", ");
-  return line === "" ? null : line;
-}
-
 export type SectionLink = { label: string; href: string };
 
 /**
- * Разделы под карточкой: документы, счёт и портфолио — всегда (их можно заполнять до проверки); финансы — только у
- * одобренного мастера.
+ * Разделы под карточкой — только у неодобренного мастера: документы, счёт и портфолио (их можно заполнять до проверки).
+ * У одобренного те же строки (и финансы) стоят на экране «Профиль», откуда он сюда пришёл, — здесь их нет (`[]`).
  */
 export function sectionLinks(status: RegistrationStatus): SectionLink[] {
+  if (status === "APPROVED") return [];
   const s = t.sections;
   const links: SectionLink[] = [
     { label: s.documents, href: to("/executor/profile/kyc") },
     { label: s.payout, href: to("/executor/profile/payout") },
     { label: s.portfolio, href: to("/executor/portfolio") },
   ];
-  if (status === "APPROVED") links.push({ label: s.finance, href: to("/executor/finance") });
   return links;
+}
+
+/** «Назад» с документов, счёта и портфолио: одобренному — «Профиль» (разделы там), иначе — «Компания» (корневая вкладка). */
+export function masterBack(approved: boolean): { href: string; label: string } {
+  const s = ru.app.masterCompany.shared;
+  return approved ? { href: to("/profile"), label: s.backProfile } : { href: to("/executor/profile"), label: s.backCompany };
 }
 
 /** Публичная страница мастера: только у одобренного (до проверки покупатели его не видят). */

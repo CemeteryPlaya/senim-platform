@@ -76,7 +76,7 @@ function Decision({ d, mobile, justResolved }: { d: Card_; mobile: boolean; just
 
 /**
  * Карточка спора: что сейчас (статус, причина, этап сделки), позиции сторон, решение; рядом — деньги сделки по журналу,
- * стороны и вложения; ниже — журнал денег и история сделки. Открытый спор — форма решения с расчётом раздела и кодом из
+ * стороны и вложения (раздел — только когда они есть); ниже — журнал денег и история сделки. Открытый спор — форма решения с расчётом раздела и кодом из
  * приложения. Единственное главное действие — «Принять решение» (у решённого спора его нет). Несуществующий спор — 404.
  */
 export default async function DisputeCardPage({ params, searchParams }: Props) {
@@ -100,7 +100,7 @@ export default async function DisputeCardPage({ params, searchParams }: Props) {
                   <StatusChip tone="neutral">{t.disputes.reasons[d.reason]}</StatusChip>
                   <StatusChip tone="neutral">{t.dealStatus[deal.status]}</StatusChip>
                 </div>
-                <p className="mt-3 text-body text-muted">{openedLine(d.createdAt, d.openedInStatus)}</p>
+                <p className="mt-3 text-body text-muted">{openedLine(d.createdAt, d.openedInStatus, deal.status)}</p>
               </Card>
             </Section>
             <Section title={c.positions} id="positions">
@@ -118,7 +118,7 @@ export default async function DisputeCardPage({ params, searchParams }: Props) {
         aside={
           <Stack gap="section">
             <Section title={t.money.section} id="money">
-              <MoneyPanel tone={money.tone} title={money.title} amount={money.amount} rows={money.rows} {...(money.note ? { note: money.note } : {})} device={device} />
+              <MoneyPanel tone={money.tone} title={money.title} amount={money.amount} rows={money.rows} device={device} />
             </Section>
             <Section title={c.parties} id="parties">
               <Card padded={false}>
@@ -126,17 +126,16 @@ export default async function DisputeCardPage({ params, searchParams }: Props) {
                   <ListRow label={c.client} value={deal.client.fullName ?? t.none} stacked />
                   <ListRow label={c.executor} value={c.executorValue(deal.executor.publicNumber, deal.executor.legalName)} stacked />
                   <ListRow label={c.price} value={<Money tiyn={deal.priceTiyn} />} stacked />
-                  <ListRow label={c.paid} value={<Money tiyn={deal.buyerTotalTiyn} />} stacked />
+                  {/* ADR-015: покупатель платит ровно цену; строка — только у старых сделок с защитой сделки 2 %. */}
+                  {deal.buyerTotalTiyn !== deal.priceTiyn && <ListRow label={c.paid} value={<Money tiyn={deal.buyerTotalTiyn} />} stacked />}
                   <ListRow label={c.provider} value={c.providers[deal.paymentProvider]} stacked />
                 </List>
               </Card>
               <TextLink href={to(`/operator/deals/${encodeURIComponent(deal.id)}`)}>{c.openDeal}</TextLink>
             </Section>
-            <Section title={c.attachments} id="attachments">
-              <Card>
-                {d.attachments.length === 0 ? (
-                  <p className="text-body text-muted">{c.noAttachments}</p>
-                ) : (
+            {d.attachments.length > 0 && (
+              <Section title={c.attachments} id="attachments">
+                <Card>
                   <ul className="flex flex-col gap-3">
                     {d.attachments.map((a) => (
                       <li key={a.id} className="flex flex-col gap-1">
@@ -149,9 +148,9 @@ export default async function DisputeCardPage({ params, searchParams }: Props) {
                       </li>
                     ))}
                   </ul>
-                )}
-              </Card>
-            </Section>
+                </Card>
+              </Section>
+            )}
           </Stack>
         }
       />

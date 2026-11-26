@@ -1,10 +1,14 @@
 import type { PortfolioCard } from "@/modules/companies";
+import type { Device } from "@/platform/device";
 
 /** То, что `WorkCard` берёт из работы портфолио (без адреса: его задаёт экран). */
 export type WorkCardView = {
   id: string;
   title: string;
-  /** «Тип · место» — только то, что карточка отдаёт публично. */
+  /**
+   * Место работы — только то, что карточка отдаёт публично; нет места — пусто (строки нет). Тип мебели не повторяем: его
+   * называет заголовок работы или выбранный фильтр каталога.
+   */
   meta: string;
   /** Тиыны. Нет цены — поля нет. */
   priceFrom?: bigint;
@@ -31,7 +35,7 @@ export function workCardView(card: PortfolioCard): WorkCardView {
   return {
     id: card.id,
     title: card.title,
-    meta: [card.furnitureType.name, card.place].filter(Boolean).join(" · "),
+    meta: card.place ?? "",
     // Ноль — «цена не указана», а не «бесплатно».
     ...(card.priceFrom !== null && card.priceFrom > 0 ? { priceFrom: toTiyn(card.priceFrom) } : {}),
     ...(cover?.src ? { photo: { src: cover.thumb ?? cover.src, alt: cover.alt } } : {}),
@@ -44,6 +48,15 @@ export function workCardView(card: PortfolioCard): WorkCardView {
  */
 export function cardsMedia(cards: readonly Pick<WorkCardView, "photo">[]): "none" | "slot" {
   return cards.some((card) => card.photo) ? "slot" : "none";
+}
+
+/**
+ * Область изображения одной карточки списка: на компьютере — общая для списка (`cardsMedia`: карточки ряда одной
+ * высоты), на телефоне — только у карточки с фото: карточки идут столбиком, одна высота не нужна, а пустая рамка лишняя.
+ */
+export function cardMedia(list: "none" | "slot", card: Pick<WorkCardView, "photo">, device: Device): "none" | "slot" {
+  if (device === "desktop") return list;
+  return card.photo ? list : "none";
 }
 
 /** Снимок работы для галереи на весь экран: подпись — название работы. */

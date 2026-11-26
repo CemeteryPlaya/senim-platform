@@ -22,7 +22,7 @@ export default async function DisputesPage() {
 
   return (
     <Stack gap="section">
-      <PageTitle title={t.disputes.title} lead={t.disputes.lead} />
+      <PageTitle title={t.disputes.title} />
       <DataTable
         caption={t.disputes.title}
         captionHidden

@@ -127,7 +127,6 @@ export function BuyerHomeView({
             />
           )}
           {firstSteps}
-          {view.moreDeals > 0 && <TextLink href={to("/deals")}>{t.deal.allDeals}</TextLink>}
         </Stack>
       ) : (
         <Stack>
@@ -145,11 +144,18 @@ export function BuyerHomeView({
 
 /**
  * До двух живых заявок: миниатюра (первое фото помещения), название и короткая плашка состояния — та же `requestState`,
- * что в «Моих заявках» и в карточке заявки (число предложений — строкой рядом с плашкой); остальные — «Все заявки».
+ * что в «Моих заявках» и в карточке заявки (число предложений — строкой рядом с плашкой); остальные — по ссылке «Все»
+ * в строке заголовка. Название без «Заявка №…»: раздел уже называется «Мои заявки».
  */
 function RequestsSection({ requests }: { requests: HomeRequestInput[] }) {
+  const all = (
+    <TextLink href={to("/requests")}>
+      <span aria-hidden>{t.requests.allShort}</span>
+      <span className="sr-only">{t.requests.all}</span>
+    </TextLink>
+  );
   return (
-    <Section title={t.requests.section}>
+    <Section title={t.requests.section} action={all}>
       <Card variant="grouped">
         <List>
           {requests.map((r) => {
@@ -160,7 +166,7 @@ function RequestsSection({ requests }: { requests: HomeRequestInput[] }) {
                 leading={thumbOf(r.cover)}
                 label={
                   <span className="flex flex-col items-start gap-1 py-1">
-                    <span className="text-headline wrap-break-word text-ink">{ru.requests.requestTitle(r.number, r.title)}</span>
+                    <span className="text-headline wrap-break-word text-ink">{r.title}</span>
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <StatusChip tone={state.tone}>{state.chip}</StatusChip>
                       {state.note && <span className="text-sub text-muted">{state.note}</span>}
@@ -173,7 +179,6 @@ function RequestsSection({ requests }: { requests: HomeRequestInput[] }) {
           })}
         </List>
       </Card>
-      <TextLink href={to("/requests")}>{t.requests.all}</TextLink>
     </Section>
   );
 }

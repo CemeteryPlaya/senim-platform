@@ -209,6 +209,14 @@ describe("PhoneFrame", () => {
     expect(out).toContain("rounded-phone-screen");
     expect(out).toMatch(/<img [^>]*alt="Экран"[^>]*loading="lazy"[^>]*width="600" height="1298"/);
     expect(out).toContain('sizes="15rem"');
+    expect(out).not.toContain("phone-frame-cut");
+  });
+
+  it("cropped: только верх экрана 3:4, рамка обрезана снизу и растворяется", () => {
+    const out = html(<PhoneFrame src="/app-screens/request-new.webp" width={600} height={1298} alt="Экран" sizes="15rem" cropped />);
+    expect(hasClass(out.match(/<div[^>]*>/)?.[0] ?? "", "phone-frame-cut")).toBe(true);
+    expect(out).toContain("aspect-3/4");
+    expect(out).toMatch(/<img [^>]*class="[^"]*object-top/);
   });
 });
 

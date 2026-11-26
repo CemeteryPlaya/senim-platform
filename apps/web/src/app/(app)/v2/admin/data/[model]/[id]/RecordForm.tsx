@@ -100,9 +100,9 @@ export function RecordForm({ model, id, fields, row }: RecordFormProps) {
         </Section>
       )}
       <Section title={t.fields}>
-        {editable.length === 0 && <p className="text-body text-muted">{t.readonlyNote}</p>}
+        {/* Телефон: имя поля слева, короткое значение справа; длинное само уходит строкой ниже. */}
         <Card padded={false}>
-          <KeyValueList items={readonly.map((f) => ({ label: f.name, value: displayValue(row[f.name]) }))} />
+          <KeyValueList inline items={readonly.map((f) => ({ label: f.name, value: displayValue(row[f.name]) }))} />
         </Card>
       </Section>
     </Stack>

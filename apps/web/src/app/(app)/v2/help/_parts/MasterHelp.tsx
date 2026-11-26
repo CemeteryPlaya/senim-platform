@@ -23,10 +23,10 @@ export function MasterHelp({ device }: { device: Device }) {
     { id: A.money, label: t.money.title },
     { id: A.dispute, label: t.dispute.title },
     { id: A.contacts, label: t.contacts.title },
-    { id: A.support, label: t.support.title },
+    { id: A.support, label: t.support.tocLabel },
   ];
   return (
-    <HelpFrame title={t.title} lead={t.lead} back={t.back} tocTitle={t.tocTitle} toc={toc} device={device}>
+    <HelpFrame title={t.title} back={t.back} tocTitle={t.tocTitle} toc={toc} device={device}>
       <Section id={A.requests} title={t.requests.title}>
         <Paragraphs items={t.requests.paragraphs} />
       </Section>
@@ -52,12 +52,7 @@ export function MasterHelp({ device }: { device: Device }) {
       </Section>
       <Section id={A.support} title={t.support.title}>
         <Card>
-          <Stack gap="tight">
-            <p className="text-body text-ink">{t.support.body}</p>
-            <div>
-              <TextLink href={SUPPORT_HREF}>{t.support.action}</TextLink>
-            </div>
-          </Stack>
+          <TextLink href={SUPPORT_HREF}>{t.support.action}</TextLink>
         </Card>
       </Section>
     </HelpFrame>

@@ -94,7 +94,9 @@ describe("заявка мастера: состояния", () => {
     for (const s of [t.now.buyerPrice.title(formatMoney(m.priceTiyn)), t.actions.propose, t.money.guarantee, t.money.youGet, t.history.title, "Фурнитура Blum."]) {
       expect(plain).toContain(s);
     }
-    for (const amount of [m.priceTiyn, m.guaranteeTiyn, m.payoutTiyn]) expect(plain).toContain(formatMoney(amount));
+    // «Вы получите» — крупная сумма: число и «₸» в разных элементах, поэтому сравнение без разницы в пробелах.
+    const squeezed = (s: string) => s.replace(/\s+/g, " ");
+    for (const amount of [m.priceTiyn, m.guaranteeTiyn, m.payoutTiyn]) expect(squeezed(plain)).toContain(squeezed(formatMoney(amount)));
     // ADR-015: покупатель платит цену без доплат — его сумма равна цене, отдельной суммы покупателя нет.
     expect(m.buyerTotalTiyn).toBe(m.priceTiyn);
     expect(plain).not.toMatch(/защит[аыеу] сделки|к оплате/i);

@@ -153,7 +153,7 @@ export function WorkForm({ device, types, initial, itemId, photos, maxPhotos }: 
                 onRetry={uploads.retry}
                 onReject={(_files, reason) => toast.error(reason === "type" ? t.rejectType : t.rejectLimit(maxPhotos))}
               />
-              <p className="text-sub text-muted">{t.photosHint(maxPhotos)}</p>
+              <p className="text-sub text-muted">{t.photosHint}</p>
               <SectionError>{err.fileIds}</SectionError>
             </div>
 
@@ -173,7 +173,6 @@ export function WorkForm({ device, types, initial, itemId, photos, maxPhotos }: 
                   name="style"
                   value={option.value}
                   label={option.label}
-                  description={option.description}
                   checked={style === option.value}
                   onChange={() => setStyle(option.value)}
                 />

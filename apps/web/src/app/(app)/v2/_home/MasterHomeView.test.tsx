@@ -40,11 +40,12 @@ const fresh = (id: string): IncomingListItem => ({
   myOfferStatus: null as never, // тип модуля не знает про null (r.offers[0]?.status ?? null), а значение бывает
   cover: null,
   invited: false,
+  buyerPriceOpen: false,
 });
 
 function data(input: Partial<MasterHomeInput>, over: Partial<MasterHomeData> = {}): MasterHomeData {
   const view = masterHome({ deals: [], counters: [], freshCount: 0, docs: { kyc: "VERIFIED", payoutSet: true }, ...input });
-  return { view, firstSteps: null, showHowTo: false, deals: [], moreDeals: 0, fresh: [], stats: { fresh: 0, inWork: 0, earnedTiyn: 0n }, ...over };
+  return { view, firstSteps: null, showHowTo: false, deals: [], moreDeals: 0, fresh: [], stats: { fresh: 0, earnedTiyn: 0n }, ...over };
 }
 
 const render = (d: MasterHomeData, device: Device) => html(<MasterHomeView data={d} name="Ерлан" device={device} />);
@@ -54,14 +55,14 @@ const SCREENS: { name: string; data: MasterHomeData; label: string | null; href?
     name: "сделка ждёт запуска",
     data: data(
       { deals: [{ id: "d1", title: "Кухня угловая", status: "PAID_HOLD", hasOpenDispute: false, next: { action: "startWork", mine: true }, consentMissing: false }] },
-      { deals: [{ item: dealItem(), next: { action: "startWork", mine: true }, consentMissing: false }], stats: { fresh: 0, inWork: 1, earnedTiyn: 8_000_000n } },
+      { deals: [{ item: dealItem(), next: { action: "startWork", mine: true }, consentMissing: false }], stats: { fresh: 0, earnedTiyn: 8_000_000n } },
     ),
     label: t.now.start.action,
     href: "/v2/deals/d1",
   },
   {
     name: "новые заявки",
-    data: data({ freshCount: 2 }, { fresh: [fresh("r1"), fresh("r2")], stats: { fresh: 2, inWork: 0, earnedTiyn: 0n } }),
+    data: data({ freshCount: 2 }, { fresh: [fresh("r1"), fresh("r2")], stats: { fresh: 2, earnedTiyn: 0n } }),
     label: t.now.fresh.action,
     href: "/v2/executor/requests?f=new",
   },
@@ -81,8 +82,9 @@ describe.each(["mobile", "desktop"] as const)("главная мастера (%s
     }
   });
 
-  it("сводка: число новых, в работе и сумма за месяц; сумм покупателя нет", () => {
+  it("сводка: одно число — сумма за месяц (счётчиков заявок и сделок нет); сумм покупателя нет", () => {
     const out = render(SCREENS[0]!.data, device);
+    expect(count(out, "<dt")).toBe(1);
     // Крупные суммы (сводка, герой) — Money large: знак «₸» отдельным <span>, поэтому сверяем видимый текст.
     const shown = text(<MasterHomeView data={SCREENS[0]!.data} name="Ерлан" device={device} />);
     expect(out).toContain(t.stats.earned);
@@ -91,6 +93,16 @@ describe.each(["mobile", "desktop"] as const)("главная мастера (%s
     // 122 400 ₸-подобная сумма «в банке» (с защитой покупателя) мастеру не показывается: только его «вы получите».
     expect(shown).not.toContain(formatMoney(122_400_000n));
     expect(shown).toContain(formatMoney(115_200_000n));
+  });
+
+  it("за месяц ничего не получено — сводки нет (пустое не показываем)", () => {
+    expect(render(SCREENS[1]!.data, device)).not.toContain(t.stats.earned);
+  });
+
+  it("герой сделки: название сделки — заголовок героя, в теле «Сейчас» второй раз его нет", () => {
+    const shown = text(<MasterHomeView data={SCREENS[0]!.data} name="Ерлан" device={device} />);
+    expect(shown).toContain(t.now.start.lead);
+    expect(shown).not.toContain(t.now.start.body("Кухня угловая"));
   });
 
   it("сделка из «Сейчас» — карточкой-героем: название ссылкой, «вы получите» крупно, «Сейчас» внутри; второй раз карточкой не повторяется", () => {
@@ -111,11 +123,14 @@ describe.each(["mobile", "desktop"] as const)("главная мастера (%s
     expect(hero).toContain("data-primary-action");
   });
 
-  it("новые заявки: строки-ссылки на заявку и «Все заявки»", () => {
+  it("новые заявки: строки-ссылки на заявку, без метки «Новая»; «Все заявки» — только когда новых больше, чем показано", () => {
     const out = render(SCREENS[1]!.data, device);
     expect(out).toContain('href="/v2/executor/requests/r1"');
     expect(out).toContain(ru.app.masterRequests.incoming.card.direct);
-    expect(out).toContain(t.requests.all);
+    expect(out).not.toContain(`>${ru.app.masterRequests.incoming.card.fresh}<`);
+    expect(out).not.toContain(t.requests.all);
+    const more = data({ freshCount: 5 }, { fresh: [fresh("r1"), fresh("r2"), fresh("r3")], stats: { fresh: 5, earnedTiyn: 0n } });
+    expect(render(more, device)).toMatch(new RegExp(`>${t.requests.section}</h2><a [^>]*href="/v2/executor/requests"`));
   });
 
   it("первые шаги: список с прогрессом и ссылками; главное действие по-прежнему одно; когда всё сделано — списка нет", () => {

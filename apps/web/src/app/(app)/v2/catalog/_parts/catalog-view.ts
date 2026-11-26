@@ -25,7 +25,7 @@ export type CatalogView = {
   showFilters: boolean;
   typeChips: Chip[];
   priceChips: Chip[];
-  /** Строка «Найдено N работ»; без результатов — null. */
+  /** Строка «Найдено N работ» — только при выбранном фильтре (без фильтра число ничего не говорит); иначе null. */
   found: string | null;
   cards: CardView[];
   /**
@@ -91,7 +91,7 @@ export function catalogView(result: CatalogResult, facets: CatalogFacets, filter
     showFilters: state !== "empty-catalogue",
     typeChips,
     priceChips,
-    found: state === "results" ? t.found(result.total) : null,
+    found: state === "results" && filtered ? t.found(result.total) : null,
     cards,
     media: cards.some((card) => card.photo) ? "slot" : "none",
     similarLink: state === "results" ? { href: to("/requests/new"), label: t.similarLink } : null,

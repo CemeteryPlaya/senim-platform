@@ -141,7 +141,8 @@ test("прямая заявка без предложений: обучающи�
   await page.locator("main a[href^='/v2/requests/']").filter({ hasText: list.direct }).first().click();
   await page.waitForURL(/\/v2\/requests\/[^/?]+$/);
   await expect(page.getByRole("heading", { level: 2, name: t.now.waitingDirect.title })).toBeVisible();
-  await expect(page.getByRole("heading", { level: 2, name: t.offers.emptyDirect.title })).toBeVisible();
+  // Пустой карточки-заглушки нет: что предложение придёт и что пришлём уведомление, говорит «Сейчас / Дальше».
+  await expect(page.getByText(t.now.waitingDirect.next)).toBeVisible();
   await expect(page.locator("[data-primary-action]")).toHaveCount(0);
   await expect(page.locator("main")).toContainText(/Заявка для\s*Исполнитель №\d+/);
   await page.context().close();

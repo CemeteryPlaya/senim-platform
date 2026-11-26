@@ -10,8 +10,8 @@ export type WorkCardProps = {
   /** Адрес карточки; без него карточка неинтерактивна (нет ссылки, шеврона, отклика на нажатие и кольца фокуса). */
   href?: string;
   title: string;
-  /** Вторая строка: город, мастер — то, что экран решил показать (без контактов до оферты). */
-  meta: string;
+  /** Вторая строка: город, мастер — то, что экран решил показать (без контактов до оферты). Пусто — строки нет. */
+  meta?: string;
   /** Третья строка (например «Мастер № 1042 · 48 сделок»): текст даёт вызывающий. */
   byline?: string;
   /** Цена «от», тиыны. */
@@ -67,15 +67,13 @@ export function WorkCard({ href, title, meta, byline, priceFrom, media = "none",
       </Heading>
       <div className="mobile:flex mobile:items-end mobile:gap-3 desktop:contents">
         <p className="min-w-0 flex-1 text-sub text-muted desktop:flex-none">
-          <span className="desktop:block">{meta}</span>
-          {byline && (
-            <>
-              <span aria-hidden className="desktop:hidden">
-                {" · "}
-              </span>
-              <span className="desktop:block">{byline}</span>
-            </>
+          {meta && <span className="desktop:block">{meta}</span>}
+          {meta && byline && (
+            <span aria-hidden className="desktop:hidden">
+              {" · "}
+            </span>
           )}
+          {byline && <span className="desktop:block">{byline}</span>}
         </p>
         {price && !priceOnPhoto && <p className="shrink-0 text-body font-medium text-ink desktop:mt-auto desktop:pt-2">{price}</p>}
       </div>

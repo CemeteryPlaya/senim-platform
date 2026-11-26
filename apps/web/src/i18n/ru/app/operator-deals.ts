@@ -46,10 +46,13 @@ export const operatorDeals = {
   list: {
     metaTitle: "Сделки",
     title: "Сделки",
-    lead: "Все сделки платформы: статус, спор, операции, которые ждут документа банка.",
     capped: (n: number) => `Показаны последние ${n} сделок.`,
     empty: { title: "Сделок пока нет", body: "Сделка появится, когда покупатель и мастер договорятся о цене." },
     columns: { deal: "Сделка", status: "Статус", provider: "Провайдер оплаты", createdAt: "Создана" },
+    /** Строка таблицы: слово «Сделка» уже в шапке столбца. */
+    dealShort: (n: number, title: string) => `№${n} · ${title}`,
+    /** Провайдер в столбце таблицы — коротко; полное название — в карточке сделки. */
+    providers: { MOCK: "Тестовый", MANUAL: "Ручной", FREEDOMPAY: "Freedom Pay" } satisfies Record<keyof typeof providers, string>,
     disputeOpen: "Открыт спор",
     pending: (n: number) => `Ждут документа банка: ${n}`,
   },
@@ -61,26 +64,24 @@ export const operatorDeals = {
     now: "Деньги",
     summary: "Сделка",
     client: "Покупатель",
-    clientPhone: "Телефон покупателя",
     executor: "Мастер",
-    executorPhone: "Телефон мастера",
     executorValue: (n: number, name: string) => `№${n}, ${name}`,
     offer: "Оферта",
     offerSigned: "Заключена",
     offerNotSigned: "Не подписана",
     price: "Цена по оферте",
-    buyerTotal: "Покупатель вносит (цена по оферте)",
+    /** Только у старых сделок с защитой сделки 2 % (сумма покупателя ≠ цене); по ADR-015 покупатель платит ровно цену. */
+    buyerTotal: "Покупатель вносит",
     payout: "Мастеру к выплате (минус 6%)",
     platformIncome: "Доход платформы",
     provider: "Провайдер оплаты",
     audit: "История в журнале аудита",
+    /** Ссылка в карточку спора (в плашке под блоком денег). */
     dispute: "По сделке открыт спор",
-    openDispute: "Открыть спор",
     pendingTitle: "Ждут документа банка",
     pendingLead: "Подтверждение и отказ банка — в очереди «Деньги в банке»: там спросят код из приложения.",
     pendingLink: "Открыть очередь денег",
     journal: "Журнал денег",
-    journalHint: "Только добавление: запись нельзя изменить или удалить даже из базы данных.",
     journalEmpty: "Операций пока нет",
     journalItem: (seq: string, type: string, status: string) => `№${seq} · ${type}, ${status}`,
     bankDoc: (number: string, date: string) => `Документ банка №${number} от ${date}`,
@@ -100,7 +101,6 @@ export const operatorDeals = {
     refunded: "Возвращено покупателю",
     refundedPending: "Возврат покупателю: ждёт подтверждения банка",
     bankBalance: "Остаток на счёте сделки по журналу",
-    test: "Тестовые деньги: настоящие не списываются",
   },
 
   release: {
@@ -141,12 +141,13 @@ export const operatorDeals = {
   income: {
     metaTitle: "Доход платформы",
     title: "Доход платформы",
-    lead: "Гарантия оплаты 6% из суммы мастеру — по подтверждённым операциям журнала денег. Покупатель сверх цены не платит.",
+    lead: "Гарантия 6% с мастера, по подтверждённым операциям.",
     from: "С даты",
     to: "По дату включительно",
     apply: "Показать",
     periodInvalid: "Укажите период: даты, «с» не позже «по»",
     guarantee: "Гарантия оплаты 6%",
+    /** Итог и столбец «Итого» — только когда доход не равен гарантии (старые сделки с защитой сделки 2 %, ADR-015). */
     total: "Итого доход",
     byDeal: "По сделкам",
     columns: { deal: "Сделка", settledAt: "Получен", guarantee: "Гарантия 6%", total: "Итого" },
@@ -158,7 +159,6 @@ export const operatorDeals = {
   report: {
     metaTitle: "Отчёт",
     title: "Отчёт",
-    lead: "Сделки и операции журнала денег; расхождения — операции, которые слишком долго ждут документа банка.",
     stats: "Сводка",
     statDeals: "Сделок всего",
     statPrice: "Сумма по офертам",
@@ -170,8 +170,8 @@ export const operatorDeals = {
     emptyTotals: { title: "Данных пока нет", body: "Сделки и операции появятся, когда они будут в журнале." },
     operationLabel: (type: string, status: string) => `${type}: ${status}`,
     discrepancies: "Расхождения",
-    discrepanciesHint: (days: number) =>
-      `Операция на ручном провайдере ждёт документа банка больше ${days} ${word(days, "дня", "дней", "дней")}: сверьте с выпиской банка.`,
+    /** Что такое расхождение, говорит подпись поля «Операция ждёт документа банка дольше, дней»; здесь — только что делать. */
+    discrepanciesHint: "Сверьте с выпиской банка.",
     discrepanciesEmpty: { title: "Расхождений нет", body: "Все операции на ручном провайдере получили документ банка вовремя." },
     staleDaysLabel: "Операция ждёт документа банка дольше, дней",
     staleDaysInvalid: "Укажите число дней от 1 до 60",
@@ -179,7 +179,7 @@ export const operatorDeals = {
     discrepancyColumns: { deal: "Сделка", type: "Операция", createdAt: "Создана", waiting: "Ждёт", amount: "Сумма" },
     waiting: (days: number) => `${days} ${word(days, "день", "дня", "дней")}`,
     downloads: "Выгрузки CSV",
-    downloadsHint: "Разделитель — точка с запятой, кодировка UTF-8, суммы в тенге: открывается в Excel.",
+    downloadsHint: "Откроются в Excel, суммы в тенге.",
     csvKinds: { deals: "Сделки", operations: "Журнал денег", discrepancies: "Расхождения" },
     toIncome: "Доход платформы за период",
   },
@@ -187,7 +187,6 @@ export const operatorDeals = {
   audit: {
     metaTitle: "Журнал аудита",
     title: "Журнал аудита",
-    lead: "Кто, что, когда и откуда: каждое действие с автором, временем, IP и устройством.",
     /** Названия событий вне сделки; события сделки — в ru.deal.history.action. Неизвестный код показывается как есть. */
     actions: {
       "user.registered": "Зарегистрирован пользователь",
@@ -198,8 +197,11 @@ export const operatorDeals = {
       "executor.added_by_operator": "Оператор добавил исполнителя",
       "executor.segment.changed": "Изменён сегмент исполнителя",
       "executor.profile.updated": "Исполнитель изменил профиль",
-      "executor.kyc.verified": "Документы мастера подтверждены",
-      "executor.kyc.rejected": "Документы мастера отклонены",
+      // Коды — как их пишет identity (services/identity/internal/kyc.go, party.go): через «_», не через точку.
+      "executor.kyc_submitted": "Мастер загрузил документы",
+      "executor.kyc_verified": "Документы мастера подтверждены",
+      "executor.kyc_rejected": "Документы мастера отклонены",
+      "executor.payout_iban_changed": "Мастер изменил счёт для выплат",
       "executor.highlights.changed": "Мастер изменил избранные работы в профиле",
       "pii.kyc_file_link_issued": "Оператору выдана ссылка на документ мастера",
       "furniture_type.added": "Добавлен тип мебели",
@@ -282,14 +284,19 @@ export const operatorDeals = {
     entity: (type: string, id: string) => `${type}: ${id}`,
     before: "до",
     after: "после",
-    origin: "Откуда",
     ip: (ip: string) => `IP ${ip}`,
-    device: (ua: string) => `устройство: ${ua}`,
+    /** Полная строка user-agent — по нажатию на короткую «IP … · Android, Chrome». */
+    device: (ua: string) => `Устройство: ${ua}`,
+    /** User-agent есть, но система и браузер не распознаны: полная строка — по нажатию. */
+    deviceUnknown: "устройство",
+    systems: { iphone: "iPhone", ipad: "iPad", android: "Android", windows: "Windows", mac: "macOS", linux: "Linux" },
+    browsers: { edge: "Edge", yandex: "Яндекс Браузер", opera: "Opera", firefox: "Firefox", chrome: "Chrome", safari: "Safari" },
     noOrigin: "IP и устройство не записаны",
     more: "Показать дальше",
     newest: "К новым записям",
     roles: { CLIENT: "Покупатель", EXECUTOR: "Мастер", OPERATOR: "Оператор", SYSTEM: "Система" } as Record<string, string>,
-    showScope: "Вся история записи",
+    /** Для диктора — после текста ссылки «deal: …» (сама сущность ведёт во всю историю записи). */
+    showScope: "вся история записи",
     openDeal: "Открыть сделку",
     listLabel: "Записи журнала",
   },

@@ -178,7 +178,7 @@ export function AddressStep({ next, change = false, position, device, email, onS
       </Stack>
       <form id={FORM.address} method="post" onSubmit={form.onSubmit} noValidate>
         <Stack gap="section">
-          <EmailField label={t.address.label} name="email" maxLength={254} defaultValue={email} error={fieldError} />
+          <EmailField label={t.address.label} labelHidden name="email" maxLength={254} defaultValue={email} error={fieldError} />
           <HiddenField name="next" value={next ?? ""} />
           {change && <HiddenField name="change" value="1" />}
           <FormError error={form.error} atField={Boolean(form.fieldErrors.email)} />
@@ -252,7 +252,7 @@ export function CodeStep({ next, change = false, position, device, sent, onResen
         {/* Одна строка колонки: форма повтора пустая (только адрес) и не должна давать лишний зазор. */}
         <div>
           <form id={FORM.code} method="post" onSubmit={code.onSubmit} noValidate>
-            <CodeField label={t.code.label} name="code" error={code.fieldErrors.code} autoFocus autoSubmit />
+            <CodeField label={t.code.label} labelHidden name="code" error={code.fieldErrors.code} autoFocus autoSubmit />
             {/* Подтверждается ровно этот адрес (identity сверяет его с адресом действующего кода). */}
             <HiddenField name="email" value={sent.email} />
             <HiddenField name="next" value={next ?? ""} />

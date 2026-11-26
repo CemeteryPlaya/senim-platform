@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { Card, Narrow, PageTitle, Stack } from "@/kit";
+import { Narrow, PageTitle, Stack, StatusChip } from "@/kit";
 import { getOwnPortfolioItem, listFurnitureTypes } from "@/modules/companies";
 import { getDevice } from "@/platform/device";
 import { isAppError } from "@/platform/errors";
@@ -15,13 +15,15 @@ import { WorkActions } from "../_parts/WorkActions";
 import { WorkForm } from "../_parts/WorkForm";
 
 const t = ru.app.masterPortfolio.form;
+const list = ru.app.masterPortfolio.list;
 
 export const metadata: Metadata = { title: t.editMeta };
 
 type Props = { params: Promise<{ id: string }> };
 
 /**
- * Правка работы: статус («Опубликована» / «Скрыта») с действиями (опубликовать или скрыть, удалить), затем форма с фото.
+ * Правка работы: статус («Опубликована» / «Скрыта») чипом под заголовком, действия (опубликовать или скрыть, удалить) —
+ * меню справа в строке заголовка (как на экране заявки), затем форма с фото.
  * Чужая или удалённая работа — 404, как будто её нет (модуль отвечает NOT_FOUND). «Назад» — «Портфолио».
  */
 export default async function EditWorkPage({ params }: Props) {
@@ -42,9 +44,6 @@ export default async function EditWorkPage({ params }: Props) {
 
   const content = (
     <Stack>
-      <Card>
-        <WorkActions device={device} id={item.id} published={item.published} />
-      </Card>
       <WorkForm
         device={device}
         types={types.map(({ id: typeId, name }) => ({ id: typeId, name }))}
@@ -57,7 +56,12 @@ export default async function EditWorkPage({ params }: Props) {
   );
   return (
     <Stack gap="section">
-      <PageTitle title={t.editTitle} back={{ href: to("/executor/portfolio"), label: t.back }} />
+      <PageTitle
+        title={t.editTitle}
+        back={{ href: to("/executor/portfolio"), label: t.back }}
+        lead={<StatusChip tone="neutral">{item.published ? list.published : list.hidden}</StatusChip>}
+        trailing={<WorkActions device={device} id={item.id} published={item.published} />}
+      />
       {device === "desktop" ? <Narrow>{content}</Narrow> : content}
     </Stack>
   );

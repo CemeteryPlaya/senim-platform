@@ -221,13 +221,13 @@ describe("/v2/executors/[publicNumber]: шапка и разделы", () => {
     expect(count(out, "Сделали аккуратно")).toBe(1);
   });
 
-  it("«Работы вне площадки»: без работ из сделок, с пометкой", async () => {
+  it("«Работы вне площадки»: без работ из сделок; пометку держит заголовок раздела, не карточка", async () => {
     const { executor } = await seed();
     const out = await render(String(executor.executor.publicNumber));
     expect(out).toContain(`>${t.offPlatformTitle}<`);
     const section = out.slice(out.indexOf(`>${t.offPlatformTitle}<`));
     expect(section).toContain("Светлая кухня");
-    expect(section).toContain(t.offPlatformMark);
+    expect(section).not.toContain(`>${t.highlightKind.work}<`);
     expect(out).not.toContain("Работа из сделки");
   });
 

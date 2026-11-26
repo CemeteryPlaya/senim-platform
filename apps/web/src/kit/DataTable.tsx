@@ -16,6 +16,8 @@ export type DataTableColumn<Row> = {
   numeric?: boolean;
   /** Нижняя граница ширины столбца с длинным текстом: `wide` — первый столбец, `mid`, `narrow`. Без неё столбец по содержимому. */
   width?: "wide" | "mid" | "narrow";
+  /** Значение без переноса (id, ключ, код): строка не вырастает вдвое из-за одного длинного идентификатора — широкая таблица прокручивается вбок. */
+  nowrap?: boolean;
 };
 
 export type DataTableProps<Row> = {
@@ -46,7 +48,8 @@ const CELL = cn(
 );
 
 function cellClass<Row>(column: DataTableColumn<Row>): string {
-  return cn(CELL, column.numeric ? "text-right whitespace-nowrap tabular-nums" : "text-left wrap-break-word", column.width && WIDTH[column.width]);
+  const wrap = column.numeric ? "text-right whitespace-nowrap tabular-nums" : column.nowrap ? "text-left whitespace-nowrap" : "text-left wrap-break-word";
+  return cn(CELL, wrap, column.width && WIDTH[column.width]);
 }
 
 /**

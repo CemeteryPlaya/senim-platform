@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import { EmailField, IbanField, IinField, InstagramField, MoneyField } from "@/kit";
+import { CodeField, EmailField, IbanField, IinField, InstagramField, MoneyField, PhoneField, TextField } from "@/kit";
 import { hasClass, html } from "@/kit/test-utils";
 
 const NBSP = " ";
@@ -92,5 +92,21 @@ describe("EmailField и InstagramField", () => {
     expect(attr(visible, "autocorrect", "off")).toBe(true);
     expect(attr(visible, "autocapitalize", "none")).toBe(true);
     expect(out).toMatch(/<span aria-hidden="true"[^>]*>@<\/span>/);
+  });
+});
+
+describe("labelHidden: экран с одним полем", () => {
+  it("подпись — только для диктора (sr-only) и по-прежнему связана с полем; по умолчанию видимая", () => {
+    for (const out of [
+      html(<PhoneField label="Номер телефона" name="phone" labelHidden />),
+      html(<CodeField label="Код" name="code" labelHidden />),
+      html(<EmailField label="Почта" name="email" labelHidden />),
+      html(<TextField label="Имя" name="name" labelHidden />),
+    ]) {
+      const label = /<label for="([^"]+)" class="([^"]*)"/.exec(out);
+      expect(label?.[2]).toBe("sr-only");
+      expect(out).toContain(`id="${label?.[1]}"`);
+    }
+    expect(/<label [^>]*class="([^"]*)"/.exec(html(<PhoneField label="Номер" name="phone" />))?.[1]).not.toBe("sr-only");
   });
 });

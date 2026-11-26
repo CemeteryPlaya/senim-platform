@@ -176,9 +176,9 @@ describe("отзыв и выбор одной отправкой", () => {
 });
 
 describe("карточка сделки: строка показа", () => {
-  it("покупателю оконченной сделки — одна строка с выбором и «Изменить»", async () => {
+  it("покупателю оконченной сделки — одна строка с выбором и «Изменить»; до ответа строки нет (выбор — на экране отзыва)", async () => {
     const f = await completed();
-    expect(plain(await cardPage(f.dealId))).toContain(t.line(t.summary.unanswered));
+    expect(plain(await cardPage(f.dealId))).not.toContain(t.lineLabel);
     expect((await saveShowcaseAction(choice(f.dealId))).ok).toBe(true);
     const out = await cardPage(f.dealId);
     expect(plain(out)).toContain(t.line(t.summary.of({ photos: true, price: false, address: "CITY", signature: "NAME" })));

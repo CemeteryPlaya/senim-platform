@@ -86,6 +86,18 @@ const splitByDispute = (m: MoneyBlock): boolean => m.kind === "completed" && m.r
 
 export type DealChip = { text: string; tone: DealTone };
 
+/**
+ * Плашки обычного хода обеих сторон: в списке сделок и на главной их нет (повторяли бы шаг и деньги на той же карточке).
+ * «Оплата обрабатывается», «Ждём ваш перевод» и «ждём другую сторону» остаются: без них сделка выглядит неоплаченной
+ * или непонятно, чей ход.
+ */
+const QUIET_CHIPS: ReadonlySet<string> = new Set(
+  [ru.app.deal.status, ru.app.master.deal.status].flatMap((s) => [s.protected, s.inWork, s.finishing, s.offer, s.handedOver]),
+);
+
+/** Плашка для списка и главной: `null`, если это обычный ход сделки. */
+export const quietChip = (chip: DealChip): DealChip | null => (QUIET_CHIPS.has(chip.text) ? null : chip);
+
 export type DealChipInput = {
   /** Чьими глазами: покупатель или мастер. */
   side: DealSide;

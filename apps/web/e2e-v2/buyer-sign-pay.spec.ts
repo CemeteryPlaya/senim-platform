@@ -89,7 +89,7 @@ test("оферта: что подписываю, PDF в новой вкладк�
   await expectScreen(page, sign.title.CONTRACT, "Прихожая");
   const what = page.getByRole("heading", { level: 2, name: sign.what.section });
   await expect(what).toBeVisible();
-  await expect(page.locator("main")).toContainText(sign.what.total);
+  await expect(page.locator("main")).toContainText(sign.what.priceTotal);
   const pdf = page.getByRole("link", { name: new RegExp(`^${ru.app.deal.openDocument.CONTRACT}`) });
   await expect(pdf).toHaveAttribute("target", "_blank");
   await expect(pdf).toHaveAttribute("href", /^\/api\/documents\/[^/]+\/pdf$/);
@@ -119,7 +119,7 @@ test("акт приёмки: «Примите мебель», что значи�
   await expect(page.getByText(sign.act.farTitle)).toHaveCount(0);
   await expect(page.locator("main")).toContainText(sign.act.meaning);
   await expect(page.locator("main")).toContainText(sign.act.notLiked);
-  await expect(page.locator("main")).not.toContainText(sign.what.total);
+  await expect(page.locator("main")).not.toContainText(sign.what.priceTotal);
   await expect(page.locator("[data-primary-action]")).toHaveCount(1);
   await page.context().close();
 });

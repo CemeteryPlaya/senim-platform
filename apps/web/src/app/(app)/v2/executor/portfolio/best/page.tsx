@@ -23,7 +23,7 @@ export default async function BestPage() {
   if (status !== "approved") redirect(back);
   const device = await getDevice();
   const { items, hiddenDeals } = await listHighlightCandidates(user);
-  const title = <PageTitle title={t.title} back={{ href: back, label: t.back }} lead={t.lead(HIGHLIGHTS_MAX)} />;
+  const title = <PageTitle title={t.title} back={{ href: back, label: t.back }} lead={t.lead} />;
   if (items.length === 0) {
     return (
       <Stack gap="section">

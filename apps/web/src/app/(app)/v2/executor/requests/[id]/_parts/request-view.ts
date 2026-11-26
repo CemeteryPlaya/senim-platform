@@ -86,7 +86,8 @@ export type DetailRow = { label: string; value: string; stacked: boolean; map?: 
 export type RequestViewModel = {
   state: MasterState;
   title: string;
-  lead: { number: string; direct: string | null; invited: string | null };
+  /** Строка под заголовком: номер (его копирует кнопка), когда опубликована («· 6 дней назад»), метки. */
+  lead: { number: string; published: string | null; direct: string | null; invited: string | null };
   back: { href: string; label: string };
   now: { title: string; body?: string };
   next?: string;
@@ -124,7 +125,7 @@ function nowOf(state: MasterState, n: NegotiationView | null): Pick<RequestViewM
     case "unavailable":
       return { now: { ...t.now.unavailable } };
     case "buyerPrice":
-      return { now: { title: t.now.buyerPrice.title(formatMoney(state.amountTiyn)), body: t.now.buyerPrice.body }, next: t.now.buyerPrice.next };
+      return { now: { title: t.now.buyerPrice.title(formatMoney(state.amountTiyn)) }, next: t.now.buyerPrice.next };
     case "waiting":
       return { now: { title: t.now.waiting.title, body: t.now.waiting.body(formatMoney(state.amountTiyn)) }, next: t.now.waiting.next };
     case "noPrice": {
@@ -176,7 +177,11 @@ function actionsOf(state: MasterState, n: NegotiationView | null): Pick<RequestV
   }
 }
 
-/** Смета мастера из `partyEstimate("EXECUTOR")` модуля (n.estimate): цена, гарантия 6% вниз до тиына, «Вы получите». */
+/**
+ * Смета мастера из `partyEstimate("EXECUTOR")` модуля (n.estimate): «Вы получите» крупно, под ним цена и гарантия 6% (вниз
+ * до тиына). У цены покупателя заголовок и есть «Вы получите» — строкой итога сумма не повторяется; у своей цены заголовок —
+ * условие («Если покупатель примет…»), и сумму называет строка итога.
+ */
 function moneyOf(state: MasterState, n: NegotiationView | null): MoneyView | null {
   if (!n || (state.kind !== "buyerPrice" && state.kind !== "waiting")) return null;
   const e = n.estimate;
@@ -187,7 +192,7 @@ function moneyOf(state: MasterState, n: NegotiationView | null): MoneyView | nul
     rows: [
       { label: buyer ? t.money.price.buyer : t.money.price.yours, amountTiyn: e.priceTiyn },
       { label: t.money.guarantee, amountTiyn: e.extraTiyn, explain: true },
-      { label: t.money.youGet, amountTiyn: e.totalTiyn, total: true },
+      ...(buyer ? [] : [{ label: t.money.youGet, amountTiyn: e.totalTiyn, total: true as const }]),
     ],
   };
 }
@@ -203,13 +208,20 @@ function conditionsOf(state: MasterState, offer: MyOffer | null): RequestViewMod
   return rows;
 }
 
-/** История цены. Торг закрыт, а цена так и осталась ждать ответа (PROPOSED) — «Не принята», а не «Ждёт ответа». */
+/** Подпись раунда: торг закрыт, а цена так и ждала ответа — «Не принята»; открытая цена покупателя — «Ждёт вашего ответа». */
+function roundText(r: Round, live: boolean): string {
+  if (r.status !== "PROPOSED") return t.history.status[r.status];
+  if (!live) return t.history.notAccepted;
+  return r.mine ? t.history.status.PROPOSED : t.history.buyerOpen;
+}
+
+/** История цены: кто назвал, когда, сумма и что с ней стало. */
 function historyOf(n: NegotiationView | null): RequestViewModel["history"] {
   if (!n) return [];
   return n.rounds.map((r) => ({
     title: r.mine ? t.history.you : t.history.buyer,
     time: formatDateTime(r.createdAt),
-    text: !n.live && r.status === "PROPOSED" ? t.history.notAccepted : t.history.status[r.status],
+    text: roundText(r, n.live),
     amountTiyn: r.amountTiyn,
   }));
 }
@@ -222,20 +234,27 @@ function material(unknown: ReadonlySet<string>, key: "facade" | "countertop" | "
 
 export type DetailsInput = Pick<
   IncomingRequest,
-  "title" | "style" | "segment" | "details" | "city" | "address" | "location" | "wishes" | "desiredDate" | "publishedAt"
+  "style" | "segment" | "details" | "city" | "address" | "location" | "wishes" | "desiredDate"
 >;
 
+/** Адрес уже начинается с города («Астана, ул. …»): строка «Город» его повторила бы (как в сводке заявки покупателя). */
+function addressHasCity(city: string, address: string | null): boolean {
+  const a = address?.trim().toLocaleLowerCase("ru") ?? "";
+  const c = city.trim().toLocaleLowerCase("ru");
+  return c !== "" && a.startsWith(c);
+}
+
 /**
- * Что нужно покупателю строками «подпись — значение»; пустое не показывается. Адрес и точку модуль отдаёт только мастеру,
+ * Что нужно покупателю строками «подпись — значение»; пустое не показывается. Что за мебель — заголовок экрана, когда
+ * опубликована — строка под ним: в разделе их нет; город — только если адрес с него не начинается. Адрес и точку модуль отдаёт только мастеру,
  * с которым договорились о цене: до того вместо адреса — пояснение, а когда договориться уже нельзя (`addressHint: false`:
  * торг закрыт, заявка не принимает предложений) — строки адреса нет. Длинное (размеры, описание, адрес, пожелания) — стопкой.
  */
-export function detailRows(r: DetailsInput, now: Date = new Date(), addressHint = true): DetailRow[] {
+export function detailRows(r: DetailsInput, addressHint = true): DetailRow[] {
   const d = r.details;
   const unknown = new Set<string>(d.unknown ?? []);
   const size = unknown.has("size") ? t.request.unknown : d.widthCm || d.heightCm || d.depthCm ? t.request.sizeValue(d.widthCm, d.heightCm, d.depthCm) : null;
   const rows: [string, string | null | undefined, boolean?][] = [
-    [t.request.type, r.title],
     [t.request.segment, r.segment ? SEGMENT_NAMES[r.segment] : null],
     [t.request.style, r.style ? (STYLES[r.style as StyleKey]?.name ?? r.style) : null],
     [t.request.styleNote, d.styleNote, true],
@@ -246,9 +265,8 @@ export function detailRows(r: DetailsInput, now: Date = new Date(), addressHint 
     [t.request.color, d.color],
     [t.request.extras, d.extras?.length ? d.extras.map((x) => ru.requests.extras[x]).join(", ") : null],
     [t.request.description, d.description, true],
-    [t.request.city, r.city],
+    [t.request.city, addressHasCity(r.city, r.address) ? null : r.city],
     [t.request.desiredDate, r.desiredDate ? formatDate(r.desiredDate) : null],
-    [t.request.published, r.publishedAt ? formatRelative(r.publishedAt, now) : null],
     [t.request.address, r.address ?? (addressHint ? t.request.addressHidden : null), true],
     [t.request.location, r.location && !r.address ? t.request.locationValue : null],
     [t.request.wishes, r.wishes, true],
@@ -285,7 +303,11 @@ export function requestView(r: IncomingRequest, n: NegotiationView | null, now: 
   return {
     state,
     title: r.title,
-    lead: { number: t.numberLine(r.number), direct: r.mode === "DIRECT" ? t.direct : null, invited: r.invited ? t.invited : null },
+    lead: {
+      number: t.numberLine(r.number),
+      published: r.publishedAt ? t.published(formatRelative(r.publishedAt, now)) : null,
+      direct: r.mode === "DIRECT" ? t.direct : null, invited: r.invited ? t.invited : null,
+    },
     back: { href: to("/executor/requests"), label: t.back },
     ...nowOf(state, n),
     ...actionsOf(state, n),
@@ -295,7 +317,7 @@ export function requestView(r: IncomingRequest, n: NegotiationView | null, now: 
     proposeDescription: buyerOpen === null ? t.propose.description : t.propose.buyerPrice(formatMoney(buyerOpen)),
     money: moneyOf(state, n),
     conditions: conditionsOf(state, r.myOffer),
-    details: detailRows(r, now, !over),
+    details: detailRows(r, !over),
     photos: photoView(r.photos),
     design: designView(r.design, t.request.design),
     chat: offerId ? { href: to(`/chats/${encodeURIComponent(offerId)}`), label: over ? t.actions.chatClosed : t.actions.chat } : null,

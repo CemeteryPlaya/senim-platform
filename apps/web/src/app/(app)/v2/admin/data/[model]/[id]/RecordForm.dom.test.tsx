@@ -140,11 +140,11 @@ describe("форма записи админки", () => {
     expect(show().textContent).toContain(t.errors.int);
   });
 
-  it("таблица только для чтения — без формы и кнопки, все поля текстом", () => {
+  it("таблица только для чтения — без формы и кнопки, все поля текстом; пояснения «только для чтения» нет: полей ввода нет и так", () => {
     open(FIELDS.map((f) => ({ ...f, access: "readonly" as const })));
     expect(show().querySelector("form")).toBeNull();
     expect(show().querySelectorAll("button")).toHaveLength(0);
-    expect(show().textContent).toContain(t.readonlyNote);
+    expect(show().textContent).not.toContain("только для чтения");
     expect(show().textContent).toContain("Кухни на заказ");
   });
 });

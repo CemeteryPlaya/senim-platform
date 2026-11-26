@@ -120,11 +120,12 @@ export function TypeRow({ type }: { type: TypeRowData }) {
 
   return (
     <div className="flex flex-col gap-3 px-card py-4">
+      {/* Название, «Скрыт» и число заявок — одной строкой; при крупном шрифте число переносится. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="min-w-0 flex-1 text-headline wrap-break-word text-ink">{type.name}</span>
         {!type.active && <StatusChip tone="neutral">{t.hidden}</StatusChip>}
+        <span className="text-sub text-muted">{t.usage(type.requests)}</span>
       </div>
-      <p className="text-sub text-muted">{t.usage(type.requests)}</p>
       <div className="flex flex-wrap gap-2">
         <Button ref={upButton} variant="secondary" size="sm" aria-label={t.up(type.name)} disabled={first} pending={move.pending && direction === "up"} onClick={() => shift("up")}>
           <ArrowUp aria-hidden className="size-5" />

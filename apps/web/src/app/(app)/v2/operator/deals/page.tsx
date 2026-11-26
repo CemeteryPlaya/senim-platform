@@ -15,8 +15,10 @@ export const metadata: Metadata = { title: t.list.metaTitle };
 const LIST_LIMIT = 200;
 
 /**
- * Все сделки таблицей: сделка (ссылка в карточку), статус с отметками (спор, операции ждут документа банка, тестовая — только
- * оператору), провайдер оплаты, дата. Новые сверху. Раздел из меню: «Назад» не нужно, главной кнопки нет — действие в строке.
+ * Все сделки таблицей: сделка (ссылка в карточку), статус с отметками (спор, операции ждут документа банка), провайдер
+ * оплаты, дата. Новые сверху. Тестовую сделку называет столбец провайдера («Тестовый»); на телефоне этот столбец за
+ * прокруткой, поэтому там у статуса остаётся чип «тестовая» (только оператору). Раздел из меню: «Назад» не нужно, главной
+ * кнопки нет — действие в строке. Вводной нет: столбцы говорят сами; при переполнении — строка «Показаны последние 200».
  */
 export default async function OperatorDealsPage() {
   const user = await requireOperator(to("/operator/deals"));
@@ -24,7 +26,7 @@ export default async function OperatorDealsPage() {
 
   return (
     <Stack gap="section">
-      <PageTitle title={t.list.title} lead={deals.length >= LIST_LIMIT ? `${t.list.lead} ${t.list.capped(LIST_LIMIT)}` : t.list.lead} />
+      <PageTitle title={t.list.title} {...(deals.length >= LIST_LIMIT ? { lead: t.list.capped(LIST_LIMIT) } : {})} />
       <DataTable
         caption={t.list.title}
         captionHidden
@@ -37,7 +39,7 @@ export default async function OperatorDealsPage() {
             header: c.deal,
             rowHeader: true,
             width: "wide",
-            cell: (d) => <TextLink href={to(`/operator/deals/${encodeURIComponent(d.id)}`)}>{`${t.deal(d.number)}: ${d.title}`}</TextLink>,
+            cell: (d) => <TextLink href={to(`/operator/deals/${encodeURIComponent(d.id)}`)}>{t.list.dealShort(d.number, d.title)}</TextLink>,
           },
           {
             key: "status",
@@ -48,11 +50,15 @@ export default async function OperatorDealsPage() {
                 <StatusChip tone="neutral">{t.dealStatus[d.status]}</StatusChip>
                 {d.disputeOpen && <StatusChip tone="danger">{t.list.disputeOpen}</StatusChip>}
                 {d.pendingOperations > 0 && <StatusChip tone="warn">{t.list.pending(d.pendingOperations)}</StatusChip>}
-                {d.isTest && <StatusChip tone="neutral">{t.testMark}</StatusChip>}
+                {d.isTest && (
+                  <span className="desktop:hidden">
+                    <StatusChip tone="neutral">{t.testMark}</StatusChip>
+                  </span>
+                )}
               </span>
             ),
           },
-          { key: "provider", header: c.provider, width: "narrow", cell: (d) => t.providers[d.provider] },
+          { key: "provider", header: c.provider, width: "narrow", cell: (d) => t.list.providers[d.provider] },
           { key: "createdAt", header: c.createdAt, cell: (d) => <span className="whitespace-nowrap">{formatDate(d.createdAt)}</span> },
         ]}
       />

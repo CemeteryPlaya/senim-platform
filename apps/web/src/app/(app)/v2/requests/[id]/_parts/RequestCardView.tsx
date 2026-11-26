@@ -1,7 +1,7 @@
 import { ru } from "@/i18n/ru";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { ActionDock, ButtonLink, Card, EmptyState, List, ListItem, ListRow, Money, NowNext, PageTitle, PhotoSlot, Rating, Section, Segmented, Split, Stack, StatusChip, type StatusTone } from "@/kit";
+import { ActionDock, ButtonLink, Card, List, ListItem, ListRow, Money, NowNext, PageTitle, PhotoSlot, Rating, Section, Segmented, Split, Stack, StatusChip } from "@/kit";
 import type { Device } from "@/platform/device";
 import { to } from "../../../../_shell/paths";
 import type { DesignView } from "../../../_parts/design-files";
@@ -19,8 +19,7 @@ export type CardView = {
   title: string;
   number: number;
   sent: { title: string; text: string; href: string } | null;
-  /** Плашка состояния заявки — общая `requestState` (те же слова и тон, что на главной и в «Моих заявках»). */
-  chip: { text: string; tone: StatusTone };
+  /** «Сейчас / Дальше»: состояние заявки говорит она — плашки в шапке нет (повторяла бы её). */
   now: NowView;
   offers: OffersView;
   /** Приглашённые мастера; пусто — раздела нет. */
@@ -33,16 +32,26 @@ export type CardView = {
   cancel: { offersCount: number; direct: boolean } | null;
 };
 
+/** Второстепенное действие открытой заявки («Посмотреть мастеров»): тихая ссылка по левой линии. */
+function Secondary({ link }: { link: NowView["secondary"] }) {
+  if (!link) return null;
+  return (
+    <ButtonLink href={link.href} variant="quiet" flush>
+      {link.label}
+    </ButtonLink>
+  );
+}
+
 function Offers({ view }: { view: CardView }) {
   const { offers } = view;
   if (!offers.shown) return null;
-  if (offers.empty) return <EmptyState title={offers.empty.title} body={offers.empty.body} />;
   return (
     <Section title={t.offers.section(offers.rows.length)}>
       {offers.sortable && (
         <form>
           <Segmented
             legend={t.offers.sortLegend}
+            legendHidden
             value={offers.sort}
             options={sortOptions().map((o) => ({ ...o, formAction: chooseOfferSort.bind(null, view.id, o.value) }))}
           />
@@ -86,6 +95,8 @@ function Offers({ view }: { view: CardView }) {
           ))}
         </List>
       </Card>
+      {/* «Посмотреть мастеров» — после пришедших предложений: сначала то, что уже прислали, потом — искать ещё. */}
+      <Secondary link={view.now.secondary} />
     </Section>
   );
 }
@@ -150,7 +161,7 @@ function Details({ view }: { view: CardView }) {
  * Карточка заявки покупателя. Телефон — одна колонка: «Сейчас» → предложения → «Что в заявке»; главное действие
  * (сделка или выбранное предложение) — в `ActionDock` последним. Компьютер — `Split`: слева «Сейчас» (действие под ним) и
  * предложения, справа «Что в заявке». Второстепенное действие открытой заявки («Посмотреть мастеров») — тихой кнопкой-ссылкой
- * под «Сейчас» на обоих устройствах.
+ * под списком предложений, а пока их нет — под «Сейчас». Плашки состояния в шапке нет: его называет «Сейчас».
  */
 export function RequestCardView({ view, device }: { view: CardView; device: Device }) {
   const { now } = view;
@@ -166,12 +177,7 @@ export function RequestCardView({ view, device }: { view: CardView; device: Devi
           <PageTitle
             title={view.title}
             back={{ href: to("/requests"), label: t.back }}
-            lead={
-              <span className="flex flex-col items-start gap-2">
-                <span>{t.numberLine(view.number)}</span>
-                <StatusChip tone={view.chip.tone}>{view.chip.text}</StatusChip>
-              </span>
-            }
+            lead={t.numberLine(view.number)}
           />
         </div>
         {view.cancel && <RequestActions requestId={view.id} offersCount={view.cancel.offersCount} direct={view.cancel.direct} device={device} />}
@@ -184,11 +190,7 @@ export function RequestCardView({ view, device }: { view: CardView; device: Devi
           <Stack gap="section">
             <Stack>
               <NowNext now={{ title: now.title, ...(now.body ? { body: now.body } : {}) }} {...(now.next ? { next: now.next } : {})} />
-              {now.secondary && (
-                <ButtonLink href={now.secondary.href} variant="quiet" flush>
-                  {now.secondary.label}
-                </ButtonLink>
-              )}
+              {!view.offers.shown && <Secondary link={now.secondary} />}
               {device === "desktop" && action}
             </Stack>
             <Offers view={view} />

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { formatDateTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
 import { astanaDate } from "@/platform/astana";
-import { DecisionQueue, Money, Notice, PageTitle, QueueCard, Section, Stack, TextLink } from "@/kit";
+import { DecisionQueue, Money, PageTitle, QueueCard, Section, Stack, TextLink } from "@/kit";
 import { listFailedMoney, listMoneyQueue } from "@/modules/operator";
 import { getDevice } from "@/platform/device";
 import { requireOperator } from "../../../_shell/auth";
@@ -43,7 +43,6 @@ export default async function MoneyQueuePage() {
   return (
     <Stack gap="section">
       <PageTitle title={t.title} lead={t.lead} />
-      <Notice tone="info">{t.rule}</Notice>
       <DecisionQueue count={queue.length} label={t.queueLabel} empty={t.empty}>
         {queue.map((op) => (
           <QueueCard key={op.id} title={t.types[op.type]} meta={t.waiting(op.ageDays)}>

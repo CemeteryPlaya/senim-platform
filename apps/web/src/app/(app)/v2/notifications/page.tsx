@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
 import { Button, Card, EmptyState, List, ListRow, Narrow, Notice, PageTitle, Stack } from "@/kit";
 import { listNotifications, pushPublicKey } from "@/modules/notifications";
+import { getDevice } from "@/platform/device";
 import { pageHref, requireV2User } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
 import { markAllReadForm, openNotificationForm } from "./actions";
@@ -35,7 +36,9 @@ function Row({ row }: { row: NotificationRowView }) {
 
 /**
  * Уведомления: список (заголовок, текст, время), переход по уведомлению отмечает его прочитанным; «Прочитать все» —
- * тихая кнопка над списком; блок «Уведомления на этом устройстве» (push). Главного действия нет. Пусто — обучающий экран.
+ * тихая кнопка: на телефоне — справа в строке заголовка (отдельной строкой она делала дыру между заголовком и списком),
+ * на компьютере — над списком, у его правого края (строка заголовка там шире колонки списка). Блок «Уведомления на этом
+ * устройстве» (push). Главного действия нет. Пусто — обучающий экран.
  */
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -44,10 +47,18 @@ export default async function NotificationsPage({ searchParams }: Props) {
   const user = await requireV2User(pageHref("/notifications", params));
   const rows = notificationRows(await listNotifications(user.id, 50));
   const publicKey = pushPublicKey();
+  const device = await getDevice();
+  const markAll = rows.length > 0 && hasUnread(rows) && (
+    <form action={markAllReadForm} className="flex justify-end">
+      <Button type="submit" variant="quiet" flush>
+        {t.markAll}
+      </Button>
+    </form>
+  );
 
   return (
     <Stack gap="section">
-      <PageTitle title={t.title} back={{ href: to("/"), label: t.back }} />
+      <PageTitle title={t.title} back={{ href: to("/"), label: t.back }} {...(device === "mobile" && markAll ? { trailing: markAll } : {})} />
       <Narrow>
         <Stack>
           {params.error === "1" && (
@@ -60,13 +71,7 @@ export default async function NotificationsPage({ searchParams }: Props) {
             <EmptyState title={t.emptyTitle} body={t.emptyBody} />
           ) : (
             <>
-              {hasUnread(rows) && (
-                <form action={markAllReadForm} className="flex justify-end">
-                  <Button type="submit" variant="quiet" flush>
-                    {t.markAll}
-                  </Button>
-                </form>
-              )}
+              {device === "desktop" && markAll}
               <Card padded={false}>
                 <section aria-label={t.label}>
                   <List>{rows.map((row) => <Row key={row.id} row={row} />)}</List>

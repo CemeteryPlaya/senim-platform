@@ -44,7 +44,7 @@ describe("выбор покупателя: что из сделки видно �
     await db.$executeRawUnsafe(migrationInsert());
     expect(await visible()).toBe(true);
     const row = await db.dealShowcase.findUniqueOrThrow({ where: { dealId: d.dealId } });
-    expect(row).toMatchObject({ ...CLOSED, photos: true, signedAs: "А.", textVersion: SHOWCASE_TEXT_VERSION, updatedById: d.client.id });
+    expect(row).toMatchObject({ ...CLOSED, photos: true, signedAs: "А.", textVersion: "2026-11-18", updatedById: d.client.id });
     expect(await db.dealShowcase.count({ where: { dealId: other.dealId } })).toBe(0);
     // Повтор миграции ничего не меняет.
     await db.$executeRawUnsafe(migrationInsert());

@@ -394,6 +394,12 @@ describe("ThemeSwitch", () => {
     expect(out).toMatch(/<form/);
   });
 
+  it("legendHidden: подпись группы остаётся для диктора (sr-only), видимой нет", () => {
+    const hidden = html(<ThemeSwitch current="dark" legend="Цветовая тема" legendHidden />);
+    expect(hidden).toContain('<legend class="sr-only">Цветовая тема</legend>');
+    expect(html(<ThemeSwitch current="dark" legend="Цветовая тема" />)).not.toContain('<legend class="sr-only"');
+  });
+
   it("сегментированный переключатель: дорожка track, три равных сегмента в одну строку, выбранный приподнят (raised)", () => {
     const out = html(<ThemeSwitch current="light" />);
     const track = out.match(/<div [^>]*>/)?.[0] ?? "";

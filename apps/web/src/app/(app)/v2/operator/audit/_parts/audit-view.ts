@@ -28,11 +28,44 @@ export function dealIdOf(event: Pick<AuditView, "scope" | "entityType" | "entity
   return event.entityType === "deal" ? event.entityId : null;
 }
 
-/** Откуда (ТЗ п. 11): IP и устройство; у системных действий их нет и подписи нет. */
-export function originLine(event: Pick<AuditView, "ip" | "userAgent" | "actorRole">): string | null {
-  if (!event.ip && !event.userAgent) return event.actorRole === "SYSTEM" ? null : t.noOrigin;
-  const parts = [event.ip && t.ip(event.ip), event.userAgent && t.device(event.userAgent)].filter(Boolean);
-  return `${t.origin}: ${parts.join(", ")}`;
+/** Система и браузер по строке user-agent: первое совпадение по порядку (Edge и Яндекс прикидываются Chrome, Chrome — Safari). */
+const SYSTEMS: readonly [RegExp, keyof typeof t.systems][] = [
+  [/iPhone/, "iphone"],
+  [/iPad/, "ipad"],
+  [/Android/, "android"],
+  [/Windows/, "windows"],
+  [/Macintosh|Mac OS X/, "mac"],
+  [/Linux/, "linux"],
+];
+const BROWSERS: readonly [RegExp, keyof typeof t.browsers][] = [
+  [/Edg(?:e|A|iOS)?\//, "edge"],
+  [/YaBrowser\//, "yandex"],
+  [/OPR\/|Opera/, "opera"],
+  [/Firefox\/|FxiOS\//, "firefox"],
+  [/Chrome\/|CriOS\//, "chrome"],
+  [/Safari\//, "safari"],
+];
+
+/** Устройство коротко: «Android, Chrome»; не распознали ничего — `null`. */
+export function deviceShort(userAgent: string): string | null {
+  const system = SYSTEMS.find(([re]) => re.test(userAgent))?.[1];
+  const browser = BROWSERS.find(([re]) => re.test(userAgent))?.[1];
+  const parts: string[] = [];
+  if (system) parts.push(t.systems[system]);
+  if (browser) parts.push(t.browsers[browser]);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
+/**
+ * Откуда (ТЗ п. 11): IP и устройство. Строкой — коротко («IP 1.2.3.4 · Android, Chrome»), полная строка user-agent — по
+ * нажатию (`full`): хранится и показывается целиком, в ленте не занимает четыре строки. У системных действий без IP и
+ * устройства строки нет; у остальных — «не записаны».
+ */
+export function originLine(event: Pick<AuditView, "ip" | "userAgent" | "actorRole">): { short: string; full: string | null } | null {
+  if (!event.ip && !event.userAgent) return event.actorRole === "SYSTEM" ? null : { short: t.noOrigin, full: null };
+  const device = event.userAgent ? (deviceShort(event.userAgent) ?? t.deviceUnknown) : null;
+  const parts = [event.ip ? t.ip(event.ip) : null, device].filter((part): part is string => part !== null);
+  return { short: parts.join(" · "), full: event.userAgent ? t.device(event.userAgent) : null };
 }
 
 /**

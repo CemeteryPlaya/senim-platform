@@ -43,7 +43,7 @@ async function request(client: Awaited<ReturnType<typeof buyer>>, segment: "ECON
 }
 
 describe("страница мастера: приглашение к заказу", () => {
-  it.each(["mobile", "desktop"] as const)("%s: заказ из адреса, та же группа — «Пригласить к заказу №N» главная, «Предложить заказ» тихая", async (device) => {
+  it.each(["mobile", "desktop"] as const)("%s: заказ из адреса, та же группа — только «Пригласить к заказу №N», второй кнопки «Предложить заказ» нет", async (device) => {
     h.device = device;
     const client = await buyer();
     const master = await makeExecutor({ segment: "COMFORT" });
@@ -51,7 +51,7 @@ describe("страница мастера: приглашение к заказ�
     await signInAs(client);
     const out = await render(master.executor.publicNumber, { request: id });
     expect(primaries(out)).toEqual([i.action(number)]);
-    expect(out).toContain(t.action);
+    expect(out).not.toContain(t.action);
     expect(count(out, "<h1")).toBe(1);
     expect(out).toContain(`href="/v2/executors?request=${id}"`);
   });

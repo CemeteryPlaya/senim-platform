@@ -112,7 +112,9 @@ describe("nowView: таблица «что сейчас» покупателя",
 
   it("ручной провайдер: не «платить не нужно», а куда переводить; ссылка на PDF оферты; дальше — банк подтвердит", () => {
     const view = now("waitPaymentConfirmation", false, { manual: true });
-    expect(view).toMatchObject({ body: n.payTransfer.body, next: n.payTransfer.next, link: { label: ru.app.deal.openDocument.CONTRACT, href: "/api/documents/c1/pdf", external: true } });
+    expect(view).toMatchObject({ next: n.payTransfer.next, link: { label: ru.app.deal.openDocument.CONTRACT, href: "/api/documents/c1/pdf", external: true } });
+    // «Реквизиты — в оферте» уже сказали заголовок и ссылка на оферту: строки пояснения нет.
+    expect(view.body).toBeUndefined();
     expect(JSON.stringify(view)).not.toContain("не нужно");
     expect(now("waitPaymentConfirmation", false, { manual: true, contractPdf: null }).link).toBeNull();
     expect(now("waitPaymentConfirmation", false).body).toBe(n.payPending.body);
@@ -220,6 +222,21 @@ describe("moneyView: блок денег из журнала", () => {
     expect(money(block({ kind: "refunded", amountTiyn: 102_000_00n, settled: true, refundedAt: new Date() })).title).toBe("Возвращено вам");
   });
 
+  it("история денег: операции есть с первой попытки оплаты; до неё — нет (ссылки на пустой экран не будет)", () => {
+    expect(money(block({ kind: "awaiting", payment: "none" })).operations).toBe(false);
+    expect(money(block({ kind: "awaiting", payment: "PENDING" })).operations).toBe(true);
+    expect(money(block({ kind: "awaiting", payment: "FAILED" })).operations).toBe(true);
+    expect(money(block({ kind: "protected", amountTiyn: 1n, reservedAt, operationRef: null })).operations).toBe(true);
+  });
+
+  it("«Что это?» по факту: до приёмки — деньги в банке, после — оплата мастеру (не «деньги лежат в банке»)", () => {
+    expect(money(block({ kind: "protected", amountTiyn: 1n, reservedAt, operationRef: null })).explain).toEqual({ title: t.money.explain.title, body: t.money.explain.body });
+    const completed = { kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 0n, refundedTiyn: 0n, completedAt: null } as const;
+    expect(money(block({ ...completed, settled: false })).explain).toEqual(t.money.explain.paying);
+    expect(money(block({ ...completed, settled: true })).explain).toEqual(t.money.explain.paid);
+    expect(JSON.stringify(money(block({ ...completed, settled: true })).explain)).not.toContain("лежат в банке");
+  });
+
   it("пометки тестового платежа нет ни в одном тексте", () => {
     const blocks = [
       block({ kind: "awaiting", payment: "none" }),
@@ -227,6 +244,50 @@ describe("moneyView: блок денег из журнала", () => {
       block({ kind: "refunded", amountTiyn: 1n, settled: true, refundedAt: new Date() }),
     ];
     for (const b of blocks) expect(JSON.stringify(money(b), (_k, v: unknown) => (typeof v === "bigint" ? String(v) : v))).not.toMatch(/тестов/i);
+  });
+});
+
+describe("moneyView на карточке: одна сумма, без строк-повторов (ADR-015: покупатель платит ровно цену)", () => {
+  const card = (b: MoneyBlock, manual = false) => moneyView({ block: b, estimate, snapshot, manual }, "card");
+  it("«без доплат» словами в заголовке во всех состояниях до оплаты: ждём, в обработке, перевод, не прошла; состояние — в примечании", () => {
+    const states = [
+      card(block({ kind: "awaiting", payment: "none" })),
+      card(block({ kind: "awaiting", payment: "PENDING" })),
+      card(block({ kind: "awaiting", payment: "PENDING" }), true),
+      card(block({ kind: "awaiting", payment: "FAILED" })),
+    ];
+    for (const v of states) expect(v.title).toContain("без доплат");
+    expect(states[1]?.note).toContain("Оплата в обработке");
+    expect(states[3]?.note).toContain("Оплата не прошла");
+  });
+  it("до оплаты и перевод: «К оплате, без доплат» крупной суммой, строк нет; «Что это?» — в конце примечания", () => {
+    const v = card(block({ kind: "awaiting", payment: "none" }));
+    expect(v).toMatchObject({ tone: "awaiting", title: "К оплате, без доплат", amount: 100_000_00n, note: t.money.awaiting.note, explain: { title: t.money.explain.title, body: t.money.explain.body } });
+    expect(v.rows).toEqual([]);
+    expect(card(block({ kind: "awaiting", payment: "PENDING" }), true)).toMatchObject({ title: "К оплате, без доплат", note: t.money.transfer.note, rows: [] });
+  });
+
+  it("под защитой: сумма, кто и когда получит деньги, «Что это?»; ни строки «Цена по оферте», ни даты резерва", () => {
+    const v = card(block({ kind: "protected", amountTiyn: 100_000_00n, reservedAt, operationRef: null }));
+    expect(v).toMatchObject({ tone: "protected", title: t.money.protected.title, amount: 100_000_00n, note: "Мастер получит их, когда вы примете мебель." });
+    expect(v.rows).toEqual([]);
+    expect(v.explain).toBeDefined();
+    expect(v.proof).toBeUndefined();
+  });
+
+  it("спор: только заголовок и сумма — без примечания и «Что это?»", () => {
+    const v = card(block({ kind: "frozen", amountTiyn: 96_000_00n, frozenAt: new Date() }, 100_000_00n));
+    expect(v).toMatchObject({ tone: "frozen", title: t.money.frozen.title, amount: 100_000_00n, rows: [] });
+    expect(v.note).toBeUndefined();
+    expect(v.explain).toBeUndefined();
+  });
+
+  it("после выплаты: сумма и что с оплатой мастера; без «Цены по оферте» и «Что это?»; раздел по спору — «Возвращено вам» строкой", () => {
+    const done = card(block({ kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 0n, refundedTiyn: 0n, settled: true, completedAt: new Date(), paidTiyn: 100_000_00n }));
+    expect(done).toMatchObject({ title: t.money.completed.title, amount: 100_000_00n, note: t.money.completed.done, rows: [] });
+    expect(done.explain).toBeUndefined();
+    const split = card(block({ kind: "completed", paidToMasterTiyn: 48_000_00n, protectionTiyn: 0n, refundedTiyn: 52_000_00n, settled: true, completedAt: new Date(), paidTiyn: 100_000_00n }));
+    expect(split.rows).toEqual([{ label: t.money.refundedRow, amount: 52_000_00n }]);
   });
 });
 
@@ -253,20 +314,20 @@ describe("cancelText: последствия отмены по факту cancel
 });
 
 describe("заказ", () => {
-  const order = { title: "Кухня", city: "Астана", plannedReadyAt: null, signedAt: null, durationDays: 30, warrantyMonths: 12, readyShownInNow: false };
+  const order = { city: "Астана", plannedReadyAt: null, durationDays: 30, warrantyMonths: 12, readyShownInNow: false };
   it("адрес мастеру: ссылки на карты — по точке заказа, а без точки — поиск по адресу", () => {
     const withPoint = orderRows({ ...order, address: "Астана, Абая 1", location: { lat: 51.1, lng: 71.4 } }).find((r) => r.map);
     expect(withPoint?.map).toEqual({ point: { lat: 51.1, lng: 71.4 }, address: "Астана, Абая 1" });
     expect(orderRows({ ...order, address: "Астана, Абая 1" }).find((r) => r.map)?.map).toEqual({ point: null, address: "Астана, Абая 1" });
     expect(orderRows(order).some((r) => r.map)).toBe(false);
   });
-  it("до оферты: что делаем, город, срок в днях, гарантия; строки мастера нет", () => {
-    expect(orderRows(order).map((r) => r.label)).toEqual([t.order.what, t.order.city, t.order.duration, t.order.warranty]);
+  it("до оферты: город, срок в днях, гарантия — без «Что делаем» (это заголовок экрана); строки мастера нет", () => {
+    expect(orderRows(order).map((r) => r.label)).toEqual([t.order.city, t.order.duration, t.order.warranty]);
   });
-  it("после оферты с плановой датой: только дата готовности (без срока в днях) и дата оферты", () => {
-    const rows = orderRows({ ...order, plannedReadyAt: new Date("2026-12-20T10:00:00Z"), signedAt: new Date("2026-11-14T10:00:00Z") });
-    expect(rows.map((r) => r.label)).toEqual([t.order.what, t.order.city, t.order.readyBy, t.order.warranty, t.order.signedAt]);
-    expect(rows[2]?.value).toBe("20 декабря 2026");
+  it("с плановой датой: только дата готовности (без срока в днях); даты оферты нет — она в «Истории»", () => {
+    const rows = orderRows({ ...order, plannedReadyAt: new Date("2026-12-20T10:00:00Z") });
+    expect(rows.map((r) => r.label)).toEqual([t.order.city, t.order.readyBy, t.order.warranty]);
+    expect(rows[1]?.value).toBe("20 декабря 2026");
   });
   it("дату уже назвала карточка «Сейчас» — здесь не повторяется", () => {
     const rows = orderRows({ ...order, plannedReadyAt: new Date("2026-12-20T10:00:00Z"), readyShownInNow: true });
@@ -302,7 +363,7 @@ describe("документы", () => {
       ["Оферта № Д-2", t.documents.yours],
       ["Акт приёмки № А-1", "Подписан"],
       ["Акт приёмки № А-2", "Ждёт подписей"],
-      ["Выписка по деньгам № В-1", "Подпись не нужна"],
+      ["Выписка по деньгам № В-1", null],
     ]);
     expect(rows[0]?.href).toBe("/api/documents/c1/pdf");
     expect(rows.map((r) => r.open)).toEqual(["Открыть оферту", "Открыть оферту", "Открыть акт", "Открыть акт", "Открыть выписку"]);
@@ -333,7 +394,6 @@ describe("historyView: события словами покупателя", () =
     ["deal.signed", "SYSTEM", h.concluded],
     ["deal.paid", "SYSTEM", h.paid],
     ["deal.started", "EXECUTOR", h.started],
-    ["deal.progress.reported", "EXECUTOR", h.progress],
     ["deal.ready", "EXECUTOR", h.ready],
     ["deal.accepted", "SYSTEM", h.accepted],
     ["deal.completed", "SYSTEM", h.completed],
@@ -365,6 +425,8 @@ describe("historyView: события словами покупателя", () =
     "chat.closed",
     "chat.reopened",
     "deal.stage",
+    // Отчёты с теми же датами — в «Ходе работ»; в «Истории» не повторяются.
+    "deal.progress.reported",
     "что-то.новое",
   ])("служебное и неизвестное не показывается: %s", (action) => {
     expect(titles([[action, "SYSTEM"]])).toEqual([]);
@@ -395,7 +457,7 @@ describe("historyView: события словами покупателя", () =
   });
 
   it("свёрнута до лимита устройства; «Показать всё» — все", () => {
-    const list: [string, string][] = Array.from({ length: 7 }, () => ["deal.progress.reported", "EXECUTOR"]);
+    const list: [string, string][] = Array.from({ length: 7 }, () => ["dispute.resolved", "OPERATOR"]);
     expect(historyView(events(list), { all: false, limit: HISTORY_SHOWN.mobile }, "CLIENT")).toMatchObject({ more: true });
     expect(historyView(events(list), { all: false, limit: HISTORY_SHOWN.mobile }, "CLIENT").items).toHaveLength(3);
     expect(historyView(events(list), { all: false, limit: HISTORY_SHOWN.desktop }, "CLIENT").items).toHaveLength(5);
@@ -538,7 +600,6 @@ describe("historyView: события словами мастера («Вы» �
     ["deal.signed", "SYSTEM", h.concluded],
     ["deal.paid", "SYSTEM", h.paid],
     ["deal.started", "EXECUTOR", h.started],
-    ["deal.progress.reported", "EXECUTOR", h.progress],
     ["deal.ready", "EXECUTOR", h.ready],
     ["deal.accepted", "SYSTEM", h.accepted],
     ["deal.completed", "SYSTEM", h.completed],
@@ -579,6 +640,10 @@ describe("historyView: события словами мастера («Вы» �
     ];
     expect(historyView(events(list), { all: true, limit: 100 }, "CLIENT").items.map((i) => i.title)).toEqual([t.history.cancelled.you, t.history.disputeOpened.master]);
     expect(masterTitles(list)).toEqual([h.cancelled.other, h.disputeOpened.you]);
+  });
+
+  it("отчёты о ходе работ в «Истории» мастера не повторяются", () => {
+    expect(masterTitles([["deal.started", "EXECUTOR"], ["deal.progress.reported", "EXECUTOR"]])).toEqual([h.started]);
   });
 });
 
@@ -668,19 +733,33 @@ describe("masterMoneyView: блок денег мастера из журнал�
     expect(amounts(pending)).not.toContain(102_000_00n);
     expect(master(block({ kind: "refunded", amountTiyn: 102_000_00n, settled: true, refundedAt: reservedAt })).note).toBe(md.refunded.done);
   });
+
+  it("«Что это?» у гарантии — по факту: после приёмки не говорит, что деньги лежат в банке", () => {
+    const completed = { kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 0n, refundedTiyn: 0n, completedAt: null, paidTiyn: 100_000_00n } as const;
+    expect(master(block({ kind: "protected", amountTiyn: 1n, reservedAt, operationRef: null })).explain?.body).toBe(md.explain.body);
+    expect(master(block({ ...completed, settled: false })).explain?.body).toBe(md.explain.paying);
+    expect(master(block({ ...completed, settled: true })).explain?.body).toBe(md.explain.paid);
+    expect(md.explain.paid).not.toContain("лежат в банке");
+  });
+
+  it("карточка: строки — цена и гарантия (6%) без итога «Вы получите» (он — главная сумма); без даты резерва; вернулись — без примечания", () => {
+    const card = (b: MoneyBlock) => masterMoneyView({ block: b, estimate: mine }, "card");
+    const held = card(block({ kind: "protected", amountTiyn: 102_000_00n, reservedAt, operationRef: "B-1" }, 102_000_00n));
+    expect(held).toMatchObject({ title: md.youGetAfter, amount: 96_000_00n, note: md.protected });
+    expect(held.rows).toEqual(offerRows(96_000_00n).slice(0, 2));
+    expect(held.proof).toBeUndefined();
+    const got = card(block({ kind: "completed", paidToMasterTiyn: 96_000_00n, protectionTiyn: 0n, refundedTiyn: 0n, settled: true, completedAt: reservedAt, paidTiyn: 100_000_00n }));
+    expect(got.rows.map((r) => r.label)).toEqual([md.price, md.guarantee]);
+    expect(card(block({ kind: "refunded", amountTiyn: 102_000_00n, settled: true, refundedAt: reservedAt })).note).toBeUndefined();
+    expect(card(block({ kind: "refunded", amountTiyn: 102_000_00n, settled: false, refundedAt: null })).note).toBe(md.refunded.pending);
+  });
 });
 
 describe("заказ мастера и ход работ", () => {
-  const order = { title: "Кухня", city: "Астана", plannedReadyAt: null, signedAt: null, durationDays: 30, warrantyMonths: 12, readyShownInNow: false };
-  it("адрес — строкой после города, только если передан", () => {
-    expect(orderRows({ ...order, address: "ул. Абая, 12" }).map((r) => r.label)).toEqual([
-      t.order.what,
-      t.order.city,
-      ru.app.masterDeal.card.order.address,
-      t.order.duration,
-      t.order.warranty,
-    ]);
-    expect(orderRows({ ...order, address: null }).map((r) => r.label)).not.toContain(ru.app.masterDeal.card.order.address);
+  const order = { city: "Астана", plannedReadyAt: null, durationDays: 30, warrantyMonths: 12, readyShownInNow: false };
+  it("адрес — вместо города (адрес начинается с города), только если передан", () => {
+    expect(orderRows({ ...order, address: "Астана, ул. Абая, 12" }).map((r) => r.label)).toEqual([ru.app.masterDeal.card.order.address, t.order.duration, t.order.warranty]);
+    expect(orderRows({ ...order, address: null }).map((r) => r.label)).toEqual([t.order.city, t.order.duration, t.order.warranty]);
   });
 
   it("отчёты: свежие сверху, без названия — «Отчёт о ходе работ», подписи фото с номером", () => {
@@ -699,13 +778,13 @@ describe("deliveryView: блок «Сдача работы» — фото и м�
   const at = new Date("2026-11-20T10:00:00Z");
   const ready = { at, photos: [{ id: "p1", src: "/f/p1" }, { id: "p2", src: "/f/p2" }], distanceM: 36, withinRadius: true, radiusM: 500 };
 
-  it("в радиусе: фото с подписью, расстояние и радиус", () => {
+  it("в радиусе: фото с подписью; «у адреса заказа» без метров (они — в акте)", () => {
     const v = deliveryView(ready);
     expect(v?.photos).toEqual([
       { id: "p1", src: "/f/p1", alt: t.delivery.photoAlt(1) },
       { id: "p2", src: "/f/p2", alt: t.delivery.photoAlt(2) },
     ]);
-    expect(v?.place).toBe("Сдано у адреса заказа: 36 м, в пределах 500 м");
+    expect(v?.place).toBe("Сдано у адреса заказа");
     expect(v?.far).toBe(false);
     expect(v?.time).toBe(formatDateTime(at));
   });

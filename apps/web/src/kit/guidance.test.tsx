@@ -178,9 +178,10 @@ describe("NowNext", () => {
     expect(out).toContain("Приёмка");
   });
 
-  it("без next нет строки «Дальше»; нет и h1 (заголовок экрана не здесь)", () => {
+  it("без next нет строки «Дальше» и подписи «Сейчас» (одна она ничего не противопоставляет); нет и h1", () => {
     const out = html(<NowNext now={{ title: "Ждём" }} />);
     expect(out).not.toContain(ru.app.kit.nowNext.next);
+    expect(out).not.toContain(`>${ru.app.kit.nowNext.now}<`);
     expect(out).not.toContain("<h1");
     expect(out).not.toContain("border-t");
   });

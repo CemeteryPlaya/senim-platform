@@ -152,7 +152,7 @@ describe("экран диалога", () => {
       expect(html).toContain(ru.common.executorLabel(thread.executor.executor.publicNumber));
       expect(html).toContain('href="/v2/chats"');
       expect(html).toContain(ru.app.kit.back);
-      expect(html).toContain(t.room.hiddenSystem);
+      expect(html).toContain(t.room.hiddenShort);
       expect(html).toContain(t.room.why);
       expect(html).toContain(`href="/v2/requests/${thread.requestId}/offers/${thread.offerId}"`);
       expect(html).toContain("Здравствуйте");
@@ -162,11 +162,11 @@ describe("экран диалога", () => {
     }
   });
 
-  it("после оферты: системной строки и «Почему?» нет, ссылка ведёт на сделку", async () => {
+  it("после оферты: строки о скрытых контактах и «Почему?» нет, ссылка ведёт на сделку", async () => {
     const thread = await makeOfferThread({ dealStatus: "IN_PROGRESS", requestStatus: "CLOSED" });
     h.user = thread.client;
     const { html } = await room(thread.offerId);
-    expect(html).not.toContain(t.room.hiddenSystem);
+    expect(html).not.toContain(t.room.hiddenShort);
     expect(html).not.toContain(t.room.why);
     expect(html).toContain(`href="/v2/deals/${thread.dealId}"`);
   });
@@ -228,7 +228,7 @@ describe("экран диалога", () => {
       expect(html).toContain(`href="/v2/executor/requests/${thread.requestId}"`);
       expect(html).toContain(tm.room.composerPlaceholder);
       expect(html).toContain("Когда сможете начать?");
-      expect(html).toContain(t.room.hiddenSystem);
+      expect(html).toContain(t.room.hiddenShort);
       expect(html).not.toMatch(/заказчик|отклик/i);
       expect(primaryCount(html!)).toBe(0);
       expect(h.asked.at(-1)).toBe(`/v2/chats/${thread.offerId}`);
@@ -282,7 +282,7 @@ describe("действия диалога", () => {
     expect(mine).toHaveLength(1);
     expect(mine[0].text).toContain(MASK);
     expect(mine[0].text).not.toMatch(/555 44 33|t\.me/);
-    expect(result.data.messages[0]).toMatchObject({ kind: "system", text: t.room.hiddenSystem });
+    expect(result.data.messages.some((m) => m.kind === "system")).toBe(false);
     expect(await db.message.count({ where: { offerId: thread.offerId } })).toBe(1);
     expect((await db.message.findFirstOrThrow({ where: { offerId: thread.offerId } })).body).not.toMatch(/555 44 33/);
   });

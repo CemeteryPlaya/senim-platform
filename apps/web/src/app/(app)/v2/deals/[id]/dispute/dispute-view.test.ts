@@ -72,9 +72,10 @@ describe("спор мастера", () => {
   });
 
   it("последствия у мастера: «оплата вам приостановлена», у покупателя — как было", () => {
-    expect(ru.app.masterDispute.form.nowNext).toBe("Оплата вам приостановится до решения оператора");
+    // Последствие спора — в подзаголовке формы (карточки «Сейчас / Дальше» на форме нет) и в окне подтверждения.
+    expect(ru.app.masterDispute.form.lead).toContain("оплата вам приостановится");
     expect(ru.app.masterDispute.open.now.body).toContain("Оплата вам приостановлена");
-    expect(ru.app.deal.dispute.form.nowNext).toBe("Оплата мастеру приостановится до решения оператора");
+    expect(ru.app.deal.dispute.form.lead).toContain("оплата мастеру приостановится");
   });
 
   it("позиции: своя и другой стороны", () => {

@@ -1,12 +1,13 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type ComponentProps, type ReactNode } from "react";
-import { InputField } from "./fields";
+import { InputField, type LabelHiddenProp } from "./fields";
 import { HiddenField } from "./HiddenField";
 import { applyEdit, fromRaw, pasteInto, type Edited, type Mask } from "./mask-logic";
 import { useMountFocus } from "./useMountFocus";
 
-export type MaskedFieldProps = Omit<ComponentProps<"input">, "name" | "value" | "defaultValue" | "onChange" | "prefix" | "children"> & {
+export type MaskedFieldProps = Omit<ComponentProps<"input">, "name" | "value" | "defaultValue" | "onChange" | "prefix" | "children"> &
+  LabelHiddenProp & {
   label: string;
   name: string;
   error?: string;

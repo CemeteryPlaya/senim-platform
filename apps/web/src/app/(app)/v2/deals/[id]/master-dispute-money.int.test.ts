@@ -77,7 +77,7 @@ describe("спор мастера: открыть", () => {
       const out = await disputePage(f.dealId);
       expect(h1s(out)).toEqual([td.form.title]);
       for (const reason of Object.values(td.reasons)) expect(out).toContain(reason);
-      expect(plain(out)).toContain(td.form.nowNext);
+      expect(plain(out)).toContain(td.form.lead);
       expect(primaries(out)).toBe(1);
       expect(out).toContain(`href="/v2/deals/${f.dealId}"`);
       expectNoBuyerAmounts(out);

@@ -158,12 +158,12 @@ describe("карточка сделки /v2/operator/deals/[id]", () => {
     expect(html).toContain("/api/documents/");
   });
 
-  it("тестовая сделка: пометка в журнале видна оператору", async () => {
+  it("тестовая сделка: пометка в журнале видна оператору, отдельного примечания в блоке денег нет", async () => {
     const f = await dealAt("PAID_HOLD");
     await operatorSession();
     const html = await render(cardPage(f.dealId));
     expect(html).toContain(t.testMark);
-    expect(html).toContain(t.money.test);
+    expect(html).not.toContain("Тестовые деньги");
   });
 
   it("пакет для банка на раскрытие: суммы из журнала, акт и форма расписки; после выпуска — ссылка на PDF", async () => {
@@ -302,8 +302,8 @@ describe("audit-view: чистые помощники", () => {
 
   it("откуда: у системных без IP строки нет, у остальных — «не записаны»", () => {
     expect(originLine({ ip: null, userAgent: null, actorRole: "SYSTEM" })).toBeNull();
-    expect(originLine({ ip: null, userAgent: null, actorRole: "CLIENT" })).toBe(t.audit.noOrigin);
-    expect(originLine({ ip: "1.2.3.4", userAgent: "Safari", actorRole: "CLIENT" })).toBe(`${t.audit.origin}: ${t.audit.ip("1.2.3.4")}, ${t.audit.device("Safari")}`);
+    expect(originLine({ ip: null, userAgent: null, actorRole: "CLIENT" })).toEqual({ short: t.audit.noOrigin, full: null });
+    expect(originLine({ ip: "1.2.3.4", userAgent: "Safari", actorRole: "CLIENT" })).toEqual({ short: `${t.audit.ip("1.2.3.4")} · ${t.audit.deviceUnknown}`, full: t.audit.device("Safari") });
   });
 
   it("адрес журнала: только известные непустые поля и курсор", () => {

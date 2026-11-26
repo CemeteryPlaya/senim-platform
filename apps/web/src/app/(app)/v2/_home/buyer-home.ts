@@ -75,8 +75,6 @@ export type BuyerHomeView = {
   secondary: { href: string } | null;
   /** Сделка для карточки со сделкой: та, о которой «Сейчас», иначе самая свежая из идущих. */
   deal: HomeDealInput | null;
-  /** Сколько ещё идущих сделок, кроме показанной: «Все сделки». */
-  moreDeals: number;
   /** До двух живых заявок для списка; заявка из «Сейчас» отдельной карточкой не повторяется. */
   requests: HomeRequestInput[];
   /** Первые шаги; `null` — у человека уже есть оплаченная сделка. */
@@ -173,7 +171,6 @@ export function buyerHome(input: HomeInput): BuyerHomeView {
   const running = deals.filter((d) => ACTIVE_DEAL.has(d.status));
   // Карточка сделки: та, о которой «Сейчас»; иначе самая свежая из идущих.
   const deal = picked.deal ?? running[0] ?? null;
-  const moreDeals = deal && ACTIVE_DEAL.has(deal.status) ? running.length - 1 : running.length;
 
   const listed = requests.filter((r) => (LIVE_REQUEST.has(r.status) || r.status === "DRAFT") && r.id !== picked.now.request?.id).slice(0, 2);
 
@@ -194,7 +191,7 @@ export function buyerHome(input: HomeInput): BuyerHomeView {
   for (const k of ["order", "master", "pay"] as const) if (steps[k].done) steps[k] = { done: true };
   const firstSteps = paid ? null : steps;
 
-  return { now: picked.now, primary: picked.primary, secondary: picked.secondary, deal, moreDeals, requests: listed, firstSteps };
+  return { now: picked.now, primary: picked.primary, secondary: picked.secondary, deal, requests: listed, firstSteps };
 }
 
 /**

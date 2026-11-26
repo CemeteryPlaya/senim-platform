@@ -27,7 +27,6 @@ export const operatorDisputes = {
   disputes: {
     metaTitle: "Споры",
     title: "Споры",
-    lead: "Открытые споры — первыми. Решение делит деньги сделки, поэтому перед ним спросим код из приложения.",
     empty: { title: "Споров нет", body: "Когда сторона откроет спор, он появится здесь." },
     status: { OPEN: "Открыт", RESOLVED: "Решён" },
     reasons: { QUALITY: "Качество работы", DEADLINE: "Сроки", SCOPE: "Не по договору", PAYMENT: "Оплата", OTHER: "Другое" },
@@ -43,7 +42,9 @@ export const operatorDisputes = {
     metaTitle: "Спор по сделке",
     title: (n: number) => `Спор по сделке №${n}`,
     back: "Споры",
-    openedAt: (date: string, stage: string) => `Открыт ${date}. Этап сделки при открытии: ${stage}`,
+    /** Под чипами статуса и этапа: дата открытия; этап при открытии — только если сделка с тех пор ушла на другой этап. */
+    openedAt: (date: string) => `С ${date}`,
+    openedAtStage: (date: string, stage: string) => `С ${date}. Этап при открытии: ${stage}`,
     description: "Описание",
     clientPosition: "Позиция покупателя",
     executorPosition: "Позиция мастера",
@@ -51,32 +52,19 @@ export const operatorDisputes = {
     now: "Что сейчас",
     positions: "Позиции сторон",
     attachments: "Вложения",
-    noAttachments: "Вложений нет",
     attachment: (contentType: string, sizeKb: number) => `${contentType}, ${sizeKb} КБ`,
     attachmentHash: "SHA-256",
     history: "История сделки",
     historyEmpty: "Событий пока нет",
-    historyActor: (role: string, entity: string | null) => (entity ? `${role} · ${entity}` : role),
-    /** Над чем событие журнала (тип записи → слово); неизвестный тип не показывается, только роль. Ключи — тип строчными без «_». */
-    entities: {
-      deal: "сделка",
-      dispute: "спор",
-      document: "документ",
-      moneytransaction: "операция с деньгами",
-      payment: "оплата",
-      review: "отзыв",
-      offer: "отклик",
-      request: "заявка",
-      message: "сообщение",
-      chat: "чат",
-      executor: "исполнитель",
-    } as Record<string, string>,
+    /** Строка под событием истории: время и кто, одной строкой. */
+    historyWhen: (time: string, role: string) => `${time} · ${role}`,
     parties: "Стороны",
     client: "Покупатель",
     executor: "Мастер",
     executorValue: (n: number, name: string) => `№${n}, ${name}`,
     price: "Цена по оферте",
-    paid: "Покупатель вносит (цена по оферте)",
+    /** Только у старых сделок с защитой сделки 2 % (сумма покупателя ≠ цене); по ADR-015 покупатель платит ровно цену. */
+    paid: "Покупатель вносит",
     provider: "Провайдер оплаты",
     providers: { MOCK: "Тестовый (mock)", MANUAL: "Ручной: банк без API", FREEDOMPAY: "Freedom Pay, песочница" },
     openDeal: "Открыть карточку сделки",
@@ -90,8 +78,6 @@ export const operatorDisputes = {
     history: "Журнал денег",
     historyEmpty: "Движений денег нет",
     bankBalance: "Остаток на счёте сделки по журналу",
-    test: "Тестовые деньги: настоящие не списываются",
-    testMark: "тестовая",
     awaiting: "Оплаты ещё нет",
     protected: "Деньги на счёте сделки в банке",
     frozen: "Выплата заморожена до решения спора",
@@ -130,7 +116,7 @@ export const operatorDisputes = {
     previewPlatform: "Доход платформы",
     previewRefund: "Возврат покупателю",
     rationaleLabel: "Обоснование",
-    rationaleHint: "Обязательно, до 2000 знаков. Увидят обе стороны; сохраняется для разбора похожих споров.",
+    rationaleHint: "Увидят обе стороны. До 2000 знаков.",
     confirm: {
       FULL_REFUND: {
         title: "Вернуть деньги покупателю?",
@@ -161,7 +147,7 @@ export const operatorDisputes = {
   requests: {
     metaTitle: "Заявки без откликов",
     title: "Заявки без откликов",
-    lead: "Открытые заявки, на которые никто не откликнулся или все отклики отклонены.",
+    lead: "В том числе те, где все отклики отклонены.",
     filter: "Сколько ждут откликов",
     presets: { "24": "Дольше суток", "72": "Дольше 3 суток", "168": "Дольше недели", "720": "Дольше месяца" } as Record<string, string>,
     custom: (h: number) => `Дольше ${h} ${word(h, "часа", "часов", "часов")}`,
@@ -185,6 +171,7 @@ export const operatorDisputes = {
     metaTitle: "Файлы заявки",
     title: (n: number) => `Файлы заявки №${n}`,
     back: "Заявки без откликов",
+    /** Только когда файлы есть: без файлов скрывать нечего. */
     lead: "Дизайн-проект покупателя. Если в файле остались телефон, адрес или имя — скройте его: мастера и сделка файл не увидят, покупатель увидит пометку.",
     /** Ссылка из карточки сделки. */
     link: "Файлы заявки",

@@ -53,7 +53,8 @@ test("цена мастера: «Принять X», смета без допл�
   await expect(primary).toHaveText(t.actions.accept(formatMoney(m.priceTiyn)));
   const main = page.getByRole("main");
   await expect(main.getByText(t.money.title, { exact: true })).toBeVisible();
-  await expect(main.getByText(t.money.total, { exact: true })).toBeVisible();
+  // Без доплат — одна сумма и подпись «К оплате, без доплат» под ней (строк с той же суммой нет).
+  await expect(main.getByText(t.money.caption, { exact: true })).toBeVisible();
   await expect(main.getByText(formatMoney(m.buyerTotalTiyn)).first()).toBeVisible();
   await expect(main).not.toContainText("Защита сделки");
 
@@ -93,7 +94,7 @@ test("своё предложение ждёт мастера: главного 
   await expect(page.locator("[data-primary-action]")).toHaveCount(0);
   await expect(page.getByRole("button", { name: t.actions.withdraw })).toBeVisible();
   await expect(page.getByText(t.money.titleWaiting, { exact: true })).toBeVisible();
-  await expect(page.getByText(t.money.price.yours, { exact: true })).toBeVisible();
+  await expect(page.getByText(t.money.caption, { exact: true })).toBeVisible();
 });
 
 test("мастер ответил новой ценой: «Принять» его цену; история цены", async ({ page }) => {
@@ -102,7 +103,8 @@ test("мастер ответил новой ценой: «Принять» ег
   const price = formatMoney(openPrice(offer));
   await expect(page.getByRole("heading", { level: 2, name: t.now.masterCounter.title(price) })).toBeVisible();
   await expect(page.locator("[data-primary-action]")).toHaveText(t.actions.accept(price));
-  await expect(page.getByRole("list", { name: t.history.title })).toContainText(t.history.status.SUPERSEDED);
+  // Заменённая встречной ценой — без пометки: это видно по следующей записи.
+  await expect(page.getByRole("list", { name: t.history.title })).toContainText(t.history.you);
 });
 
 test("цена принята: «Открыть сделку» ведёт в сделку, денег на экране нет; отклонённое — объяснение без действий", async ({ page }) => {

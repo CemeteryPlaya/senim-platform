@@ -98,7 +98,10 @@ function Secondary({ view, device, offerId }: { view: OfferViewModel; device: De
   );
 }
 
-/** Смета покупателя: «К оплате» крупно, цена и итог с пояснением (без доплат, ADR-015). Суммы — из модуля. */
+/**
+ * Смета покупателя: «К оплате» крупно и подпись «К оплате, без доплат» с пояснением под суммой (ADR-015: цена и итог
+ * совпадают, строк с той же суммой нет). Суммы — из модуля.
+ */
 function Money({ view, device }: { view: OfferViewModel; device: Device }) {
   const money = view.money;
   if (!money) return null;
@@ -120,6 +123,7 @@ function Money({ view, device }: { view: OfferViewModel; device: Device }) {
       tone="awaiting"
       title={money.title}
       amount={money.amountTiyn}
+      {...(money.caption ? { caption: { text: money.caption, explain } } : {})}
       rows={money.rows.map((row) => ({
         label: row.label,
         amount: row.amountTiyn,
@@ -176,7 +180,7 @@ function History({ view }: { view: OfferViewModel }) {
       <Card>
         <Timeline
           label={t.history.title}
-          items={view.history.map((item) => ({ title: item.title, time: item.time, text: item.text, amount: item.amountTiyn }))}
+          items={view.history.map((item) => ({ title: item.title, time: item.time, ...(item.text ? { text: item.text } : {}), amount: item.amountTiyn }))}
         />
       </Card>
     </Section>

@@ -22,15 +22,15 @@ describe("живой расчёт «Вы получите» в форме пре
     for (const raw of ["", "0", "12,5", "-1", "абв", String(MAX_PRICE_KZT + 1)]) expect(liveMoney(raw)).toBeNull();
   });
 
-  it("смета формы: «Цена покупателю → Гарантия оплаты и клиента (6%) → Вы получите», крупно — «Вы получите»", () => {
+  it("смета формы: крупно — «Вы получите», ниже «Цена покупателю» и «Гарантия оплаты и клиента (6%)»; итог строкой не повторяется", () => {
     const e = partyEstimate("EXECUTOR", kztToTiyn(1_000_000));
+    expect(t.title).toBe("Вы получите");
     expect(formMoney("1 000 000")).toEqual({
       title: t.title,
       amountTiyn: e.totalTiyn,
       rows: [
         { label: t.price.form, amountTiyn: e.priceTiyn },
         { label: "Гарантия оплаты и клиента (6%)", amountTiyn: e.extraTiyn, explain: true },
-        { label: "Вы получите", amountTiyn: e.totalTiyn, total: true },
       ],
     });
     expect(e.totalTiyn).toBe(940_000_00n);

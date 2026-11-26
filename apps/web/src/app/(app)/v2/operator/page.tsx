@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { Card, EmptyState, List, ListRow, PageTitle, Section, Stack, Stat, StatRow } from "@/kit";
+import { Card, EmptyState, List, ListRow, PageTitle, Section, Stack } from "@/kit";
 import { kycQueueSize, listDisputes, listMoneyQueue, listRegistrationQueue, listStaleRequests } from "@/modules/operator";
 import { requireOperator } from "../../_shell/auth";
 import { to } from "../../_shell/paths";
@@ -12,10 +12,9 @@ export const metadata: Metadata = { title: t.metaTitle };
 
 /**
  * Главная оператора: первым — что требует внимания (строки-ссылки в очереди: операции банка, регистрации, открытые споры,
- * документы мастеров, заявки без откликов дольше суток), ниже — сводка числами. Разделы — в меню (слева на компьютере,
- * «Меню» на телефоне). Главной кнопки нет: у сводки нет одного главного действия, оно — первая строка «что требует
- * внимания». «Назад» нет: это дом роли. Число документов мастеров приходит из identity: не ответил — «—» и пояснение,
- * остальная главная работает.
+ * документы мастеров, заявки без откликов дольше суток); пустые очереди не показываются. Разделы — в меню (слева на
+ * компьютере, «Меню» на телефоне). Главной кнопки нет: равноправные очереди, первая строка — самое срочное. «Назад» нет:
+ * это дом роли. Число документов мастеров приходит из identity: не ответил — строка «нет связи», остальная главная работает.
  */
 export default async function OperatorHome() {
   const user = await requireOperator(to("/operator"));
@@ -49,13 +48,6 @@ export default async function OperatorHome() {
             </List>
           </Card>
         )}
-      </Section>
-      <Section title={t.summary} id="summary">
-        <StatRow label={t.summary}>
-          {home.tiles.map((tile) => (
-            <Stat key={tile.label} label={tile.label} value={tile.value} muted={tile.muted} />
-          ))}
-        </StatRow>
       </Section>
     </Stack>
   );

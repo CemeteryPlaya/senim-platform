@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { ru } from "@/i18n/ru";
-import { InputField, type FieldProps } from "./fields";
+import { InputField, type FieldProps, type LabelHiddenProp } from "./fields";
 import { suggestEmail } from "./field-logic";
 import { useMountFocus } from "./useMountFocus";
 
-export type EmailFieldProps = FieldProps & {
+export type EmailFieldProps = FieldProps & LabelHiddenProp & {
   defaultValue?: string;
   autoFocus?: boolean;
   maxLength?: number;

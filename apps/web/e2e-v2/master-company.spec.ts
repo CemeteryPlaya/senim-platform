@@ -59,26 +59,25 @@ async function expectScreenRules(page: Page) {
   expect(await page.content()).not.toMatch(/KZ\d{2}[A-Z0-9]{16}/);
 }
 
-test("компания одобренного мастера: «как вас видят», разделы, форма, «Назад — Профиль»", async ({ browser }, info) => {
+test("компания одобренного мастера: «как вас видят», без раздела «Ещё по компании», форма, «Назад — Профиль»", async ({ browser }, info) => {
   const page = await pageOf(browser, info, "erlan");
   await open(page, "/v2/executor/profile");
   await expect(page.locator("h1")).toHaveText(m.company.title);
   await expect(page.getByText(m.company.now.APPROVED.title)).toBeVisible();
   await expect(page.getByText(/Исполнитель №\d+/).first()).toBeVisible();
-  for (const href of ["/v2/executor/profile/kyc", "/v2/executor/profile/payout", "/v2/executor/portfolio", "/v2/executor/finance"]) {
-    await expect(page.locator(`a[href="${href}"]`).first()).toBeVisible();
-  }
+  // Разделы одобренного мастера — на экране «Профиль», откуда он пришёл: здесь их нет.
+  await expect(page.getByRole("navigation", { name: m.company.sections.title })).toHaveCount(0);
   await expect(page.getByRole("link", { name: `${ru.app.kit.back}: ${m.shared.backProfile}`, exact: true })).toHaveAttribute("href", "/v2/profile");
   await expect(page.getByLabel(m.company.form.about.label)).toBeVisible();
   await expectScreenRules(page);
   await page.context().close();
 });
 
-test("документы: статус проверки и «Назад — Компания»", async ({ browser }, info) => {
+test("документы: статус проверки и «Назад — Профиль» у одобренного", async ({ browser }, info) => {
   const page = await pageOf(browser, info, "erlan");
   await open(page, "/v2/executor/profile/kyc");
   await expect(page.locator("h1")).toHaveText(m.kyc.title);
-  await expect(page.getByRole("link", { name: `${ru.app.kit.back}: ${m.shared.backCompany}`, exact: true })).toHaveAttribute("href", "/v2/executor/profile");
+  await expect(page.getByRole("link", { name: `${ru.app.kit.back}: ${m.shared.backProfile}`, exact: true })).toHaveAttribute("href", "/v2/profile");
   await expect(page.getByRole("heading", { level: 2 }).filter({ hasText: new RegExp(Object.values(m.kyc.status).join("|")) }).first()).toBeVisible();
   await expectScreenRules(page);
   await page.context().close();

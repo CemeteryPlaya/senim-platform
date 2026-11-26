@@ -65,7 +65,8 @@ test("покупатель решает, что из сделки видно в 
   const cardPath = `/v2/deals/${pd.dealId}`;
   await open(page, cardPath);
   await expect(page.locator("h1")).toHaveText(pd.title);
-  await expect(page.getByText(s.line(s.summary.unanswered), { exact: true })).toBeVisible();
+  // До ответа строки показа на карточке нет: тот же выбор — на экране отзыва.
+  await expect(page.getByText(s.lineLabel)).toHaveCount(0);
   await expect(page.locator("[data-primary-action]")).toHaveAttribute("href", `${cardPath}/review`);
   await page.locator("[data-primary-action]").click();
   await page.waitForURL(new RegExp(`${cardPath}/review$`));

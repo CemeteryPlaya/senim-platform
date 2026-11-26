@@ -47,22 +47,19 @@ export default async function SettingsPage() {
           </Card>
         </Section>
         <Section title={t.flags} id="settings-flags">
-          <Stack>
-            <Card padded={false}>
-              <KeyValueList
-                items={s.flags.map((flag) => ({
-                  label: t.flagNames[flag.key],
-                  value: (
-                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <StatusChip tone={flag.enabled ? "accent" : "neutral"}>{flag.enabled ? t.on : t.off}</StatusChip>
-                      <code className="text-sub break-all text-muted">{flag.envVar}</code>
-                    </span>
-                  ),
-                }))}
-              />
-            </Card>
-            <p className="text-body text-muted">{t.flagsHint}</p>
-          </Stack>
+          <Card padded={false}>
+            <KeyValueList
+              items={s.flags.map((flag) => ({
+                label: t.flagNames[flag.key],
+                value: (
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <StatusChip tone={flag.enabled ? "accent" : "neutral"}>{flag.enabled ? t.on : t.off}</StatusChip>
+                    <code className="text-sub break-all text-muted">{flag.envVar}</code>
+                  </span>
+                ),
+              }))}
+            />
+          </Card>
         </Section>
         <Section title={t.platform} id="settings-platform">
           <Stack>

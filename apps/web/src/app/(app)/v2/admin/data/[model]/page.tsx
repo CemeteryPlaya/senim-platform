@@ -8,7 +8,7 @@ import { pageHref, requireAdmin } from "../../../../_shell/auth";
 import { to } from "../../../../_shell/paths";
 import { filterChips } from "../../../operator/_parts/filters";
 import { TableOrCards } from "../../../operator/_parts/TableOrCards";
-import { cellText, FILTER, first, recordPath, recordsQueryOf, tablePath, type SearchParams } from "../../_parts/values";
+import { cellText, FILTER, first, isIdField, phoneFields, recordPath, recordsQueryOf, tablePath, type SearchParams } from "../../_parts/values";
 
 const t = ru.app.admin.data;
 
@@ -36,6 +36,7 @@ function columnsOf(model: string, listing: Listing): DataTableColumn<AdminRow>[]
     header: f.name,
     rowHeader: index === 0,
     numeric: NUMERIC.has(f.type),
+    nowrap: isIdField(f.name, idField),
     ...(index === 0 ? { width: "mid" as const } : {}),
     cell: (row: AdminRow) => {
       const value = row[f.name];
@@ -49,7 +50,8 @@ function columnsOf(model: string, listing: Listing): DataTableColumn<AdminRow>[]
  * Таблица одной модели: поиск по видимым строкам (`q`), чипы фильтров по перечислениям и булевым (`f.<поле>`), переход
  * из карточки по связи «много» (`where` и `value`), по 50 записей на страницу, новые сверху. Всё — в адресе (работает без
  * JavaScript и ссылкой). Скрытые поля сюда не приходят: столбцы и строки — то, что отдал модуль. Неверный фильтр или
- * поиск — сообщение модуля и ссылка на всю таблицу; неизвестная таблица — 404. Компьютер — таблица, телефон — карточки.
+ * поиск — сообщение модуля и ссылка на всю таблицу; неизвестная таблица — 404. Компьютер — таблица (id и связи `…Id` без
+ * переноса), телефон — карточки с ключом и узнаваемыми полями (`phoneFields`), все поля — в записи по ссылке ключа.
  */
 export default async function AdminTablePage({ params, searchParams }: Props) {
   const [{ model }, sp] = await Promise.all([params, searchParams]);
@@ -116,6 +118,7 @@ export default async function AdminTablePage({ params, searchParams }: Props) {
         rowKey={(row) => (result.idField !== null ? String(row[result.idField]) : JSON.stringify(row))}
         empty={{ title: t.empty, body: t.emptyBody }}
         columns={columnsOf(model, listing)}
+        phoneKeys={phoneFields(listing.fields, listing.idField)}
       />
       <Pagination page={listing.page} pageCount={pageCount} label={t.pages} hrefFor={(n) => pageHref(screen, { ...sp, page: String(n) })} />
     </Stack>

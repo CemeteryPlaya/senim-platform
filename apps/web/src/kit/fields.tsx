@@ -43,7 +43,13 @@ function ErrorText({ id, children }: { id: string | undefined; children: ReactNo
   );
 }
 
-export type TextFieldProps = Omit<ComponentProps<"input">, "name"> & FieldProps;
+/**
+ * Подпись поля только для экранного диктора (`sr-only`): на экране с одним полем его уже называет заголовок, а видимая
+ * подпись повторила бы его (телефон, код из SMS, почта). Связь подписи с полем и ошибка под полем — как обычно.
+ */
+export type LabelHiddenProp = { labelHidden?: boolean };
+
+export type TextFieldProps = Omit<ComponentProps<"input">, "name"> & FieldProps & LabelHiddenProp;
 
 export function TextField(props: TextFieldProps) {
   return <InputField {...props} />;
@@ -58,7 +64,7 @@ export function TextField(props: TextFieldProps) {
  * - `after` — строка под полем и ошибкой (подсказка исправления, расчёт «Вы получите»).
  * - `trailing` — кнопка 48 px внутри рамки справа (стрелка списка у поля «Город»); вместо `suffix`.
  */
-export type InputFieldProps = Omit<ComponentProps<"input">, "prefix"> & {
+export type InputFieldProps = Omit<ComponentProps<"input">, "prefix"> & LabelHiddenProp & {
   label: string;
   error?: string;
   prefix?: string;
@@ -67,7 +73,7 @@ export type InputFieldProps = Omit<ComponentProps<"input">, "prefix"> & {
   trailing?: ReactNode;
 };
 
-export function InputField({ label, error, id: explicitId, className, prefix, suffix, after, trailing, ...rest }: InputFieldProps) {
+export function InputField({ label, labelHidden = false, error, id: explicitId, className, prefix, suffix, after, trailing, ...rest }: InputFieldProps) {
   const { id, errorId } = useFieldIds(explicitId, error);
   const input = (
     <input
@@ -89,7 +95,7 @@ export function InputField({ label, error, id: explicitId, className, prefix, su
   );
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={id} className={labelClass}>
+      <label htmlFor={id} className={labelHidden ? "sr-only" : labelClass}>
         {label}
       </label>
       {prefix || suffix || trailing ? (

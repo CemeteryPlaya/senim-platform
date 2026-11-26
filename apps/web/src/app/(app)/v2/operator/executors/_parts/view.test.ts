@@ -53,4 +53,10 @@ describe("карточка исполнителя: чистые помощник
     expect(unknown?.time).toContain("ROBOT");
     expect(unknown).not.toHaveProperty("text");
   });
+
+  it("события проверки документов — словами, как их пишет identity (executor.kyc_*, через «_»), а не кодом", () => {
+    const codes = ["executor.kyc_submitted", "executor.kyc_verified", "executor.kyc_rejected", "executor.payout_iban_changed"];
+    const titles = historyItems(codes.map((action) => event({ action }))).map((item) => item.title);
+    expect(titles).toEqual(["Мастер загрузил документы", "Документы мастера подтверждены", "Документы мастера отклонены", "Мастер изменил счёт для выплат"]);
+  });
 });

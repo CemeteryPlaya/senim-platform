@@ -419,7 +419,8 @@ export const requests = {
   notify: {
     newRequest: { title: "Новая заявка", body: (title: string) => `Заявка «${title}» ждёт вашего отклика.` },
     directRequest: { title: "Прямой запрос", body: (title: string) => `Заказчик хочет похожую работу: «${title}».` },
-    offerReceived: { title: "Новый отклик на заявку", body: (title: string, who: string) => `На заявку «${title}» откликнулся ${who}.` },
+    /** Покупателю — «предложение», как на его экранах; текст не повторяет заголовок. */
+    offerReceived: { title: "Новое предложение", body: (title: string, who: string) => `«${title}»: ${who} прислал цену и срок.` },
     offerWithdrawn: { title: "Отклик отозван", body: (title: string, who: string) => `${who} отозвал отклик на заявку «${title}».` },
     offerChosen: {
       title: "Ваш отклик выбран",

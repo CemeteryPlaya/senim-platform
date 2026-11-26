@@ -132,7 +132,7 @@ export function WizardPlace({ base, device, initial }: { base: WizardBase; devic
   return (
     <WizardFrame base={base} title={t.title} lead={t.lead} form={form}>
       <Stack>
-        <CityField label={t.city} name="city" suggestions={SUGGESTED_CITIES} maxLength={LIMITS.city} value={place.city} onChange={changeCity} error={e.city} />
+        <CityField label={t.city} name="city" aria-required suggestions={SUGGESTED_CITIES} maxLength={LIMITS.city} value={place.city} onChange={changeCity} error={e.city} />
         {districts ? (
           <Select label={t.district} name="district" value={place.district} onChange={(ev) => set({ district: ev.target.value })} error={e.district}>
             <option value="">{t.districtNone}</option>
@@ -149,6 +149,7 @@ export function WizardPlace({ base, device, initial }: { base: WizardBase; devic
         <TextField
           label={t.address}
           name="address"
+          aria-required
           autoComplete="street-address"
           maxLength={LIMITS.address}
           value={place.address}

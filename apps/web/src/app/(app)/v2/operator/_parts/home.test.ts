@@ -5,7 +5,7 @@ import { operatorHome } from "./home";
 
 const t = ru.app.operator.home;
 
-describe("operatorHome: что требует внимания и сводка", () => {
+describe("operatorHome: что требует внимания", () => {
   it("непустые очереди — по срочности, деньги первыми; адреса разделов v2", () => {
     const view = operatorHome({ money: 2, registrations: 1, openDisputes: 3, kyc: 5, stale: 11 });
     expect(view.todo).toEqual([
@@ -15,21 +15,23 @@ describe("operatorHome: что требует внимания и сводка",
       { href: "/v2/operator/kyc", text: "5 мастеров ждут проверки документов" },
       { href: "/v2/operator/requests", text: "11 заявок без откликов дольше суток" },
     ]);
-    expect(view.tiles.map((tile) => tile.value)).toEqual(["2", "1", "3", "5", "11"]);
-    expect(view.tiles.every((tile) => !tile.muted)).toBe(true);
   });
 
-  it("пустые очереди не попадают в «что требует внимания»; нули в сводке приглушены", () => {
+  it("пустые очереди не попадают в «что требует внимания»: ни нулей, ни отдельной сводки", () => {
     const view = operatorHome({ money: 0, registrations: 0, openDisputes: 1, kyc: 0, stale: 0 });
     expect(view.todo.map((item) => item.href)).toEqual(["/v2/operator/disputes"]);
-    expect(view.tiles.map((tile) => tile.muted)).toEqual([true, true, false, true, true]);
+    expect(view).not.toHaveProperty("tiles");
     expect(operatorHome({ money: 0, registrations: 0, openDisputes: 0, kyc: 0, stale: 0 }).todo).toEqual([]);
   });
 
-  it("identity не ответил (kyc null) — «—» с пояснением «нет связи», строки про документы нет, остальное на месте", () => {
-    const view = operatorHome({ money: 1, registrations: 0, openDisputes: 0, kyc: null, stale: 0 });
-    expect(view.tiles[3]).toEqual({ label: t.tiles.kycUnavailable, value: "—", muted: true });
-    expect(view.todo.map((item) => item.href)).toEqual(["/v2/operator/money"]);
+  it("identity не ответил (kyc null) — строка «Документы мастеров: нет связи» на месте документов, остальное как было", () => {
+    const view = operatorHome({ money: 1, registrations: 0, openDisputes: 0, kyc: null, stale: 2 });
+    expect(view.todo).toEqual([
+      { href: "/v2/operator/money", text: "1 операция ждёт документа банка" },
+      { href: "/v2/operator/kyc", text: t.kycUnavailable },
+      { href: "/v2/operator/requests", text: "2 заявки без откликов дольше суток" },
+    ]);
+    expect(t.kycUnavailable).toBe("Документы мастеров: нет связи");
   });
 });
 

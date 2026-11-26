@@ -2,11 +2,11 @@
 
 import { useRef, type ChangeEvent, type ComponentProps } from "react";
 import { codeAutoSubmit } from "./field-logic";
-import { TextField, type FieldProps } from "./fields";
+import { TextField, type FieldProps, type LabelHiddenProp } from "./fields";
 import { useMountFocus } from "./useMountFocus";
 
 /** `aria-describedby` — пояснение рядом с полем (почему спрашивают код), диктор прочтёт его при фокусе. */
-export type CodeFieldProps = FieldProps & Pick<ComponentProps<"input">, "aria-describedby"> & {
+export type CodeFieldProps = FieldProps & LabelHiddenProp & Pick<ComponentProps<"input">, "aria-describedby"> & {
   /** Сколько цифр в коде (по умолчанию 6). */
   length?: number;
   defaultValue?: string;

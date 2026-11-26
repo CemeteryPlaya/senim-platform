@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { Narrow, NowNext, PageTitle, Stack } from "@/kit";
+import { Narrow, PageTitle, Stack } from "@/kit";
 import { getDevice } from "@/platform/device";
 import { pageHref, partyDeal, requireV2User } from "../../../../_shell/auth";
 import { dealHrefs } from "../_parts/deal-card";
@@ -16,7 +16,7 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<str
 /**
  * Отчёт о ходе работ мастера. Ворота — `partyDeal`; отчёт можно добавить, пока идут работы (`can.addProgress` модуля) —
  * иначе (покупатель, до начала работ, спор, сделка закрыта) карточка сделки без ошибки. Порядок: «Назад: <сделка>»,
- * «Сейчас / Дальше», форма отчёта, одно главное действие. Компьютер — `Narrow`.
+ * подзаголовок — что будет после, форма отчёта, одно главное действие. Компьютер — `Narrow`.
  */
 export default async function ProgressPage({ params, searchParams }: Props) {
   const { id } = await params;
@@ -30,8 +30,7 @@ export default async function ProgressPage({ params, searchParams }: Props) {
   return (
     <Narrow>
       <Stack gap="section">
-        <PageTitle title={t.title} back={{ href: card, label: deal.title }} />
-        <NowNext now={t.now} next={t.next} />
+        <PageTitle title={t.title} back={{ href: card, label: deal.title }} lead={t.lead} />
         <ProgressForm dealId={deal.id} dealHref={card} device={await getDevice()} />
       </Stack>
     </Narrow>

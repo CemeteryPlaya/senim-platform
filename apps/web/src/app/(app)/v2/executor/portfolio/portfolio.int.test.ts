@@ -71,7 +71,9 @@ describe("экраны портфолио", () => {
       expect(out).toContain("Шкаф-купе");
       expect(out).toContain(m.list.hidden);
       expect(out).toContain(`href="/v2/executor/portfolio/${item.id}"`);
-      expect(out).toContain(m.list.back);
+      // Одобренный мастер: «Назад» — «Профиль» (разделы там).
+      expect(out).toContain(ru.app.masterCompany.shared.backProfile);
+      expect(out).toContain('href="/v2/profile"');
       expect(primaries(out)).toBe(1);
       expect((out.match(/<h1/g) ?? []).length).toBe(1);
     }

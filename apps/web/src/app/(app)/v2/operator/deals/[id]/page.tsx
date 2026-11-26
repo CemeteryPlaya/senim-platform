@@ -65,12 +65,18 @@ function ReleaseSection({ dealId, pack }: { dealId: string; pack: ReleasePackage
   );
 }
 
-/** Телефон стороны полностью, ссылкой «позвонить»: оператор сверяет данные и звонит для уточнения. */
-function PhoneLink({ phone }: { phone: string }) {
+/**
+ * Сторона сделки: имя, под ним телефон полностью, ссылкой «позвонить» (решение владельца 22.11.2026: оператор сверяет данные
+ * и звонит для уточнения). Одна строка списка на человека.
+ */
+function Party({ name, phone }: { name: string; phone: string }) {
   return (
-    <TextLink href={`tel:${phone}`}>
-      <span className="tabular-nums">{formatPhone(phone)}</span>
-    </TextLink>
+    <span className="flex flex-col items-start">
+      <span>{name}</span>
+      <TextLink href={`tel:${phone}`}>
+        <span className="tabular-nums">{formatPhone(phone)}</span>
+      </TextLink>
+    </span>
   );
 }
 
@@ -80,13 +86,12 @@ function Summary({ deal }: { deal: OperatorDeal["deal"] }) {
       <Card padded={false}>
         <KeyValueList
           items={[
-            { label: c.client, value: deal.clientName ?? t.none },
-            { label: c.clientPhone, value: <PhoneLink phone={deal.clientPhone} /> },
-            { label: c.executor, value: c.executorValue(deal.executorNumber, deal.executorName) },
-            { label: c.executorPhone, value: <PhoneLink phone={deal.executorPhone} /> },
+            { label: c.client, value: <Party name={deal.clientName ?? t.none} phone={deal.clientPhone} /> },
+            { label: c.executor, value: <Party name={c.executorValue(deal.executorNumber, deal.executorName)} phone={deal.executorPhone} /> },
             { label: c.offer, value: deal.signedAt ? c.offerSigned : c.offerNotSigned },
             { label: c.price, value: <Money tiyn={deal.priceTiyn} /> },
-            { label: c.buyerTotal, value: <Money tiyn={deal.buyerTotalTiyn} /> },
+            // ADR-015: покупатель платит ровно цену — строка повторяла бы её. Остаётся у старых сделок с защитой сделки 2 %.
+            ...(deal.buyerTotalTiyn !== deal.priceTiyn ? [{ label: c.buyerTotal, value: <Money tiyn={deal.buyerTotalTiyn} /> }] : []),
             { label: c.payout, value: <Money tiyn={deal.payoutTiyn} /> },
             { label: c.platformIncome, value: <Money tiyn={deal.platformIncomeTiyn} /> },
             { label: c.provider, value: t.providers[deal.provider] },
@@ -100,7 +105,8 @@ function Summary({ deal }: { deal: OperatorDeal["deal"] }) {
 /**
  * Карточка сделки оператора: деньги первым блоком — по журналу, а не по статусу; ждущие операции manual со ссылкой в очередь
  * денег (подтверждение и отказ банка там, со свежим кодом); пакет для банка на раскрытие и «Сформировать расписку»; журнал денег
- * с пометкой тестовой операции (она видна только оператору); сделка, документы с подписями и хэшами. Главной кнопки нет:
+ * с пометкой тестовой операции (она и чип «тестовая» видны только оператору); сделка, документы с подписями и хэшами; ссылки
+ * «Файлы заявки» и «История в журнале аудита» — одной группой. Главной кнопки нет:
  * это экран чтения, расписка — второстепенное действие. Несуществующая сделка — 404.
  */
 export default async function OperatorDealPage({ params }: Props) {
@@ -121,10 +127,10 @@ export default async function OperatorDealPage({ params }: Props) {
                 <StatusChip tone="neutral">{t.dealStatus[deal.status]}</StatusChip>
                 {deal.isTest && <StatusChip tone="neutral">{t.testMark}</StatusChip>}
               </div>
-              <MoneyPanel tone={money.tone} title={money.title} amount={money.amount} rows={money.rows} {...(money.note ? { note: money.note } : {})} device={device} />
+              <MoneyPanel tone={money.tone} title={money.title} amount={money.amount} rows={money.rows} device={device} />
               {card.openDisputeId && (
-                <Notice tone="warn" title={c.dispute}>
-                  <TextLink href={to(`/operator/disputes/${encodeURIComponent(card.openDisputeId)}`)}>{c.openDispute}</TextLink>
+                <Notice tone="warn">
+                  <TextLink href={to(`/operator/disputes/${encodeURIComponent(card.openDisputeId)}`)}>{c.dispute}</TextLink>
                 </Notice>
               )}
             </Section>
@@ -139,7 +145,6 @@ export default async function OperatorDealPage({ params }: Props) {
             )}
             {card.releasePackage && <ReleaseSection dealId={deal.id} pack={card.releasePackage} />}
             <Section title={c.journal} id="journal">
-              <p className="text-body text-muted desktop:max-w-measure">{c.journalHint}</p>
               <Card>
                 {card.journal.length === 0 ? (
                   <p className="text-body text-muted">{c.journalEmpty}</p>
@@ -156,8 +161,10 @@ export default async function OperatorDealPage({ params }: Props) {
             <Section title={c.documents} id="documents">
               <DealDocuments documents={card.documents} />
             </Section>
-            <TextLink href={to(`/operator/requests/${deal.requestNumber}`)}>{ru.app.operatorDisputes.requestFiles.link}</TextLink>
-            <TextLink href={`${to("/operator/audit")}?deal=${deal.number}`}>{c.audit}</TextLink>
+            <div className="flex flex-col items-start">
+              <TextLink href={to(`/operator/requests/${deal.requestNumber}`)}>{ru.app.operatorDisputes.requestFiles.link}</TextLink>
+              <TextLink href={`${to("/operator/audit")}?deal=${deal.number}`}>{c.audit}</TextLink>
+            </div>
           </Stack>
         }
       />

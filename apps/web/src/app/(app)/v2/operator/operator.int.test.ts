@@ -204,22 +204,21 @@ describe("главная оператора /v2/operator", () => {
     expect(target).not.toContain("/v2/operator");
   });
 
-  it("второй шаг пройден (даже давно) — один <h1>, «что требует внимания» и сводка; без главной кнопки", async () => {
+  it("второй шаг пройден (даже давно) — один <h1> и «что требует внимания»; без сводки и без главной кнопки", async () => {
     await operatorSession(new Date(Date.now() - 60 * MIN));
     const out = await render();
     expect(out.match(/<h1/g)).toHaveLength(1);
     expect(out).toContain(ru.app.operator.home.title);
     expect(out).toContain(ru.app.operator.home.todo);
-    expect(out).toContain(ru.app.operator.home.summary);
+    expect(out).not.toContain("Сводка");
     expect(out).not.toContain("data-primary-action");
   });
 
-  it("identity не ответил о документах мастеров — «—» с пояснением, остальная главная на месте", async () => {
+  it("identity не ответил о документах мастеров — строка «нет связи», остальная главная на месте", async () => {
     await operatorSession(new Date());
     vi.mocked(operator.kycQueueSize).mockResolvedValueOnce(null);
     const out = await render();
-    expect(out).toContain(ru.app.operator.home.tiles.kycUnavailable);
-    expect(out).toContain(">—<");
-    expect(out).toContain(ru.app.operator.home.tiles.money);
+    expect(out).toContain(ru.app.operator.home.kycUnavailable);
+    expect(out).toContain(ru.app.operator.home.todo);
   });
 });

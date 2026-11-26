@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Card, Checkbox, CityField, Columns, Explain, MoneyField, Notice, RadioCard, RadioGroup, Stack, TextArea, TextField, toast } from "@/kit";
+import { ActionDock, Button, Card, Checkbox, CityField, Columns, MoneyField, Notice, RadioCard, RadioGroup, Stack, TextArea, TextField, toast } from "@/kit";
 import { kztToTiyn } from "@/modules/payments/client";
 import { SUGGESTED_CITIES } from "@/modules/requests/client";
 import type { Device } from "@/platform/device";
@@ -99,11 +99,6 @@ export function CompanyForm({ initial, types, device }: Props) {
           <Stack gap="section">
             <Stack>
               <TextArea label={t.about.label} name="about" value={about} onChange={(e) => setAbout(e.target.value)} rows={6} maxLength={2000} error={err.about} />
-              <div>
-                <Explain label={t.about.explain.label} title={t.about.explain.title} device={device}>
-                  <p>{t.about.explain.body}</p>
-                </Explain>
-              </div>
               {masked && <Notice tone="info">{t.masked}</Notice>}
               <TextField
                 label={t.experience}
@@ -133,17 +128,21 @@ export function CompanyForm({ initial, types, device }: Props) {
 
             <Stack>
               <RadioGroup legend={t.measurement} {...(err.measurementTerms ? { error: err.measurementTerms } : {})}>
-                {MEASUREMENT_TERMS.map((value) => (
-                  <RadioCard
-                    key={value}
-                    name="measurementTerms"
-                    value={value}
-                    label={t.measurementOptions[value].label}
-                    description={t.measurementOptions[value].description}
-                    checked={terms === value}
-                    onChange={() => setTerms(value)}
-                  />
-                ))}
+                {MEASUREMENT_TERMS.map((value) => {
+                  // Подпись — только у варианта, где она добавляет факт (кто платит за выезд).
+                  const option: { label: string; description?: string } = t.measurementOptions[value];
+                  return (
+                    <RadioCard
+                      key={value}
+                      name="measurementTerms"
+                      value={value}
+                      label={option.label}
+                      {...(option.description ? { description: option.description } : {})}
+                      checked={terms === value}
+                      onChange={() => setTerms(value)}
+                    />
+                  );
+                })}
               </RadioGroup>
               {terms === "FEE_IF_NO_DEAL" && (
                 <MoneyField
@@ -177,11 +176,6 @@ export function CompanyForm({ initial, types, device }: Props) {
                 maxLength={200}
                 error={err.streetAddress}
               />
-              <div>
-                <Explain label={t.address.explain.label} title={t.address.explain.title} device={device}>
-                  <p>{t.address.explain.body}</p>
-                </Explain>
-              </div>
             </Stack>
             <FormError error={form.error} atField={atField} />
           </Stack>

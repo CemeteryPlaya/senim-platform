@@ -1,7 +1,8 @@
 "use client";
 
 import { ru } from "@/i18n/ru";
-import { Card, List, ListRow, PhotoSlot, Section } from "@/kit";
+import { useId } from "react";
+import { Card, List, ListRow, PhotoSlot } from "@/kit";
 import { useActionForm } from "../../../_shell/form";
 import { submitRequestAction } from "./actions";
 import { WizardFrame, type WizardBase, type WizardForm } from "./WizardFrame";
@@ -34,16 +35,20 @@ export function WizardSend({ base, rows, photos, footnote }: Props) {
   });
   const form: WizardForm = { pending: action.pending, error: action.error, errors: NO_ERRORS, onSubmit: action.onSubmit };
   const direct = base.direct !== null;
+  const summaryId = useId();
   return (
     <WizardFrame
       base={base}
       title={t.send.title}
-      lead={direct ? t.send.leadDirect : t.send.lead}
       form={form}
       submitLabel={direct ? t.submitDirect : t.submit}
       footer={footnote ? <p className="text-sub text-muted">{footnote}</p> : undefined}
     >
-      <Section title={t.send.summaryTitle}>
+      {/* Раздел на экране один, его называет заголовок экрана: имя раздела — только для диктора. */}
+      <section aria-labelledby={summaryId}>
+        <h2 id={summaryId} className="sr-only">
+          {t.send.summaryTitle}
+        </h2>
         <Card padded={false}>
           <List>
             {rows.map((row) => (
@@ -70,7 +75,7 @@ export function WizardSend({ base, rows, photos, footnote }: Props) {
             ))}
           </List>
         </Card>
-      </Section>
+      </section>
     </WizardFrame>
   );
 }

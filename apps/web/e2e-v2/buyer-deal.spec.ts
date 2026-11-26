@@ -90,8 +90,9 @@ test("список: группы «Идут» и «Завершены», кар�
   await expect(page.locator("main")).toContainText(t.line.inBank);
   await expect(page.locator("[data-primary-action]")).toHaveCount(0);
   await expect(page.locator("main")).not.toContainText(FORBIDDEN);
-  await expect(page.locator("main a[href='/v2/help#money']")).toHaveCount(1);
-  await expect(page.locator("main a[href='/v2/help#not-fit']")).toHaveCount(1);
+  // «Помощи» в списке нет: те же вопросы — внутри каждой сделки. Обычный ход («Деньги под защитой») без плашки.
+  await expect(page.locator("main a[href='/v2/help#money']")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText(t.status.protected);
 
   const arman = await pageOf(browser, info, "arman");
   await open(arman, "/v2/deals");
@@ -139,21 +140,22 @@ test("деньги под защитой и работа идёт: главно�
     await expectCard(page);
     await expect(page.locator("[data-primary-action]")).toHaveCount(0);
     await expect(page.locator("main")).toContainText(card.money.protected.title);
-    await expect(page.locator("main")).toContainText(/Зарезервировано \d/);
+    // Дата резерва — в истории денег (на карточке она повторяла бы «Историю»).
+    await expect(page.locator("main")).not.toContainText(/Зарезервировано \d/);
     await expect(page.locator("main a[href^='tel:']")).toHaveCount(1);
-    // История — словами покупателя, без служебных событий (у «Кухни» последние события — отчёты мастера).
+    // История — словами покупателя, без служебных событий и без отчётов мастера (они — в «Ходе работ»).
     await expect(page.locator("main")).toContainText(title === "Кухня" ? card.history.started : card.history.paid);
     await expect(page.locator("main")).not.toContainText(/Сформирован документ|Банк провёл операцию|Событие по сделке/);
   }
   await page.context().close();
 });
 
-test("спор решён разделом: «Спор решён: деньги разделены», шкала остановлена, «Вы оплатили»", async ({ browser }, info) => {
+test("спор решён разделом: «Спор решён: деньги разделены», раздела «Ход сделки» нет, «Вы оплатили»", async ({ browser }, info) => {
   const page = await pageOf(browser, info, "erbolat");
   await open(page, await dealHref(page, "Кабинет", "done"));
   await expectCard(page);
   await expect(page.getByRole("heading", { level: 2, name: card.now.disputeSplit.title })).toBeVisible();
-  await expect(page.locator("main")).toContainText(card.steps.disputeSplit);
+  await expect(page.getByRole("heading", { level: 2, name: card.steps.section, exact: true })).toHaveCount(0);
   await expect(page.locator("main")).toContainText(card.money.completed.title);
   await expect(page.locator("main")).not.toContainText(ru.app.deal.allStepsDone);
   await page.context().close();

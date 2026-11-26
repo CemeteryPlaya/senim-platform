@@ -51,7 +51,7 @@ export default async function AdminRecordPage({ params }: Props) {
   const { row, fields, relations } = record;
   return (
     <Stack gap="section">
-      <PageTitle title={model} lead={id} back={{ href: to(tablePath(model)), label: model }} />
+      <PageTitle title={model} back={{ href: to(tablePath(model)), label: model }} />
       {/* Новые прежние значения после сохранения — новая форма: правка не уходит с устаревшим `from`. */}
       <RecordForm key={JSON.stringify(row)} model={model} id={id} fields={fields} row={row} />
       <Section title={t.relations} id="relations">

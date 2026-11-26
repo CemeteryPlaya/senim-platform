@@ -123,7 +123,10 @@ describe("регистрация мастера: кто что видит", () =
     const out = await page();
     expectScreen(out);
     expect(h1(out)).toBe(t.guest.title);
-    for (const step of t.guest.steps) expect(out).toContain(step);
+    for (const step of t.guest.steps) expect(out).toContain(`<li>${step}</li>`);
+    // Номер шага — номер пункта списка, без подписей «Шаг N».
+    expect(out).toContain("list-decimal");
+    expect(out).not.toMatch(/>Шаг \d</);
     expect(out).toContain('href="/v2/login?role=executor&amp;next=%2Fv2%2Fregister%2Fexecutor"');
     expect(count(out, "data-primary-action")).toBe(1);
   });
@@ -146,6 +149,10 @@ describe("регистрация мастера: кто что видит", () =
     expect(out).toContain(t.backHome);
     expect(out).toContain(t.form.keepsBuyer);
     for (const form of Object.values(t.form.legalForms)) expect(out).toContain(form);
+    // Пояснение — только у самозанятого; «ИП» и «ТОО» не расшифровываются.
+    expect(out).toContain(t.form.descriptions.SELF_EMPLOYED);
+    expect(out).not.toContain("Индивидуальный предприниматель");
+    expect(out).not.toContain("Товарищество с ограниченной");
     expect(out).toContain(t.next);
   });
 
@@ -164,6 +171,8 @@ describe("регистрация мастера: кто что видит", () =
     expect(out).not.toContain('href="/v2"');
     const exit = orderFirstButton(out);
     expect(exit).not.toBeNull();
+    // Выход — под вариантами ответа, а не между вопросом и ответами.
+    expect(out.indexOf(t.orderFirst)).toBeGreaterThan(out.lastIndexOf('name="legalForm"'));
     expect(hasClass(exit!, "min-h-control")).toBe(true);
     expect(exit).not.toContain("data-primary-action");
     expect(count(out, "data-primary-action")).toBe(1);
@@ -287,6 +296,9 @@ describe("регистрация мастера: кто что видит", () =
     expect(out).toContain(t.status.rejected.reason("Наименование не совпадает с документами"));
     expect(out).toContain(t.status.rejected.action);
     expect(out).toContain('href="/v2/register/executor?step=form"');
+    // «Дальше» — чего ждать, а не повтор кнопки.
+    expect(out).toContain(t.status.rejected.next);
+    expect(out).not.toContain("Исправьте данные и отправьте анкету заново");
 
     const again = await page("form");
     expect(h1(again)).toBe(t.steps.form);

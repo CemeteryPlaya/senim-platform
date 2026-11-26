@@ -15,8 +15,9 @@ export const metadata: Metadata = { title: t.metaTitle };
 
 /**
  * «Мои данные»: ФИО, ИИН только последними четырьмя цифрами, телефон, почта, Instagram; действующие согласия с редакцией и
- * датой; заявка на отзыв согласия (статус и срок). Отзыв — тихое действие в меню, с подтверждением. Полного ИИН на экране
- * нет: модуль отдаёт только последние четыре цифры.
+ * датой (одинаковые — одной карточкой со строками сделок; плашки «Действует» нет — в списке только действующие); заявка на
+ * отзыв согласия (статус и срок). Отзыв — тихое действие в меню, с подтверждением. Полного ИИН на экране нет: модуль отдаёт
+ * только последние четыре цифры.
  */
 export default async function MyDataPage() {
   const user = await requireV2User(to("/profile/data"), "CLIENT", "EXECUTOR");
@@ -29,7 +30,7 @@ export default async function MyDataPage() {
   return (
     <Narrow>
       <Stack gap="section">
-        <PageTitle title={t.title} back={{ href: to("/profile"), label: t.back }} lead={t.lead} />
+        <PageTitle title={t.title} back={{ href: to("/profile"), label: t.back }} />
         <Section title={t.personTitle}>
           <Card padded={false}>
             <List>
@@ -55,13 +56,25 @@ export default async function MyDataPage() {
               <Card key={c.id} as="article">
                 <p className="text-headline text-ink">{c.title}</p>
                 <p className="mt-1 text-body text-muted">{c.edition}</p>
-                <p className="text-body text-muted">
-                  {t.granted}: {c.granted}
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <StatusChip tone="accent">{t.statusActive}</StatusChip>
-                  {c.deal && <TextLink href={c.deal.href}>{c.deal.label}</TextLink>}
-                </div>
+                {c.granted && (
+                  <p className="text-body text-muted">
+                    {t.granted}: {c.granted}
+                  </p>
+                )}
+                {c.deals.length > 0 && (
+                  <ul className="mt-2 flex flex-col">
+                    {c.deals.map((deal) => (
+                      <li key={deal.href} className="flex flex-col">
+                        <TextLink href={deal.href}>{deal.label}</TextLink>
+                        {deal.granted && (
+                          <span className="text-sub text-muted">
+                            {t.granted}: {deal.granted}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </Card>
             ))
           )}

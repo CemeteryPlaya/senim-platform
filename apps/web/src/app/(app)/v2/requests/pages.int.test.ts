@@ -70,7 +70,8 @@ describe("«Мои заявки»", () => {
       expect(html).not.toContain(foreign);
       expect(html).toContain(ru.app.requests.state.draft);
       expect(html).toContain(ru.app.requests.state.waiting);
-      expect(primaryCount(html!)).toBe(1);
+      // Телефон — «Заказать мебель» в доке; компьютер — только в шапке (оболочка), карточки над списком нет (аудит).
+      expect(primaryCount(html!)).toBe(device === "mobile" ? 1 : 0);
       expect(html!.split("<h1").length - 1).toBe(1);
     }
   });
@@ -123,7 +124,7 @@ describe("мастер заявки", () => {
     expect(await render(NewRequestPage, { like: own.id })).toEqual({ notFound: true });
   });
 
-  it("уровень: вилка цены от трёх предложений на тот же тип и уровень (с оговоркой), меньше — «Цену назовут мастера»", async () => {
+  it("уровень: вилка цены от трёх предложений на тот же тип и уровень (с оговоркой), меньше — без строки цены", async () => {
     const type = await makeFurnitureType();
     const other = await makeClient();
     for (const price of [500_000, 600_000, 700_000]) {
@@ -135,12 +136,13 @@ describe("мастер заявки", () => {
     const text = html!.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
     expect(text).toContain(w.segment.price(formatMoney(50_000_000n), formatMoney(70_000_000n)).replace(/\s+/g, " "));
     expect(text).toContain(w.segment.priceNote(3).replace(/\s+/g, " "));
-    // Эконом и Премиум — предложений нет.
-    expect(text.split(w.segment.noPrice).length - 1).toBe(2);
+    // Эконом и Премиум — предложений нет: строки цены у них нет, о цене говорит подзаголовок (один раз).
+    expect(text.split("Обычно ").length - 1).toBe(1);
+    expect(text.split(w.segment.lead).length - 1).toBe(1);
 
     const lonely = await makeDraft(h.user!);
     const plain = (await render(NewRequestPage, { draft: lonely, step: "segment" })).html!;
-    expect(plain.split(w.segment.noPrice).length - 1).toBe(3);
+    expect(plain).not.toContain("Обычно ");
     expect(plain).not.toContain(w.segment.priceNote(3));
   });
 

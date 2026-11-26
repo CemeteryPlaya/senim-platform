@@ -81,7 +81,7 @@ function nowState(i: NowInput): Omit<NowView, "secondary"> {
     case "draft":
       return { kind: "draft", ...buyer.draft, primary: { label: buyer.draft.action, href: draftHref(i.id) } };
     case "choose":
-      return { kind: "offers", title: buyer.offers.title(i.state.liveOffers), body: t.now.offers.body, next: t.now.offers.next, primary: null };
+      return { kind: "offers", title: buyer.offers.title(i.state.liveOffers), next: t.now.offers.next, primary: null };
     case "waiting":
       return i.mode === "DIRECT"
         ? { kind: "waiting-direct", ...t.now.waitingDirect, primary: null }
@@ -97,7 +97,7 @@ function nowState(i: NowInput): Omit<NowView, "secondary"> {
         primary: i.chosenOfferId ? { label: t.now.chosen.action, href: `${requestHref(i.id)}/offers/${encodeURIComponent(i.chosenOfferId)}` } : null,
       };
     case "deal":
-      return { kind: "deal", title: t.now.deal.title, body: t.now.deal.body, next: t.now.deal.next, primary: dealAction(t.now.deal.action) };
+      return { kind: "deal", title: t.now.deal.title, body: t.now.deal.body, primary: dealAction(t.now.deal.action) };
     case "done":
       return { kind: "done", title: t.now.done.title, body: t.now.done.body, primary: dealAction(t.now.deal.action) };
     case "cancelled":
@@ -166,11 +166,12 @@ export function offerRow(requestId: string, o: OfferInput): OfferRow {
 export type OffersView = {
   rows: OfferRow[];
   sort: OfferSort;
-  /** Сортировка нужна от двух предложений. */
+  /** Сортировка нужна от двух предложений и только пока заявка открыта: у выбранного мастера сравнивать нечего. */
   sortable: boolean;
-  /** Обучающая пустая карточка: предложений нет, и они ещё могут прийти. */
-  empty: { title: string; body: string } | null;
-  /** Раздела нет вовсе (отменена или со сделкой и без предложений). */
+  /**
+   * Раздел есть, только когда есть строки. Пустого раздела-заглушки нет: что предложения ещё придут и когда, говорит
+   * «Сейчас / Дальше» (`now.waiting`) — вторая карточка повторяла бы её.
+   */
   shown: boolean;
 };
 
@@ -187,16 +188,10 @@ function byShownPrice(offers: readonly OfferInput[], sort: OfferSort): OfferInpu
  * Список предложений. Пока заявка ждёт предложений (OPEN, замер площадки), в нём только действующие (`live`: торг идёт) —
  * отклонённые и закрытые не считаются и не показываются; у заявки со сделкой или отменённой — вся история с плашками.
  */
-export function offersView(i: { id: string; status: RequestStatus; mode: "TENDER" | "DIRECT" }, offers: readonly OfferInput[], sort: OfferSort): OffersView {
+export function offersView(i: { id: string; status: RequestStatus }, offers: readonly OfferInput[], sort: OfferSort): OffersView {
   const expecting = i.status === "OPEN" || i.status === "PLATFORM_MEASURING";
   const rows = byShownPrice(expecting ? offers.filter((o) => o.live) : offers, sort).map((o) => offerRow(i.id, o));
-  return {
-    rows,
-    sort,
-    sortable: rows.length > 1,
-    empty: rows.length === 0 && expecting ? (i.mode === "DIRECT" ? t.offers.emptyDirect : t.offers.empty) : null,
-    shown: rows.length > 0 || expecting,
-  };
+  return { rows, sort, sortable: expecting && rows.length > 1, shown: rows.length > 0 };
 }
 
 /** Сегменты сортировки: значение и подпись. */
@@ -208,7 +203,6 @@ export type DetailRow = { label: string; value: string; stacked: boolean };
 
 /** Заявка в объёме, нужном сводке (подмножество `getClientRequest` и `getDraft`). */
 export type DetailsInput = {
-  title: string;
   style: string | null;
   segment: Segment | null;
   details: RequestDetails;
@@ -225,14 +219,24 @@ function material(unknown: ReadonlySet<string>, key: "facade" | "countertop" | "
   return value ? (names[value]?.name ?? value) : null;
 }
 
-/** Сводка заявки строками «подпись — значение»; пустое не показывается. Длинное (размеры, описание, адрес, пожелания) — стопкой: в одну строку оно наезжало на подпись. */
+/** Адрес уже начинается с города («Астана, ул. …»): строка «Город» его повторила бы. */
+function addressHasCity(city: string, address: string | null): boolean {
+  const a = address?.trim().toLocaleLowerCase("ru") ?? "";
+  const c = city.trim().toLocaleLowerCase("ru");
+  return c !== "" && a.startsWith(c);
+}
+
+/**
+ * Сводка заявки строками «подпись — значение»; пустое не показывается. Длинное (размеры, описание, адрес, пожелания) —
+ * стопкой: в одну строку оно наезжало на подпись. Тип мебели («Что делаем») не выводится — он заголовок экрана; город —
+ * только если адреса нет или адрес начинается не с него.
+ */
 export function detailRows(i: DetailsInput): DetailRow[] {
   const d = i.details;
   const unknown = new Set<string>(d.unknown ?? []);
   const size = unknown.has("size") ? t.details.unknown : d.widthCm || d.heightCm || d.depthCm ? t.details.sizeValue(d.widthCm, d.heightCm, d.depthCm) : null;
   const rows: [string, string | null | undefined, boolean?][] = [
     [t.details.directFor, i.directLabel],
-    [t.details.type, i.title],
     [t.details.segment, i.segment ? SEGMENT_NAMES[i.segment] : null],
     [t.details.style, i.style ? (STYLES[i.style as StyleKey]?.name ?? i.style) : null],
     [t.details.styleNote, d.styleNote, true],
@@ -243,7 +247,7 @@ export function detailRows(i: DetailsInput): DetailRow[] {
     [t.details.color, d.color],
     [t.details.extras, d.extras?.length ? d.extras.map((x) => ru.requests.extras[x]).join(", ") : null],
     [t.details.description, d.description, true],
-    [t.details.city, i.city],
+    [t.details.city, i.city && !addressHasCity(i.city, i.address) ? i.city : null],
     [t.details.address, i.address, true],
     [t.details.wishes, i.wishes, true],
   ];

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ru } from "@/i18n/ru";
 import { Card } from "./Card";
+import { cn } from "./cn";
 
 export type NowNextProps = {
   now: { title: string; body?: string };
@@ -15,15 +16,16 @@ export type NowNextProps = {
 
 /**
  * «Что сейчас происходит»: первая карточка сделки и заявки. «Дальше» — в той же карточке под разделителем: мелкая
- * серая подпись, как у «Сейчас», и строка обычным весом. Обычная разметка без role="status": блок есть на странице
+ * серая подпись, как у «Сейчас», и строка обычным весом. Подпись «Сейчас» — только в паре с «Дальше»: одна она ничего не
+ * противопоставляет (без `next` карточка — заголовок и текст). Обычная разметка без role="status": блок есть на странице
  * с загрузки, а живая область объявляла бы его при каждой подстановке данных.
  */
 export function NowNext({ now, next, action }: NowNextProps) {
   const t = ru.app.kit.nowNext;
   return (
     <Card as="section">
-      <p className="text-small text-muted">{t.now}</p>
-      <h2 className="mt-1 text-headline text-ink">{now.title}</h2>
+      {next && <p className="text-small text-muted">{t.now}</p>}
+      <h2 className={cn("text-headline text-ink", next && "mt-1")}>{now.title}</h2>
       {now.body && <p className="mt-1 text-sub text-muted">{now.body}</p>}
       {next && (
         <div className="mt-3 border-t border-line pt-3">

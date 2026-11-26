@@ -11,7 +11,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("CodeStep: поле → «Войти» → повтор → «Изменить номер»", () => {
+describe("CodeStep: поле → «Войти» → повтор; к номеру — «Назад»", () => {
   type Sent = Parameters<typeof CodeStep>[0]["sent"];
   const sent: Sent = { phone: "+7 700 000 66 01", shownCode: "123456", retryAt: NOW + 60_000, notice: "none" };
   const render = (over: Partial<Sent> = {}, device: "mobile" | "desktop" = "mobile") => (
@@ -31,20 +31,27 @@ describe("CodeStep: поле → «Войти» → повтор → «Изме�
     expect(text(render())).toContain(t.resendIn(60));
   });
 
-  it("телефон: поле, повтор, «Изменить номер», док последним", () => {
+  it("телефон: поле, повтор, док последним; ссылки «Изменить номер» нет — к номеру ведёт «Назад»", () => {
     vi.useFakeTimers({ now: NOW });
     const out = html(render());
     expect(at(out, 'name="code"')).toBeLessThan(at(out, "data-resend-code"));
-    expect(at(out, "data-resend-code")).toBeLessThan(at(out, t.changePhone));
-    expect(at(out, t.changePhone)).toBeLessThan(at(out, "data-action-dock"));
+    expect(at(out, "data-resend-code")).toBeLessThan(at(out, "data-action-dock"));
+    expect(out).not.toContain("Изменить номер");
+    expect(count(out, 'href="/v2/login?step=phone')).toBe(1);
+    expect(out).toContain(t.backLabel);
   });
 
-  it("компьютер: «Войти» над повтором и ссылкой", () => {
+  it("компьютер: «Войти» над повтором", () => {
     vi.useFakeTimers({ now: NOW });
     const out = html(render({}, "desktop"));
     expect(at(out, 'name="code"')).toBeLessThan(at(out, "data-action-dock"));
     expect(at(out, "data-action-dock")).toBeLessThan(at(out, "data-resend-code"));
-    expect(at(out, "data-resend-code")).toBeLessThan(at(out, t.changePhone));
+  });
+
+  it("подпись поля кода — только для диктора: поле одно, его называет заголовок", () => {
+    vi.useFakeTimers({ now: NOW });
+    const out = html(render());
+    expect(out).toMatch(new RegExp(`<label for="[^"]+" class="sr-only">${t.label}</label>`));
   });
 
   it("плашка кода: первая фраза, затем «Ваш код: NNNNNN» отдельной строкой с tabular-nums; один h1; счётчика шагов нет", () => {
@@ -71,12 +78,12 @@ describe("RoleStep: покупатель или мастер", () => {
   const checkedValue = (out: string) =>
     /<input[^>]*value="(\w+)"[^>]*checked=""|<input[^>]*checked=""[^>]*value="(\w+)"/.exec(out)?.slice(1).find(Boolean);
 
-  it("по умолчанию выбран «Я покупатель»; у обеих карточек есть описание", () => {
+  it("по умолчанию выбран «Я покупатель»; у карточек только подписи, без описаний", () => {
     const out = html(<RoleStep role="client" next={null} />);
     expect(checkedValue(out)).toBe("client");
     expect(count(out, 'checked=""')).toBe(1);
-    for (const piece of [role.title, role.client, role.clientDescription, role.executor, role.executorDescription])
-      expect(text(<RoleStep role="client" next={null} />)).toContain(piece);
+    for (const piece of [role.title, role.client, role.executor]) expect(text(<RoleStep role="client" next={null} />)).toContain(piece);
+    expect(out).not.toContain("-description");
   });
 
   it("имя группы для диктора — вопрос шага; видимой подписи группы нет", () => {

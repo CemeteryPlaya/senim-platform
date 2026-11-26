@@ -49,7 +49,7 @@ export function FormFields({ answers, errors, onChange }: FieldsProps) {
           name="legalForm"
           value={form}
           label={t.form.legalForms[form]}
-          description={t.form.descriptions[form]}
+          {...(form === "SELF_EMPLOYED" ? { description: t.form.descriptions.SELF_EMPLOYED } : {})}
           checked={answers.legalForm === form}
           onChange={() => onChange("legalForm", form)}
         />

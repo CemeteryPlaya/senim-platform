@@ -180,6 +180,16 @@ describe("MoneyPanel", () => {
     expect(count(out, "<dd")).toBe(3);
   });
 
+  it("caption — подпись с пояснением прямо под суммой, строк нет; без caption подписи нет", () => {
+    const explain = { label: "Что это?", title: "Деньги в банке под защитой", body: "Деньги в банке" };
+    const out = html(<MoneyPanel tone="awaiting" title="Сколько вы заплатите" amount={100n} caption={{ text: "К оплате, без доплат", explain }} device="mobile" />);
+    expect(out).toContain("К оплате, без доплат");
+    expect(out).toContain("Что это?");
+    expect(out).not.toContain("<dl");
+    expect(out.indexOf("К оплате, без доплат")).toBeGreaterThan(out.indexOf("text-display-amount"));
+    expect(html(<MoneyPanel tone="awaiting" title="t" amount={100n} device="mobile" />)).not.toContain("Что это?");
+  });
+
   it("зелёный только у protected; остальные тона нейтральные", () => {
     for (const tone of ["awaiting", "frozen", "completed", "refunded"] as const) {
       const out = html(<MoneyPanel tone={tone} title="t" amount={100n} device="mobile" />);
@@ -210,6 +220,14 @@ describe("MoneyPanel", () => {
     );
     expect(full).toContain("Выплата после приёмки");
     expect(full).toContain('href="/v2/money"');
+  });
+
+  it("пояснение примечания — «Что это?» в конце примечания; без примечания его нет", () => {
+    const explain = { label: "Что это?", title: "Деньги", body: "Лежат в банке" };
+    const out = html(<MoneyPanel tone="protected" title="t" amount={1n} note="Мастер получит их после приёмки" noteExplain={explain} device="mobile" />);
+    expect(count(out, "<button")).toBe(1);
+    expect(out.indexOf("Что это?")).toBeGreaterThan(out.indexOf("Мастер получит их после приёмки"));
+    expect(html(<MoneyPanel tone="protected" title="t" amount={1n} noteExplain={explain} device="mobile" />)).not.toContain("Что это?");
   });
 
   it("итоговая строка выделена весом 600, остальные нет", () => {
@@ -278,6 +296,14 @@ describe("Uploader: разметка", () => {
     expect(out).not.toContain("data-primary-action");
   });
 
+  it("счётчик молчит, пока ничего не добавлено, и при max = 1; область статуса остаётся", () => {
+    const empty = html(<Uploader items={[]} onAdd={noop} onRemove={noop} max={10} />);
+    expect(empty).not.toContain("0 из 10");
+    expect(empty).toContain('role="status"');
+    const single = html(<Uploader items={[{ id: "1", name: "a.pdf", state: "done", kind: "document" }]} onAdd={noop} onRemove={noop} max={1} />);
+    expect(single).not.toContain("1 из 1");
+  });
+
   it("свой label кнопки; при заполнении кнопка отключена", () => {
     const out = html(<Uploader items={items} onAdd={noop} onRemove={noop} max={3} label="Добавить фото места" />);
     expect(out).toContain("Добавить фото места");
@@ -317,11 +343,12 @@ describe("Uploader: разметка", () => {
     expect(html(<Uploader items={[{ id: "1", name: "a.jpg", state: "done" }]} onAdd={noop} onRemove={noop} max={5} />)).not.toContain("<img");
   });
 
-  it("подсказка о перетаскивании — только на компьютере и пока есть место", () => {
+  it("подсказка о перетаскивании — только на компьютере, пока есть место и при max > 1", () => {
     const out = html(<Uploader items={[]} onAdd={noop} onRemove={noop} max={5} />);
     expect(out).toContain(ru.app.kit.uploader.drop);
     expect(hasClass(out, "mobile:hidden")).toBe(true);
     expect(html(<Uploader items={[{ id: "1", name: "a.jpg", state: "done" }]} onAdd={noop} onRemove={noop} max={1} />)).not.toContain(ru.app.kit.uploader.drop);
+    expect(html(<Uploader items={[]} onAdd={noop} onRemove={noop} max={1} />)).not.toContain(ru.app.kit.uploader.drop);
   });
 });
 

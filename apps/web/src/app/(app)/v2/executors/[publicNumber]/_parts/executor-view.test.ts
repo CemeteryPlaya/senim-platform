@@ -164,6 +164,11 @@ describe("executorView: заголовок, «О мастере»", () => {
     expect(executorView(page()).title).toBe("Исполнитель №17");
   });
 
+  it("монограмма — только у открытого имени: у «Исполнитель №N» кружок «№N» повторял бы заголовок", () => {
+    expect(executorView(page()).monogram).toBe(false);
+    expect(executorView(page({ view: viewOf({ label: "ТОО «Мебель Сити»", nameShown: true }) })).monogram).toBe(true);
+  });
+
   it("абзацы по переводам строк, без пустых", () => {
     expect(executorView(page({ about: "Раз.\n\nДва.\r\n  \nТри\nЧетыре" })).about).toEqual(["Раз.", "Два.", "Три", "Четыре"]);
   });
@@ -260,16 +265,16 @@ describe("executorView: работы вне площадки и действие
   const seed = { id: "f1", src: "/demo/portfolio/a.svg", alt: "a" };
   const real = { id: "f2", src: "/files/abc", alt: "Кухня" };
 
-  it("карточка: тип · место, цена в тиынах, пометка «вне площадки»; только загруженные фото", () => {
+  it("карточка: место, цена в тиынах; пометки «вне площадки» и типа нет (их держат заголовки); только загруженные фото", () => {
     const [w] = executorView(page({ offPlatform: [work({ photos: [seed, real] })] })).offPlatform.works;
     expect(w).toMatchObject({
       id: "w1",
       title: "Светлая кухня",
-      meta: "Кухня · Астана",
-      byline: t.offPlatformMark,
+      meta: "Астана",
       priceFrom: 120_000_000n,
       photo: { src: "/files/abc", alt: "Кухня" },
     });
+    expect(w).not.toHaveProperty("byline");
     expect(executorView(page({ offPlatform: [work({ photos: [seed] })] })).offPlatform.works[0]).not.toHaveProperty("photo");
   });
 

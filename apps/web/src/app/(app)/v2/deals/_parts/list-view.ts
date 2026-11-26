@@ -4,7 +4,7 @@ import { ru } from "@/i18n/ru";
 import type { ChipItem } from "@/kit";
 import type { NextStep } from "@/modules/deal-core";
 import type { MoneyBlock } from "@/modules/payments";
-import { dealChip, dealMoneyLine, dealProgress, progressCaption, stoppedLabel, type DealChip, type DealMoneyLine } from "../../_parts/deal-summary";
+import { dealChip, dealMoneyLine, dealProgress, progressCaption, quietChip, stoppedLabel, type DealChip, type DealMoneyLine } from "../../_parts/deal-summary";
 import { to } from "../../../_shell/paths";
 import type { DealSide } from "../../../_shell/side";
 
@@ -31,8 +31,12 @@ export type DealCardView = {
   id: string;
   href: string;
   title: string;
-  /** Плашка — общая `dealChip` (называет текущий шаг: «Подпишите оферту», «Мастер делает мебель»…). */
-  chip: DealChip;
+  /**
+   * Плашка — общая `dealChip`, но только когда она говорит что-то сверх хода и денег на карточке: нужен шаг человека,
+   * ждём другую сторону, спор, возврат, итог. Обычный ход («Деньги под защитой», «Мастер делает мебель», «В работе»…)
+   * не подписывается: его уже называют строка хода и строка денег (`null` — плашки нет).
+   */
+  chip: DealChip | null;
   /**
    * Ход: строка «Шаг N из M: …» с полосой или строка остановки (спор, отмена); у возврата строки нет — о нём говорят
    * плашка и строка денег («N ₸ вернулись вам»), третий повтор не нужен.
@@ -60,8 +64,10 @@ function chosenGroup(raw: string | undefined, counts: Record<DealGroup, number>)
   return counts.active === 0 && counts.done > 0 ? "done" : "active";
 }
 
+
 /**
- * Карточка сделки: плашка называет шаг (что от меня нужно — тоже она), поэтому отдельного признака «нужно ваше действие» нет.
+ * Карточка сделки: плашка называет шаг, когда от человека что-то нужно (тоже она), поэтому отдельного признака «нужно ваше
+ * действие» нет; у обычного хода плашки нет.
  * `bankWait` — оплата закрыта до согласия для банка: у покупателя — согласия мастера, у мастера — своего.
  */
 function cardOf(deal: ListDealInput, next: NextStep | null, bankWait: boolean, side: DealSide): DealCardView {
@@ -71,7 +77,7 @@ function cardOf(deal: ListDealInput, next: NextStep | null, bankWait: boolean, s
     id: deal.id,
     href: to(`/deals/${encodeURIComponent(deal.id)}`),
     title: deal.title,
-    chip: dealChip({ ...deal, side, next, ...bank }),
+    chip: quietChip(dealChip({ ...deal, side, next, ...bank })),
     progress:
       progress.kind === "steps"
         ? { kind: "steps", caption: progressCaption(progress, side) ?? "", done: progress.done, total: progress.total }

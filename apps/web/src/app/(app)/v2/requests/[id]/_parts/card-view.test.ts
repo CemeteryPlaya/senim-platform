@@ -59,16 +59,24 @@ describe("nowView: таблица состояний заявки (по обще
     expect(view.primary?.href ?? null).toBe(href);
   });
 
-  it("ожидание: «Дальше» — мастера пришлют цены и сроки, главного действия нет", () => {
+  it("ожидание: срок в «Сейчас», уведомление в «Дальше», главного действия нет", () => {
     const view = nowView(base);
-    expect(view.next).toBe("Мастера пришлют цены и сроки");
+    expect(view.body).toBe("Обычно первые приходят в течение дня.");
+    expect(view.next).toBe("Пришлём уведомление, и предложения появятся здесь");
     expect(view.primary).toBeNull();
   });
 
-  it("«Пришло N предложений»: «Сравните и откройте подходящее», главного действия нет (оно в списке)", () => {
+  it("«Пришло N предложений»: без пояснения (список прямо ниже), «Дальше» — оферта и оплата; главного действия нет (оно в списке)", () => {
     const view = nowView({ ...base, ...st("choose", 2) });
-    expect(view.body).toBe("Сравните и откройте подходящее.");
+    expect(view.body).toBeUndefined();
+    expect(view.next).toBe("Оферта и оплата под защитой банка");
     expect(view.primary).toBeNull();
+  });
+
+  it("идёт сделка: заголовок и одна строка, без «Дальше»", () => {
+    const view = nowView({ ...base, ...st("deal"), dealId: "d1" });
+    expect(view.body).toBe(t.now.deal.body);
+    expect(view.next).toBeUndefined();
   });
 
   it("тексты без запрещённых слов", () => {
@@ -166,12 +174,11 @@ describe("offerRow", () => {
 });
 
 describe("offersView", () => {
-  const open = { id: "r1", status: "OPEN" as const, mode: "TENDER" as const };
+  const open = { id: "r1", status: "OPEN" as const };
 
-  it("пусто у открытой: обучающая карточка, сортировки нет", () => {
+  it("пусто у открытой: раздела нет (ожидание говорит «Сейчас»), сортировки нет", () => {
     const v = offersView(open, [], "price");
-    expect(v.empty?.title).toBe("Предложения придут сюда");
-    expect(v.shown).toBe(true);
+    expect(v.shown).toBe(false);
     expect(v.sortable).toBe(false);
   });
 
@@ -182,12 +189,15 @@ describe("offersView", () => {
     expect(v.sortable).toBe(false);
     const none = offersView(open, [declined], "price");
     expect(none.rows).toEqual([]);
-    expect(none.empty?.title).toBe("Предложения придут сюда");
+    expect(none.shown).toBe(false);
   });
 
   it("у заявки со сделкой вся история: выбранное и отклонённые с плашками", () => {
     const v = offersView({ ...open, status: "CLOSED" }, [offer({ id: "a", status: "ACCEPTED", live: false }), offer({ id: "d", status: "DECLINED", live: false })], "price");
     expect(v.rows.map((r) => r.chip?.text)).toEqual(["Выбрано", "Отклонено"]);
+    // Мастер выбран — сортировки нет, хотя строк две.
+    expect(v.sortable).toBe(false);
+    expect(offersView({ ...open, status: "OFFER_CHOSEN" }, [offer({ id: "a" }), offer({ id: "b" })], "price").sortable).toBe(false);
   });
 
   it("отправленное, но торг закрыт (сценарий до договора) — тоже не действует", () => {
@@ -201,10 +211,6 @@ describe("offersView", () => {
       "price",
     );
     expect(v.rows.map((r) => r.id)).toEqual(["c", "b", "a"]);
-  });
-
-  it("пусто у прямой: свой текст", () => {
-    expect(offersView({ ...open, mode: "DIRECT" }, [], "price").empty?.title).toBe(t.offers.emptyDirect.title);
   });
 
   it("пусто у отменённой и со сделкой: раздела нет", () => {
@@ -223,7 +229,6 @@ describe("offersView", () => {
 
 describe("detailRows", () => {
   const input = {
-    title: "Кухня",
     style: "loft",
     segment: "COMFORT" as const,
     details: { widthCm: 240, extras: ["lighting" as const], unknown: ["countertop" as const], description: "Угловая", facade: "ldsp" as const },
@@ -233,10 +238,11 @@ describe("detailRows", () => {
     directLabel: null,
   };
 
-  it("сводка: тип, уровень, стиль, размеры, материалы, «не знаю», адрес стопкой", () => {
+  it("сводка: уровень, стиль, размеры, материалы, «не знаю», адрес стопкой; тип — заголовок экрана, строки нет", () => {
     const rows = detailRows(input);
     const by = (label: string) => rows.find((r) => r.label === label);
-    expect(by("Что делаем")?.value).toBe("Кухня");
+    expect(by("Что делаем")).toBeUndefined();
+    expect(rows.some((r) => r.value === "Кухня")).toBe(false);
     expect(by("Уровень")?.value).toBe("Комфорт");
     expect(by("Стиль")?.value).toBe("Лофт");
     expect(by("Размеры")?.value).toBe("ширина 240 см");
@@ -247,6 +253,14 @@ describe("detailRows", () => {
     expect(by("Адрес")?.stacked).toBe(true);
     expect(by("Пожелания")).toBeUndefined();
     expect(by(t.details.directFor)).toBeUndefined();
+  });
+
+  it("город — только если адрес начинается не с него или адреса нет", () => {
+    const city = (address: string | null) => detailRows({ ...input, address }).find((r) => r.label === t.details.city)?.value;
+    expect(city("Астана, ул. Сыганак, 12, кв. 45")).toBeUndefined();
+    expect(city("астана, ул. Сыганак, 12")).toBeUndefined();
+    expect(city("ул. Тестовая, 1")).toBe("Астана");
+    expect(city(null)).toBe("Астана");
   });
 
   it("прямая заявка: «Заявка для: Исполнитель №N»", () => {

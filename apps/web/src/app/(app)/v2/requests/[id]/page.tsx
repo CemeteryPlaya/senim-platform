@@ -76,12 +76,10 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
     title: request.title,
     number: request.number,
     sent: notice && { ...notice, href: pageHref(`/requests/${encodeURIComponent(id)}`, withoutSent) },
-    chip: { text: state.text, tone: state.tone },
     now,
     invitations: invitationRows(invitations),
-    offers: offersView({ id, status: request.status, mode: request.mode }, inputs, sort),
+    offers: offersView({ id, status: request.status }, inputs, sort),
     details: detailRows({
-      title: request.title,
       style: request.style,
       segment: request.segment,
       details: request.details,

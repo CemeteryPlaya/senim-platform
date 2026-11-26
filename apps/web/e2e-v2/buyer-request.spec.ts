@@ -115,7 +115,8 @@ test("новый покупатель: заявка от главной до «�
   await expect(heading(page, w.send.title)).toBeVisible();
   await expect(page.getByText(step(5, 5))).toBeVisible();
   const summary = page.locator("main");
-  await expect(summary.getByRole("heading", { level: 2, name: w.send.summaryTitle })).toBeVisible();
+  // Заголовок сводки — только для диктора (sr-only): есть в разметке, на экране его называет заголовок шага.
+  await expect(summary.getByRole("heading", { level: 2, name: w.send.summaryTitle })).toHaveCount(1);
   await expect(summary).toContainText(KITCHEN);
   await expect(summary).toContainText(SEGMENT_NAMES.COMFORT);
   await expect(summary).toContainText(w.send.photosCount(1));

@@ -28,7 +28,6 @@ export default async function ReviewPage({ params, searchParams }: Props) {
     <ReviewForm
       dealId={deal.id}
       dealTitle={deal.title}
-      number={deal.number}
       backHref={hrefs.card}
       showcase={{ initial: { photos: showcase.photos, price: showcase.price, address: showcase.address, signature: showcase.signature }, addressOptions: showcase.addressOptions }}
       device={await getDevice()}

@@ -191,9 +191,7 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
       <Stack gap="section">
         <Stack gap="tight">
           <WizardHeader step={index + 1} total={STEPS.length} title={t.steps[step]} back={backOf(step, origin, isHome)} />
-          {step === "form" && <p className="text-body text-muted">{t.form.lead}</p>}
           {step === "form" && keepsBuyer && <p className="text-body text-ink">{t.form.keepsBuyer}</p>}
-          {step === "form" && becomingMaster && <OrderFirst />}
           {step === "form" && <StepExplain kind="form" device={device} />}
           {step === "name" && <StepExplain kind="name" device={device} />}
           {step === "place" && <p className="text-body text-muted">{t.place.lead}</p>}
@@ -216,6 +214,8 @@ export function RegisterWizard({ step: requested, initial, origin, rejectReason 
             <FormError error={form.error} atField={hasFieldError(serverErrors)} />
           </Stack>
         </form>
+        {/* Выход для передумавшего — под вариантами ответа, а не между вопросом и ответами. */}
+        {step === "form" && becomingMaster && <OrderFirst />}
         <ActionDock>
           <Button type="submit" form={FORM} pending={form.pending}>
             {step === "check" ? t.submit : t.next}

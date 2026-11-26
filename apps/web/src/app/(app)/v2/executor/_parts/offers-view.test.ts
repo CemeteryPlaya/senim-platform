@@ -13,7 +13,6 @@ const offer = (over: Partial<OfferRow> = {}): OfferRow => ({
   segment: "COMFORT",
   status: "SENT",
   priceTiyn: 50_000_000n,
-  durationDays: 30,
   createdAt: new Date("2026-11-13T10:00:00Z"),
   dealId: null,
   ...over,
@@ -39,14 +38,31 @@ describe("«Мои предложения»", () => {
     ]);
   });
 
+  it("пустая группа чипом не рисуется; выбранная по адресу — остаётся", () => {
+    const labels = (show?: string) => offersView([offer(), offer({ id: "o2", status: "ACCEPTED" })], show, NOW).chips.map((c) => c.label);
+    expect(labels()).toEqual([t.chip(t.chips.all, 2), t.chip(t.chips.waiting, 1), t.chip(t.chips.chosen, 1)]);
+    expect(labels("closed")).toContain(t.chip(t.chips.closed, 0));
+  });
+
+  it("строка: «Кухня · №1», сведения — город и сегмент, когда отправлено (без срока)", () => {
+    const card = offerCard(offer(), NOW);
+    expect(card.title).toBe("Кухня · №1");
+    expect(card.meta).toEqual(["Астана · Комфорт", "вчера"]);
+  });
+
+  it("покупатель назвал свою цену — «Ждёт вашего ответа» (ход мастера); своя цена ждёт покупателя — без плашки", () => {
+    expect(offerCard(offer({ buyerPriceOpen: true }), NOW).status).toEqual({ text: t.status.buyerPrice, tone: "warn" });
+    expect(offerCard(offer({ buyerPriceOpen: false }), NOW).status).toBeNull();
+  });
+
   it("пусто и пустой раздел", () => {
     expect(offersView([], undefined, NOW).empty).toBe("none");
     expect(offersView([offer()], "chosen", NOW).empty).toBe("filter");
   });
 
   it("карточка: цена и статус; выбранное со сделкой ведёт в сделку, остальное — в заявку", () => {
-    expect(offerCard(offer(), NOW)).toMatchObject({ href: "/v2/executor/requests/r1", priceTiyn: 50_000_000n, status: { text: t.status.waiting } });
+    expect(offerCard(offer(), NOW)).toMatchObject({ href: "/v2/executor/requests/r1", priceTiyn: 50_000_000n, status: null });
     expect(offerCard(offer({ status: "ACCEPTED", dealId: "d1" }), NOW)).toMatchObject({ href: "/v2/deals/d1", status: { text: t.status.deal, tone: "accent" } });
-    expect(offerCard(offer({ status: "ACCEPTED" }), NOW).status.text).toBe(t.status.chosen);
+    expect(offerCard(offer({ status: "ACCEPTED" }), NOW).status?.text).toBe(t.status.chosen);
   });
 });

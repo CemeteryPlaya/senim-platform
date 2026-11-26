@@ -4,17 +4,20 @@ import type { DealListItem } from "@/modules/deal-core";
 import { to } from "../../_shell/paths";
 import type { DealSide } from "../../_shell/side";
 import { DealMoney } from "./DealMoney";
-import { dealMoneyLine, dealProgress, progressCaption, stoppedLabel, type DealChip } from "./deal-summary";
+import { dealMoneyLine, dealProgress, progressCaption, quietChip, stoppedLabel, type DealChip } from "./deal-summary";
 
 /**
  * Компактная карточка сделки на главных экранах: вся — ссылка (растянутая на карточку). Название и справа деньги одним
  * блоком (сумма 22 px / 600 и подпись из журнала под ней — как в списке «Сделки»), ниже плашка статуса своей строкой, одна
- * строка хода «Шаг N из M: …» с полосой. Полный ход — на экране сделки. Слова — по стороне (`side`): покупатель и мастер видят свои подписи шагов и денег
+ * строка хода «Шаг N из M: …» с полосой. Плашка — только когда нужен шаг стороны, есть исключение (спор, возврат, отмена)
+ * или сделка окончена: плашка обычного хода («В работе», `quietChip`) повторяла бы строку шага. Полный ход — на экране
+ * сделки. Слова — по стороне (`side`): покупатель и мастер видят свои подписи шагов и денег
  * (`deal-summary.ts`). Сделку из «Сейчас» главная показывает героем (`DealHero`), эта карточка — для остальных.
  */
 export function DealSummaryCard({ deal, side, chip, progressLabel }: { deal: DealListItem; side: DealSide; chip: DealChip; progressLabel: string }) {
   const money = dealMoneyLine(deal.money, deal.estimate, side);
   const progress = dealProgress(deal.status, deal.hasOpenDispute);
+  const ordinary = quietChip(chip) === null && progress.kind === "steps" && progress.done < progress.total;
   return (
     <Card
       as="article"
@@ -30,9 +33,11 @@ export function DealSummaryCard({ deal, side, chip, progressLabel }: { deal: Dea
         </h3>
         <DealMoney money={money} />
       </div>
-      <div className="flex">
-        <StatusChip tone={chip.tone}>{chip.text}</StatusChip>
-      </div>
+      {!ordinary && (
+        <div className="flex">
+          <StatusChip tone={chip.tone}>{chip.text}</StatusChip>
+        </div>
+      )}
       {progress.kind === "steps" ? (
         <div className="flex flex-col gap-2">
           <p className="text-sub text-muted">{progressCaption(progress, side)}</p>

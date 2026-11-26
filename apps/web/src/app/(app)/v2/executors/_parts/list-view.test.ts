@@ -66,7 +66,9 @@ describe("вид списка мастеров", () => {
       { page: 1, requestId: null },
       null,
     );
-    expect(view.cards[0]).toMatchObject({ meta: t.noReviews, byline: "Сделок: 2" });
+    // «Пока без отзывов» не пишем: пустое не показываем; без уровня строка под меткой пуста.
+    expect(view.cards[0]).toMatchObject({ meta: "", byline: "Сделок: 2" });
+    expect(JSON.stringify(view.cards[0])).not.toContain("без отзывов");
     expect(view.cards[0]).not.toHaveProperty("photo");
     expect(view.media).toBe("none");
   });
@@ -93,7 +95,7 @@ describe("вид списка мастеров", () => {
 
   it("заявка в адресе, но не подошла (чужая, не открыта) — обычный список; ссылки страниц без неё", () => {
     const view = executorsListView({ items: [item()], total: 25 }, { page: 1, requestId: "foreign" }, null);
-    expect(view.lead).toBe(t.lead);
+    expect(view.lead).toBeNull();
     expect(view.back).toBeNull();
     expect(view.invite).toBeNull();
     expect(view.hrefFor(2)).toBe("/v2/executors?page=2");

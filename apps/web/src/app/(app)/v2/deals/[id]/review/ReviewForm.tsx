@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ru } from "@/i18n/ru";
-import { ActionDock, Button, Card, Narrow, NowNext, PageTitle, RadioCard, RadioGroup, Section, Stack, TextArea, toast } from "@/kit";
+import { ActionDock, Button, Card, Narrow, PageTitle, RadioCard, RadioGroup, Section, Stack, TextArea, toast } from "@/kit";
 import { useClientKey } from "../../../../_shell/client-key";
 import { FormError } from "../../../../_shell/FormError";
 import { useActionForm } from "../../../../_shell/form";
@@ -19,7 +19,6 @@ const RATINGS = [5, 4, 3, 2, 1] as const;
 type Props = {
   dealId: string;
   dealTitle: string;
-  number: number;
   backHref: string;
   /** Выбор «что видно в профиле мастера»: прежний выбор и доступные варианты адреса. */
   showcase: { initial: ShowcaseChoice; addressOptions: readonly ShowcaseChoice["address"][] };
@@ -27,11 +26,11 @@ type Props = {
 };
 
 /**
- * Отзыв о мастере: оценка (радио 5…1 с подписью словами), необязательный текст, пояснение про скрытые имя и контакты.
+ * Отзыв о мастере: оценка (радио 5…1, «5 — отлично» одной строкой), необязательный текст, пояснение про скрытые имя и контакты.
  * Под оценкой — тот же выбор, что видно в профиле мастера; одна отправка пишет отзыв и выбор. «Оставить отзыв» — главное действие. Двойное нажатие даёт один отзыв (форма занята, модуль отвечает CONFLICT на повтор).
  * После успеха — тост и карточка сделки.
  */
-export function ReviewForm({ dealId, dealTitle, number, backHref, showcase, device }: Props) {
+export function ReviewForm({ dealId, dealTitle, backHref, showcase, device }: Props) {
   const router = useRouter();
   const [rating, setRating] = useState<number | null>(null);
   const [text, setText] = useState("");
@@ -67,14 +66,13 @@ export function ReviewForm({ dealId, dealTitle, number, backHref, showcase, devi
   return (
     <Narrow>
       <Stack gap="section">
-        <PageTitle title={t.title} back={{ href: backHref, label: dealTitle }} lead={t.lead(number)} />
-        <NowNext now={{ title: t.intro }} />
+        <PageTitle title={t.title} back={{ href: backHref, label: dealTitle }} lead={t.lead} />
         <Card>
           <form id={FORM} method="post" onSubmit={submit} noValidate>
             <Stack gap="section">
               <RadioGroup legend={t.ratingLegend} {...(ratingError ? { error: ratingError } : {})}>
                 {RATINGS.map((n) => (
-                  <RadioCard key={n} name="rating" value={String(n)} label={t.rating(n)} description={t.ratingText[n]} checked={rating === n} onChange={() => setRating(n)} />
+                  <RadioCard key={n} name="rating" value={String(n)} label={t.rating(n)} checked={rating === n} onChange={() => setRating(n)} />
                 ))}
               </RadioGroup>
               <Stack>

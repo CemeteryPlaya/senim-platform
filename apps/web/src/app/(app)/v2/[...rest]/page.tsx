@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { isLegacyRoute } from "../../_shell/legacy-routes";
 import { MovingPlaceholder, queryOf } from "../../_shell/Moving";
 import { safeLocalPath } from "../../_shell/paths";
 
@@ -7,8 +9,9 @@ type Props = {
 };
 
 /**
- * Раздел, которого в v2 ещё нет: заглушка «раздел переносится» со ссылкой на тот же адрес в v1 — с теми же
- * параметрами (/v2/deals/1?tab=money → /deals/1?tab=money). Живёт только до переключения (этап 6).
+ * Адрес v2 без своей страницы. Есть такой экран в v1 — заглушка «раздел переносится» со ссылкой на тот же адрес в v1 с
+ * теми же параметрами (/v2/inspiration?x=1 → /inspiration?x=1); нет — «Страница не найдена» (not-found.tsx группы).
+ * Заглушка живёт только до переключения (этап 6).
  */
 export default async function Moving({ params, searchParams }: Props) {
   const [{ rest }, search] = await Promise.all([params, searchParams]);
@@ -17,5 +20,6 @@ export default async function Moving({ params, searchParams }: Props) {
   // Приходят ли сегменты закодированными, Next не документирует: раскодированный `//example.com` или `\example.com`
   // дал бы ссылку на чужой сайт, поэтому готовый адрес проходит safeLocalPath (чужое — «/»).
   const oldPath = `/${rest.filter(Boolean).join("/")}`;
+  if (!isLegacyRoute(oldPath)) notFound();
   return <MovingPlaceholder href={safeLocalPath(oldPath + queryOf(search))} />;
 }

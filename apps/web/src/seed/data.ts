@@ -1254,7 +1254,7 @@ export type NotificationSpec = {
 };
 
 export const NOTIFICATIONS: NotificationSpec[] = [
-  { user: { client: "aigerim" }, kind: "offer.received", title: "Новый отклик на заявку", body: "На заявку «Кухня» пришёл отклик: 1 020 000 ₸, срок 35 дней.", link: { to: "request", request: "tender-kitchen" }, daysAgo: 1.2 },
+  { user: { client: "aigerim" }, kind: "offer.received", title: "Новое предложение", body: "«Кухня»: 1 020 000 ₸, срок 35 дней.", link: { to: "request", request: "tender-kitchen" }, daysAgo: 1.2 },
   { user: { client: "aigerim" }, kind: "measurement.no_deal", title: "Замер завершён без сделки", body: "По заявке «Мебель для ванной» сделка не состоялась. Плата за выезд — 10 000 ₸, оплачивается напрямую исполнителю. Заявка снова открыта для откликов.", link: { to: "request", request: "flow1-no-deal-bathroom" }, daysAgo: 15, read: true },
   { user: { client: "daniyar" }, kind: "measurement.scheduled", title: "Замер назначен", body: "Исполнитель приедет на замер по заявке «ТВ-зона» через 2 дня в 11:00.", link: { to: "request", request: "flow1-measuring-tv" }, daysAgo: 1.8 },
   { user: { client: "madina" }, kind: "offer.chosen", title: "Отклик выбран", body: "Адрес передан исполнителю по заявке «Шкаф». Договоритесь о замере в чате.", link: { to: "request", request: "flow1-chosen-wardrobe" }, daysAgo: 0.6 },

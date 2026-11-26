@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import { companyNow, formatFee, initialValues, placeLine, publicHref, sectionLinks, type CompanyProfile } from "./company-view";
+import { companyNow, formatFee, initialValues, masterBack, publicHref, sectionLinks, type CompanyProfile } from "./company-view";
 import { companySchema, toNumber, type CompanyInput } from "./company-schema";
 
 const t = ru.app.masterCompany.company;
@@ -30,23 +30,24 @@ describe("карточка «Сейчас / Дальше» компании", ()
     expect(companyNow({ status: "REJECTED", rejectReason: null }).body).toBe(t.now.REJECTED.noReason);
     expect(companyNow({ status: "APPROVED", rejectReason: null }).title).toBe(t.now.APPROVED.title);
     expect(companyNow({ status: "APPROVED", rejectReason: null }).fixHref).toBeUndefined();
+    // Проверен — дальше ничего не ждёт: без «Дальше» (и без совета, как работает «Сохранить»).
+    expect(companyNow({ status: "APPROVED", rejectReason: null })).toEqual({ title: t.now.APPROVED.title, body: t.now.APPROVED.body });
   });
 });
 
 describe("разделы и публичная страница", () => {
-  it("документы, счёт и портфолио — всегда; финансы и публичная страница — только у одобренного", () => {
+  it("разделы — документы, счёт и портфолио — только у неодобренного (одобренному они на «Профиле»); публичная страница — только у одобренного", () => {
     const pending = sectionLinks("PENDING").map((r) => r.href);
     expect(pending).toEqual(["/v2/executor/profile/kyc", "/v2/executor/profile/payout", "/v2/executor/portfolio"]);
     expect(sectionLinks("REJECTED").map((r) => r.href)).toEqual(pending);
-    expect(sectionLinks("APPROVED").map((r) => r.href)).toEqual([...pending, "/v2/executor/finance"]);
+    expect(sectionLinks("APPROVED")).toEqual([]);
     expect(publicHref({ status: "APPROVED", publicNumber: 17 })).toBe("/v2/executors/17");
     expect(publicHref({ status: "PENDING", publicNumber: 17 })).toBeNull();
   });
 
-  it("строка места — город и район; улицы и дома в ней нет", () => {
-    expect(placeLine(profile)).toBe("Астана, Есильский район");
-    expect(placeLine({ city: "Алматы", district: "" })).toBe("Алматы");
-    expect(placeLine({ city: "", district: "" })).toBeNull();
+  it("«Назад» с документов, счёта и портфолио: одобренному — «Профиль», иначе — «Компания»", () => {
+    expect(masterBack(true)).toEqual({ href: "/v2/profile", label: ru.app.masterCompany.shared.backProfile });
+    expect(masterBack(false)).toEqual({ href: "/v2/executor/profile", label: ru.app.masterCompany.shared.backCompany });
   });
 
   it("плата — с разделителем разрядов; не число остаётся как ввели", () => {

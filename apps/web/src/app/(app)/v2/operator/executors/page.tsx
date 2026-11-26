@@ -20,10 +20,10 @@ const nameOf = (x: Pick<Row, "publicNumber" | "legalName">): string => q.executo
 const segmentOf = (x: Pick<Row, "segment">): string => (x.segment ? q.segments[x.segment] : q.noSegment);
 
 const COLUMNS: readonly DataTableColumn<Row>[] = [
-  { key: "executor", header: t.columns.executor, rowHeader: true, width: "wide", cell: (x) => <TextLink href={cardHref(x.id)}>{nameOf(x)}</TextLink> },
+  { key: "executor", header: t.columns.executor, rowHeader: true, width: "wide", cell: (x) => <TextLink href={cardHref(x.id)}>{t.row(x.publicNumber, x.legalName)}</TextLink> },
   { key: "registration", header: t.columns.registration, cell: (x) => <StatusChip tone={STATUS_TONE[x.status]}>{q.registration[x.status]}</StatusChip> },
   { key: "segment", header: t.columns.segment, width: "narrow", cell: segmentOf },
-  { key: "legal", header: t.columns.legal, width: "mid", cell: (x) => q.legal(q.legalForms[x.legalForm], x.binIinLast4) },
+  { key: "legal", header: t.columns.legal, width: "mid", cell: (x) => t.legalShort(q.legalForms[x.legalForm], x.binIinLast4) },
   { key: "registered", header: t.columns.registered, numeric: true, cell: (x) => formatDate(x.createdAt) },
 ];
 

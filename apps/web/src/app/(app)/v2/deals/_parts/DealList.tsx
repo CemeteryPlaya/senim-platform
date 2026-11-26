@@ -14,7 +14,8 @@ const progressLabel = ru.app.deal.card.steps.section;
 /**
  * Карточка сделки — вся ссылка (растянутая на карточку, как «Моя сделка» на главной): название и справа деньги одним блоком
  * (сумма 22 px / 600 — главное в строке, разбор 2.2, и подпись под ней), ниже плашка статуса своей строкой, ход «Шаг N из
- * M: …» с полосой (или строка остановки). Что нужно от человека — говорит плашка. На компьютере — отклик наведения (`interactive`).
+ * M: …» с полосой (или строка остановки). Что нужно от человека — говорит плашка; у обычного хода её нет (`chip` = null).
+ * На компьютере — отклик наведения (`interactive`).
  */
 function DealCard({ card }: { card: DealCardView }) {
   return (
@@ -32,9 +33,11 @@ function DealCard({ card }: { card: DealCardView }) {
         </h2>
         <DealMoney money={card.money} />
       </div>
-      <div className="flex">
-        <StatusChip tone={card.chip.tone}>{card.chip.text}</StatusChip>
-      </div>
+      {card.chip && (
+        <div className="flex">
+          <StatusChip tone={card.chip.tone}>{card.chip.text}</StatusChip>
+        </div>
+      )}
       {card.progress === null ? null : card.progress.kind === "steps" ? (
         <div className="flex flex-col gap-2">
           <p className="text-sub text-muted">{card.progress.caption}</p>

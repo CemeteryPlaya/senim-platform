@@ -36,7 +36,7 @@ test("профиль → «Мои данные»: ИИН только после
   expect(body).not.toContain(iin);
   expect(await page.content()).not.toContain(iin);
   await expect(page.getByText(t.data.consentKinds.PD_PROCESSING)).toBeVisible();
-  await expect(page.getByText(t.data.statusActive)).toBeVisible();
+  await expect(page.getByText(t.data.granted, { exact: false }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: `${ru.app.kit.back}: ${t.data.back}` })).toBeVisible();
 });
 

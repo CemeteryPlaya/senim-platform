@@ -19,7 +19,7 @@ export function ContactActions({ phone, phoneDisplay }: ContactActionsProps) {
   const t = ru.app.kit.contact;
   const wa = whatsappHref(phone);
   return (
-    <div className="flex flex-wrap items-center gap-2 px-card pb-3">
+    <div className="flex flex-wrap items-center gap-2 px-card py-3">
       <a href={telHref(phone)} className={buttonClasses({ variant: "secondary", size: "sm" })}>
         <Phone aria-hidden className="size-5" />
         {t.call}

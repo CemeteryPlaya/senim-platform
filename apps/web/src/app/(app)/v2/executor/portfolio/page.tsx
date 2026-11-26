@@ -7,6 +7,7 @@ import { getDevice } from "@/platform/device";
 import { requireMaster } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
 import { REGISTER } from "../_parts/approved";
+import { masterBack } from "../profile/_parts/company-view";
 import { readForOwner } from "./_parts/read";
 import { workListView } from "./_parts/work-view";
 import { WorkTile } from "./_parts/WorkTile";
@@ -16,10 +17,10 @@ const t = ru.app.masterPortfolio.list;
 export const metadata: Metadata = { title: t.metaTitle };
 
 /**
- * Портфолио мастера: его работы карточками (фото, название, статус «Опубликована» / «Скрыта» чипом, тип, стиль и число фото, цена «от»); карточка
+ * Портфолио мастера: его работы карточками (фото, название, «Скрыта» чипом у скрытой, тип и стиль, цена «от»); карточка
  * ведёт в правку, где публикация и удаление. «Добавить работу» — главное действие (док на телефоне, под заголовком на
  * компьютере); пусто — обучающий экран с тем же действием. Открыто и мастеру на проверке (портфолио заполняют до
- * проверки); нет профиля мастера — экран статуса. «Назад» — «Компания».
+ * проверки); нет профиля мастера — экран статуса. «Назад» — «Профиль» у одобренного, «Компания» у остальных.
  */
 export default async function PortfolioPage() {
   const { user, status } = await requireMaster(to("/executor/portfolio"));
@@ -28,7 +29,7 @@ export default async function PortfolioPage() {
   // Портфолио открыто и мастеру на проверке и после отказа; «нет профиля» — регистрация, как на остальных экранах мастера.
   if ("gate" in read) redirect(REGISTER);
 
-  const title = <PageTitle title={t.title} back={{ href: to("/executor/profile"), label: t.back }} />;
+  const title = <PageTitle title={t.title} back={masterBack(status === "approved")} />;
   // «Лучшие работы» выбирает одобренный мастер (так отвечает и модуль) — и без работ портфолио: кандидатами бывают сделки с фото.
   const best =
     status === "approved" ? (
@@ -59,15 +60,12 @@ export default async function PortfolioPage() {
       {title}
       {device === "desktop" && add}
       {best}
-      <Stack>
-        <p className="text-sub text-muted">{view.countText}</p>
-        {view.media === "slot" ? (
-          // Сетка фото: две колонки на телефоне, три на компьютере.
-          <div className="grid grid-cols-2 gap-3 *:min-w-0 desktop:grid-cols-3">{tiles}</div>
-        ) : (
-          <Columns count={3}>{tiles}</Columns>
-        )}
-      </Stack>
+      {view.media === "slot" ? (
+        // Сетка фото: две колонки на телефоне, три на компьютере.
+        <div className="grid grid-cols-2 gap-3 *:min-w-0 desktop:grid-cols-3">{tiles}</div>
+      ) : (
+        <Columns count={3}>{tiles}</Columns>
+      )}
       {device === "mobile" && add}
     </Stack>
   );

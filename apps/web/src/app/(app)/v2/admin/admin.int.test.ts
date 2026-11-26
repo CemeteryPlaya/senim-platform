@@ -147,13 +147,14 @@ describe("админка: статистика /v2/admin", () => {
 });
 
 describe("админка: данные", () => {
-  it("список моделей — имя, число записей, «только чтение»", async () => {
+  it("список моделей — имя, число записей, отметка «Правка» только у правимых (чтение не подписано)", async () => {
     await makeFurnitureType({ name: "Кухня" });
     await signInAs(await makeAdmin());
     const out = await html(AdminDataPage());
     expect(out).toContain('href="/v2/admin/data/FurnitureType"');
     expect(out).toContain('href="/v2/admin/data/MoneyTransaction"');
-    expect(out).toContain(t.data.readonly);
+    expect(out).toContain(t.data.editable);
+    expect(out).not.toContain("Только чтение");
   });
 
   it("таблица: строки со ссылкой на карточку, поиск и фильтр из адреса; скрытый фильтр — сообщение; неизвестная таблица — 404", async () => {

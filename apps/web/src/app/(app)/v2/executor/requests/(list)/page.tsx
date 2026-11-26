@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { ru } from "@/i18n/ru";
-import { Card, Chips, EmptyState, PageTitle, Stack, TextLink } from "@/kit";
+import { Chips, EmptyState, PageTitle, Stack, TextLink } from "@/kit";
 import { listIncomingRequests } from "@/modules/requests";
 import { getDevice } from "@/platform/device";
 import { pageHref, requireMaster } from "../../../../_shell/auth";
@@ -64,29 +64,14 @@ export default async function IncomingPage({ searchParams }: Props) {
     );
   }
 
-  const offers = <TextLink href={to("/executor/offers")}>{t.myOffers}</TextLink>;
-  if (device === "desktop") {
-    // Одна колонка 760 px по центру (разбор 3.9): карточка «Мои предложения» — под списком, а не одна в правой колонке.
-    // Список + предпросмотр заявки справа не делаем: предпросмотр потребовал бы нового адреса выбранной заявки.
-    return (
-      <Stack gap="section" className="desktop:mx-auto desktop:w-full desktop:max-w-home">
-        {title}
-        <Incoming view={view} />
-        <Card>
-          <Stack gap="tight">
-            <h2 className="text-headline text-ink">{t.aside.title}</h2>
-            <p className="text-body text-muted">{t.aside.body}</p>
-            <TextLink href={to("/executor/offers")}>{t.aside.link}</TextLink>
-          </Stack>
-        </Card>
-      </Stack>
-    );
-  }
+  // «Мои предложения» — одной ссылкой под списком на обоих устройствах (карточка с заголовком и пересказом называла бы
+  // одно место трижды). Компьютер — одна колонка 760 px по центру (разбор 3.9); предпросмотр заявки справа не делаем:
+  // он потребовал бы нового адреса выбранной заявки.
   return (
-    <Stack gap="section">
+    <Stack gap="section" className="desktop:mx-auto desktop:w-full desktop:max-w-home">
       {title}
       <Incoming view={view} />
-      {offers}
+      <TextLink href={to("/executor/offers")}>{t.myOffers}</TextLink>
     </Stack>
   );
 }

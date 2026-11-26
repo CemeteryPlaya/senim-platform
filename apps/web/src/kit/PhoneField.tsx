@@ -1,11 +1,11 @@
 "use client";
 
 import { ru } from "@/i18n/ru";
-import type { FieldProps } from "./fields";
+import type { FieldProps, LabelHiddenProp } from "./fields";
 import { MaskedField } from "./MaskedField";
 import { PHONE_MASK, phoneValue } from "./mask-logic";
 
-export type PhoneFieldProps = FieldProps & {
+export type PhoneFieldProps = FieldProps & LabelHiddenProp & {
   /** Номер в любом виде («+77001234567», «8 700 …»). */
   defaultValue?: string;
   /** Фокус в поле при появлении (шаг номера при входе). */

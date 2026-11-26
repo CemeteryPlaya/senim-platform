@@ -43,13 +43,14 @@ export default async function StaleRequestsPage({ searchParams }: Props) {
   return (
     <Stack gap="section">
       <PageTitle title={t.title} lead={t.lead} />
-      <form method="get" action={to("/operator/requests")} noValidate aria-label={files.open.title} className="flex flex-col gap-stack-group desktop:max-w-measure">
-        <TextField label={files.open.number} name="open" inputMode="numeric" autoComplete="off" defaultValue={open ?? ""} {...(open !== undefined ? { error: files.notFound } : {})} />
-        <div>
-          <Button type="submit" variant="secondary">
-            {files.open.submit}
-          </Button>
+      {/* Побочная форма — в одну строку (поле и «Открыть»), чтобы очередь, ради которой открыли экран, была выше. */}
+      <form method="get" action={to("/operator/requests")} noValidate aria-label={files.open.title} className="flex items-end gap-3 desktop:max-w-measure">
+        <div className="min-w-0 flex-1">
+          <TextField label={files.open.number} name="open" inputMode="numeric" autoComplete="off" defaultValue={open ?? ""} {...(open !== undefined ? { error: files.notFound } : {})} />
         </div>
+        <Button type="submit" variant="secondary">
+          {files.open.submit}
+        </Button>
       </form>
       <Chips label={t.filter} items={filterChips("/operator/requests", { ...params, open: undefined }, "hours", hoursOptions(hours))} />
       <DataTable

@@ -88,8 +88,9 @@ test("карточка сделки в работе: одно главное д�
   await expect(page.getByRole("link", { name: new RegExp(d.card.back) }).first()).toHaveAttribute("href", "/v2/deals");
   const primary = page.locator("[data-primary-action]");
   if ((await primary.count()) === 1) await expect(primary).toHaveAttribute("href", /\/v2\/deals\/[^/]+\/(ready|start|sign\/[^/]+)$/);
+  // Строки карточки — цена и гарантия; итог «Вы получите» — главная сумма блока (строкой — в истории денег).
   await expect(page.getByText(md.card.money.guarantee).first()).toBeVisible();
-  await expect(page.getByText(md.card.money.youGet, { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(md.card.money.youGetAfter, { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: md.card.buyer.section, exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: md.card.buyer.write })).toHaveAttribute("href", /^\/v2\/chats\//);
   await expect(page.getByRole("heading", { level: 2, name: d.card.steps.section, exact: true })).toBeVisible();
@@ -105,7 +106,8 @@ test("завершённые сделки мастера открываются 
   await page.waitForURL(/\/v2\/deals\/[^/?]+$/);
   await page.waitForLoadState("networkidle");
   await expectScreenRules(page, { max: 0 });
-  await expect(page.getByRole("heading", { level: 2, name: d.card.money.section, exact: true })).toBeVisible();
+  // Заголовок «Деньги» — только для диктора: блок с суммой сам себя называет.
+  await expect(page.getByRole("heading", { level: 2, name: d.card.money.section, exact: true })).toBeAttached();
   await page.context().close();
 });
 

@@ -22,9 +22,9 @@ const item = (over: Partial<OwnPortfolioItem> = {}): OwnPortfolioItem => ({
 });
 
 describe("список работ", () => {
-  it("строка: адрес правки, тип и стиль, статус и число фото, цена «от» в тиынах, обложка", () => {
+  it("строка: адрес правки, тип и стиль (без числа фото), без плашки у опубликованной, цена «от» в тиынах, обложка", () => {
     const row = workRow(item());
-    expect(row).toMatchObject({ id: "w1", href: "/v2/executor/portfolio/w1", status: t.list.published, details: `Кухня · Лофт · ${t.list.photos(1)}`, published: true, priceFrom: 85_000_000n });
+    expect(row).toMatchObject({ id: "w1", href: "/v2/executor/portfolio/w1", status: null, details: "Кухня · Лофт", published: true, priceFrom: 85_000_000n });
     expect(row.photo).toEqual({ src: "https://files.example/1.jpg", alt: "Фото 1" });
   });
 
@@ -33,13 +33,12 @@ describe("список работ", () => {
     expect(row.status).toBe(t.list.hidden);
     expect(row.priceFrom).toBeUndefined();
     expect(row.photo).toBeUndefined();
-    expect(workRow(item({ priceFrom: null, photos: [] })).details).toBe(`Кухня · Лофт · ${t.list.photos(0)}`);
+    expect(workRow(item({ priceFrom: null, photos: [] })).details).toBe("Кухня · Лофт");
   });
 
-  it("область изображения: есть хоть одно настоящее фото — у всех slot, иначе none; счёт работ со склонением", () => {
+  it("область изображения: есть хоть одно настоящее фото — у всех slot, иначе none; счётчика работ нет", () => {
     expect(workListView([item(), item({ id: "w2", photos: [] })]).media).toBe("slot");
-    expect(workListView([item({ photos: [] })]).media).toBe("none");
-    expect([1, 2, 5, 11, 21].map((n) => t.list.count(n))).toEqual(["1 работа", "2 работы", "5 работ", "11 работ", "21 работа"]);
+    expect(workListView([item({ photos: [] })])).toEqual({ rows: [workRow(item({ photos: [] }))], media: "none" });
   });
 });
 
@@ -57,9 +56,9 @@ describe("форма работы", () => {
     expect(toPrice("abc")).toBeNaN();
   });
 
-  it("стили — весь справочник, у каждого название и подсказка", () => {
+  it("стили — весь справочник, только названия (подсказки стилей — для покупателя)", () => {
     expect(STYLE_OPTIONS.length).toBeGreaterThanOrEqual(6);
-    expect(STYLE_OPTIONS.every((o) => o.label && o.description)).toBe(true);
+    expect(STYLE_OPTIONS.every((o) => o.label && !("description" in o))).toBe(true);
   });
 });
 

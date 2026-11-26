@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { formatDateTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
 import type { DealDocument, JournalRow } from "@/modules/operator";
 import type { MoneyBlock } from "@/modules/payments";
@@ -22,9 +23,8 @@ describe("dealMoney: блок денег по журналу", () => {
     expect(dealMoney(block({ kind: "refunded", settled: false, amountTiyn: 10_200_000n }))).toMatchObject({ title: t.money.refundedPending });
   });
 
-  it("пометка тестовых денег — в примечании, только когда деньги тестовые", () => {
-    expect(dealMoney(block({ kind: "awaiting", isTest: true })).note).toBe(t.money.test);
-    expect(dealMoney(block({ kind: "awaiting" })).note).toBeUndefined();
+  it("примечания о тестовых деньгах нет: тестовую сделку называют чип, провайдер и пометка операций журнала", () => {
+    expect(dealMoney(block({ kind: "awaiting", isTest: true }))).not.toHaveProperty("note");
   });
 });
 
@@ -61,6 +61,15 @@ describe("journalTimeline: журнал денег лентой", () => {
     expect(item?.text).toContain("ПП-17");
     expect(item?.text).toContain(t.card.error("Нет поступления"));
     expect(item?.text).toContain(t.testMark);
+  });
+
+  it("время итога — только когда отличается от времени записи (с точностью до минуты)", () => {
+    const createdAt = new Date("2026-11-10T09:00:00Z");
+    const [same] = journalTimeline([row({ createdAt, settledAt: new Date("2026-11-10T09:00:20Z") })]);
+    expect(same?.text).toBe(t.card.key("hold:d1:1"));
+    const later = new Date("2026-11-11T10:00:00Z");
+    const [differs] = journalTimeline([row({ createdAt, settledAt: later })]);
+    expect(differs?.text).toBe(`${formatDateTime(later)} · ${t.card.key("hold:d1:1")}`);
   });
 
   it("пустой журнал — пустая лента", () => {

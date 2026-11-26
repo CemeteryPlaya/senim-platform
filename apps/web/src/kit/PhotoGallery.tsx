@@ -23,13 +23,16 @@ export type PhotoGalleryProps = {
   /**
    * `mosaic` — профиль мастера: один большой снимок и два малых (на телефоне большой сверху, малые под ним; на компьютере
    * большой слева, малые столбцом справа), остальные — в галерее; `strip` — лента отчётов «Ход работ»: снимки 4 : 3 в
-   * ряд (на телефоне — прокручивается по горизонтали, на компьютере — сетка из трёх колонок).
+   * ряд (на телефоне — прокручивается по горизонтали, на компьютере — сетка из трёх колонок); `cover` — обложка: первый
+   * снимок 16 : 9 во всю ширину (радиус карточки, загрузка в первую очередь), по нажатию — галерея всех снимков.
    */
-  layout: "mosaic" | "strip";
+  layout: "mosaic" | "strip" | "cover";
   /** Имя группы снимков для диктора. */
   label: string;
   /** Ширина малого снимка на экране для `next/image`; по умолчанию — для мозаики основной колонки профиля. */
   sizes?: string;
+  /** Только `cover`: слой поверх обложки (затемнение и капсула `glass-clear`). */
+  overlay?: ReactNode;
 };
 
 const TILE_SIZES = "(min-width: 64rem) 360px, 50vw";
@@ -45,7 +48,7 @@ const TILE = "relative block w-full min-w-0 pressable focus-visible:outline-2 fo
  * `glass-clear` и на чёрном (белый на чёрном 21:1). Смена снимка без анимации: при `prefers-reduced-motion` ничего не
  * меняется. Клиентский компонент.
  */
-export function PhotoGallery({ photos, layout, label, sizes }: PhotoGalleryProps) {
+export function PhotoGallery({ photos, layout, label, sizes, overlay }: PhotoGalleryProps) {
   const [index, setIndex] = useState<number | null>(null);
   const open = index !== null;
   const returnFocus = useReturnFocus(open, true);
@@ -60,7 +63,16 @@ export function PhotoGallery({ photos, layout, label, sizes }: PhotoGalleryProps
   );
 
   let tiles: ReactNode;
-  if (layout === "strip") {
+  if (layout === "cover") {
+    const first = photos[0];
+    tiles = first && (
+      <button type="button" aria-haspopup="dialog" onClick={() => setIndex(0)} className={cn(TILE, "rounded-card")}>
+        <PhotoSlot ratio="16/9" src={first.src} alt={first.alt} radius="none" sizes={sizes ?? BIG_SIZES} priority className="rounded-card">
+          {overlay}
+        </PhotoSlot>
+      </button>
+    );
+  } else if (layout === "strip") {
     const single = photos.length === 1;
     tiles = (
       <ul aria-label={label} className="-m-1 flex snap-x snap-mandatory gap-2 overflow-x-auto p-1 desktop:grid desktop:grid-cols-3 desktop:overflow-visible">

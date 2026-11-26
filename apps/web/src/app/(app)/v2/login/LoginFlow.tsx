@@ -15,7 +15,6 @@ import {
   PhotoChoiceGroup,
   Stack,
   PageTitle,
-  TextLink,
   toast,
 } from "@/kit";
 import type { Device } from "@/platform/device";
@@ -130,7 +129,8 @@ export function LoginFlow({ step: requested, role, next, device, rolePhotos }: P
 }
 
 /**
- * Шаг 1: покупатель или мастер — две фото-плитки (подпись и описание под фото). Одна плитка выбрана всегда (по умолчанию — «Я покупатель»), поэтому «Продолжить» не бывает
+ * Шаг 1: покупатель или мастер — две фото-плитки (подпись под фото, без описания: «Я покупатель» и «Я мастер» говорят
+ * сами). Одна плитка выбрана всегда (по умолчанию — «Я покупатель»), поэтому «Продолжить» не бывает
  * «без выбора»; ошибка группы — только если схема действия всё же отказала. В доке одна кнопка; «Уже регистрировались? Войти по номеру» —
  * тихая ссылка под карточками.
  */
@@ -147,7 +147,6 @@ export function RoleStep({ role, next, photos }: { role: LoginRole; next: string
               name="role"
               value="client"
               label={t.role.client}
-              description={t.role.clientDescription}
               photo={photos ? { src: photos.client } : undefined}
               icon={<Sofa aria-hidden className="size-10 text-muted" />}
               defaultChecked={role === "client"}
@@ -156,7 +155,6 @@ export function RoleStep({ role, next, photos }: { role: LoginRole; next: string
               name="role"
               value="executor"
               label={t.role.executor}
-              description={t.role.executorDescription}
               photo={photos ? { src: photos.executor } : undefined}
               icon={<Hammer aria-hidden className="size-10 text-muted" />}
               defaultChecked={role === "executor"}
@@ -207,7 +205,7 @@ function PhoneStep({ next, phone, onSent }: { next: string | null; phone: string
       <PageTitle title={t.phone.title} back={{ href: loginStepHref("role", next), label: t.phone.backLabel }} lead={t.phone.lead} />
       <form id={FORM.phone} method="post" onSubmit={form.onSubmit} noValidate>
         <Stack gap="section">
-          <PhoneField label={t.phone.label} name="phone" defaultValue={phone} error={form.fieldErrors.phone} autoFocus />
+          <PhoneField label={t.phone.label} labelHidden name="phone" defaultValue={phone} error={form.fieldErrors.phone} autoFocus />
           <FormError error={form.error} atField={Boolean(form.fieldErrors.phone)} />
         </Stack>
       </form>
@@ -221,9 +219,9 @@ function PhoneStep({ next, phone, onSent }: { next: string | null; phone: string
 }
 
 /**
- * Шаг 3: код из SMS. Порядок: поле кода → главная «Войти» → строка повторной отправки → «Изменить номер». На телефоне
- * главная кнопка — в доке у нижнего края (док — последний ребёнок колонки), поэтому повтор и ссылка стоят сразу под
- * полем; на компьютере док в потоке — повтор и ссылка ниже него.
+ * Шаг 3: код из SMS. Порядок: поле кода → главная «Войти» → строка повторной отправки. К номеру ведёт «Назад» (ссылки
+ * «Изменить номер» рядом нет — она повторяла бы «Назад»). На телефоне главная кнопка — в доке у нижнего края (док —
+ * последний ребёнок колонки), поэтому повтор стоит сразу под полем; на компьютере док в потоке — повтор ниже него.
  */
 export function CodeStep({
   next,
@@ -257,7 +255,6 @@ export function CodeStep({
         label={t.code.resend}
         waitLabel={t.code.resendIn}
       />
-      <TextLink href={phoneStep}>{t.code.changePhone}</TextLink>
     </div>
   );
 
@@ -276,7 +273,7 @@ export function CodeStep({
         {/* Одна строка колонки: форма повтора пустая (только номер) и не должна давать лишний зазор. */}
         <div>
           <form id={FORM.code} method="post" onSubmit={code.onSubmit} noValidate>
-            <CodeField label={t.code.label} name="code" error={code.fieldErrors.code} autoFocus autoSubmit />
+            <CodeField label={t.code.label} labelHidden name="code" error={code.fieldErrors.code} autoFocus autoSubmit />
             <HiddenField name="phone" value={sent.phone} />
             <HiddenField name="next" value={next ?? ""} />
           </form>

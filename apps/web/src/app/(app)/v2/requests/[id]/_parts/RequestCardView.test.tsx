@@ -26,13 +26,12 @@ const offer = (id: string, price: bigint, over: Partial<OfferInput> = {}): Offer
 });
 
 function view(over: Partial<CardView> = {}, offers: OfferInput[] = [offer("3", 100_000_00n), offer("5", 90_000_00n)]): CardView {
-  const request = { id: "r1", status: "OPEN" as const, mode: "TENDER" as const };
+  const request = { id: "r1", status: "OPEN" as const };
   return {
     id: "r1",
     title: "Кухня",
     number: 18,
     sent: null,
-    chip: { text: ru.app.requests.state.choose(offers.length), tone: "warn" },
     now: nowView({ id: "r1", mode: "TENDER", path: "TZ", state: { kind: offers.length > 0 ? "choose" : "waiting", liveOffers: offers.length }, dealId: null, chosenOfferId: null }),
     invitations: [],
     offers: offersView(request, offers, "price"),
@@ -64,6 +63,14 @@ describe.each(["mobile", "desktop"] as const)("карточка заявки, %s
     expect(count(out, 'aria-pressed="false"')).toBe(2);
     expect(out).toMatch(/aria-pressed="true"[^>]*>Дешевле/);
     expect(out).toContain(t.offers.section(2));
+    // Подпись сортировки — только для диктора.
+    expect(out).toContain(`<legend class="sr-only">${t.offers.sortLegend}</legend>`);
+  });
+
+  it("плашки состояния в шапке нет: состояние называет «Сейчас»", () => {
+    const out = html(<RequestCardView view={view()} device={device} />);
+    expect(out).not.toContain(ru.app.requests.state.choose(2));
+    expect(out).toContain(ru.app.buyer.home.now.offers.title(2));
   });
 
   it("одно предложение — сортировки нет", () => {
@@ -79,32 +86,41 @@ describe.each(["mobile", "desktop"] as const)("карточка заявки, %s
     const out = html(<RequestCardView view={view()} device={device} />);
     expect(out).toContain(`href="/v2/executors?request=r1">${t.now.executors}</a>`);
     expect(count(out, "data-primary-action")).toBe(0);
+    // Есть предложения — ссылка под их списком; нет — под «Сейчас».
+    expect(out.indexOf(t.now.executors)).toBeGreaterThan(out.indexOf("Исполнитель №3"));
+    const empty = html(<RequestCardView view={view({}, [])} device={device} />);
+    expect(count(empty, t.now.executors)).toBe(1);
+    expect(empty.indexOf(t.now.executors)).toBeGreaterThan(empty.indexOf(t.now.waiting.title));
     const direct = nowView({ id: "r1", mode: "DIRECT", path: "TZ", state: { kind: "waiting", liveOffers: 0 }, dealId: null, chosenOfferId: null });
     expect(html(<RequestCardView view={view({ now: direct })} device={device} />)).not.toContain("/v2/executors");
   });
 
-  it("пусто: обучающий экран без кнопки", () => {
+  it("пусто: только «Сейчас / Дальше» со сроком и уведомлением, без второй карточки-заглушки и без кнопки", () => {
     const out = html(<RequestCardView view={view({}, [])} device={device} />);
-    expect(out).toContain(t.offers.empty.title);
+    expect(out).toContain(t.now.waiting.body);
+    expect(out).toContain(t.now.waiting.next);
+    expect(out).not.toContain(t.offers.section(0));
     expect(count(out, "data-primary-action")).toBe(0);
     expect(out).not.toContain("aria-pressed");
   });
 
   it("сделка: одно главное действие «Открыть сделку» на сделку", () => {
-    const request = { id: "r1", status: "CONTRACTING" as const, mode: "TENDER" as const };
+    const request = { id: "r1", status: "CONTRACTING" as const };
     const now = nowView({ id: "r1", mode: "TENDER", path: "TZ", state: { kind: "deal", liveOffers: 0 }, dealId: "d9", chosenOfferId: null });
     const out = html(<RequestCardView view={view({ now, offers: offersView(request, [offer("3", 1n)], "price"), cancel: null })} device={device} />);
     expect(count(out, "data-primary-action")).toBe(1);
     expect(out).toMatch(/data-primary-action[^>]*href="\/v2\/deals\/d9"|href="\/v2\/deals\/d9"[^>]*data-primary-action/);
     expect(out).toContain(t.now.deal.action);
+    // Мастер выбран: сортировать решённые предложения незачем.
+    expect(out).not.toContain("aria-pressed");
   });
 
-  it("плашка состояния под номером; у предложения со сделкой — «Цена сделки»", () => {
-    const request = { id: "r1", status: "CLOSED" as const, mode: "TENDER" as const };
+  it("у предложения со сделкой — «Цена сделки»; сортировки у закрытой заявки нет", () => {
+    const request = { id: "r1", status: "CLOSED" as const };
     const offers = offersView(request, [offer("3", 1_020_000_00n, { status: "ACCEPTED", live: false, withDeal: true }), offer("5", 1n, { status: "DECLINED", live: false })], "price");
-    const out = html(<RequestCardView view={view({ chip: { text: ru.app.requests.state.deal, tone: "neutral" }, offers, cancel: null })} device={device} />);
-    expect(out).toContain(ru.app.requests.state.deal);
+    const out = html(<RequestCardView view={view({ offers, cancel: null })} device={device} />);
     expect(count(out, t.offers.dealPrice)).toBe(1);
+    expect(out).not.toContain("aria-pressed");
   });
 
   it("меню «Действия» только когда отмена разрешена", () => {
@@ -152,7 +168,7 @@ describe.each(["mobile", "desktop"] as const)("карточка заявки, %s
 
 describe("раскладка по устройствам", () => {
   it("телефон: действие в ActionDock последним; компьютер: под «Сейчас», дока нет", () => {
-    const request = { id: "r1", status: "CLOSED" as const, mode: "TENDER" as const };
+    const request = { id: "r1", status: "CLOSED" as const };
     const now = nowView({ id: "r1", mode: "TENDER", path: "TZ", state: { kind: "deal", liveOffers: 0 }, dealId: "d9", chosenOfferId: null });
     const v = view({ now, offers: offersView(request, [], "price"), cancel: null });
     const mobile = html(<RequestCardView view={v} device="mobile" />);

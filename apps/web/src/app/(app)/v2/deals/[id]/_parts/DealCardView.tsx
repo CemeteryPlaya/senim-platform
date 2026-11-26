@@ -34,7 +34,7 @@ import type { Device } from "@/platform/device";
 import { to } from "../../../../_shell/paths";
 import type { DealSide } from "../../../../_shell/side";
 import type { DealCover } from "../../../_parts/deal-cover";
-import { DealCoverPhoto } from "../../../_parts/DealCoverPhoto";
+import { DealCoverCaption, DealCoverPhoto } from "../../../_parts/DealCoverPhoto";
 import type { DesignView } from "../../../_parts/design-files";
 import { DesignFiles } from "../../../_parts/DesignFiles";
 import type { DealStepsView, DealTone } from "../../../_parts/deal-summary";
@@ -54,35 +54,42 @@ export type CardView = {
   lead: string;
   /** Номер сделки; копируется как «Сделка №6». Без него кнопки «Скопировать» нет. */
   number?: number;
-  chip: { text: string; tone: DealTone };
+  /**
+   * Плашка статуса — только у оконченной сделки (завершена, отменена, возврат): у идущей текущий шаг называют «Сейчас» и
+   * капсула шага на фото; `null` — плашки нет.
+   */
+  chip: { text: string; tone: DealTone } | null;
   now: NowView;
   steps: DealStepsView;
-  /** Обложка — последнее фото отчёта хода работ (`coverOf`, Ruling 6); `null` — отчётов с фото нет, карточка без обложки. */
+  /**
+   * Обложка — последнее фото отчёта хода работ (`coverOf`, Ruling 6); `null` — отчётов с фото нет, карточка без обложки.
+   * По нажатию — снимки этого отчёта на весь экран; в «Ходе работ» обложка второй раз не показывается.
+   */
   cover: DealCover | null;
-  money: MoneyView & { historyHref: string };
+  /** Блок денег карточки (`place: "card"`); `historyHref` — `null`, пока в журнале нет операций (история денег пуста). */
+  money: MoneyView & { historyHref: string | null };
+  /** «Заказ»: 2–3 строки (`orderRows`) — все видны сразу. */
   order: { label: string; value: string; map?: OrderMap }[];
   /** Свой дизайн-проект покупателя из заявки — обеим сторонам, под «Заказом» (без скрытых оператором); нет файлов — нет. */
   design?: DesignView | null;
   documents: DocumentRow[];
   /**
-   * Другая сторона: мастеру — покупатель, покупателю — мастер (имя — как отдаёт модуль, контакты — после оферты). `label` —
-   * имя строкой; `null` — имени нет (покупатель для мастера): раздел уже называет сторону.
+   * Другая сторона: мастеру — покупатель, покупателю — мастер; контакты — после оферты. Имени строкой в разделе нет: имя
+   * мастера — под заголовком экрана, раздел называет сторону.
    */
-  party: { label: string | null; contacts: PartyContacts | null; chatHref: string };
+  party: { contacts: PartyContacts | null; chatHref: string };
   /** «Ход работ» мастера: отчёты и ссылка «Добавить отчёт» (`null` — не добавить); у покупателя блока нет (`null`). */
   reports: { items: ReportView[]; addHref: string | null } | null;
   /** «Сдача работы»: фото результата и место сдачи (`deliveryView`) — обеим сторонам; не сдано — нет. */
   delivery?: DeliveryView | null;
+  /** «История»: показывается с двух событий (одно «Сделка создана» ничего не сообщает). */
   history: { items: { title: string; time: string }[]; more: boolean; allHref: string };
   /** Оставленный отзыв строками; `null` — отзыва нет. */
   review: { label: string; value: string; stacked: boolean }[] | null;
-  /** Покупателю оконченной сделки с офертой: строка выбора показа в профиле мастера; иначе нет. */
+  /** Покупателю оконченной сделки с офертой, когда он уже выбирал (после отзыва): строка выбора показа в профиле мастера; иначе нет. */
   showcase?: { text: string; href: string } | null;
   actions: { cancelText: string | null; disputeHref: string | null };
 };
-
-/** Сколько строк «Заказа» видно на телефоне до «Показать всё». */
-const ORDER_SHOWN_MOBILE = 3;
 
 /**
  * Раскрытие по нажатию (нативный `<details>`: клавиатура и диктор без скриптов). Подпись — как у `TextLink`; раскрытое
@@ -105,18 +112,17 @@ function More({ label, children, className, summaryClassName }: { label: string;
   );
 }
 
-/** Ход сделки. Компьютер — полная шкала. Телефон — компактно: «Шаг N из 5» с полосой, полная шкала — по нажатию. */
-function Progression({ steps, device }: { steps: DealStepsView; device: Device }) {
+/** Сделка идёт: шкала шагов есть и не все шаги пройдены. Остановленная (спор, отмена, возврат) и завершённая — нет. */
+const running = (steps: DealStepsView): steps is Extract<DealStepsView, { kind: "steps" }> => steps.kind === "steps" && steps.done < steps.total;
+
+/**
+ * Ход сделки — только у идущей сделки (у остановленной и завершённой о состоянии говорят «Сейчас» и деньги). Компьютер —
+ * полная шкала. Телефон — компактно: «Шаг N из 5» с полосой, полная шкала — по нажатию; подписи шага нет, когда она уже на
+ * обложке (`captionOnCover`).
+ */
+function Progression({ steps, device, captionOnCover = false }: { steps: DealStepsView; device: Device; captionOnCover?: boolean }) {
   const label = t.steps.section;
-  if (steps.kind === "stopped") {
-    return (
-      <Section title={label}>
-        <Card>
-          <Steps label={label} items={[]} stopped={{ label: steps.label }} />
-        </Card>
-      </Section>
-    );
-  }
+  if (!running(steps)) return null;
   return (
     <Section title={label}>
       <Card>
@@ -124,7 +130,7 @@ function Progression({ steps, device }: { steps: DealStepsView; device: Device }
           <Steps label={label} items={steps.items} />
         ) : (
           <Stack gap="tight">
-            <p className="text-body text-ink">{steps.caption}</p>
+            {!captionOnCover && <p className="text-body text-ink">{steps.caption}</p>}
             <Progress value={steps.done} max={steps.total} label={label} segmented />
             <More label={t.steps.all}>
               <div className="pt-3">
@@ -139,33 +145,30 @@ function Progression({ steps, device }: { steps: DealStepsView; device: Device }
 }
 
 /**
- * Деньги: пояснение строки — защита сделки покупателю, гарантия мастеру. Под обложкой (`underCover`) заголовок раздела
- * только для диктора: сумма стоит сразу под фото, а не через строку «Деньги».
+ * Деньги: одна сумма крупно; пояснение «Что это?» — у строки (гарантия мастеру) или в конце примечания (покупателю). Заголовок
+ * раздела — только для диктора: зелёный блок с суммой сам себя называет, а на компьютере встаёт вровень с левой колонкой.
+ * «История денег» — с первой операции в журнале.
  */
-function Money({ view, device, underCover = false }: { view: CardView; device: Device; underCover?: boolean }) {
+function Money({ view, device }: { view: CardView; device: Device }) {
   const m = view.money;
-  const e = view.side === "EXECUTOR" ? tm.money.explain : t.money.explain;
-  const panel = (
-    <>
-      <MoneyPanel
-        tone={m.tone}
-        title={m.title}
-        amount={m.amount}
-        rows={m.rows.map(({ explain, ...row }) => (explain ? { ...row, explain: { label: e.label, title: e.title, body: <p>{e.body}</p> } } : row))}
-        {...(m.note ? { note: m.note } : {})}
-        action={{ label: t.money.history, href: m.historyHref }}
-        device={device}
-      />
-      {m.proof && <p className="text-sub text-muted">{m.proof}</p>}
-    </>
-  );
-  if (!underCover) return <Section title={t.money.section}>{panel}</Section>;
+  const label = view.side === "EXECUTOR" ? tm.money.explain.label : t.money.explain.label;
+  const explain = m.explain && { label, title: m.explain.title, body: <p>{m.explain.body}</p> };
+  const atRow = m.rows.some((row) => row.explain);
   return (
     <section aria-labelledby="deal-money" className="flex min-w-0 flex-col gap-stack-group">
       <h2 id="deal-money" className="sr-only">
         {t.money.section}
       </h2>
-      {panel}
+      <MoneyPanel
+        tone={m.tone}
+        title={m.title}
+        amount={m.amount}
+        rows={m.rows.map(({ explain: here, ...row }) => (here && explain ? { ...row, explain } : row))}
+        {...(m.note ? { note: m.note } : {})}
+        {...(explain && !atRow ? { noteExplain: explain } : {})}
+        {...(m.historyHref ? { action: { label: t.money.history, href: m.historyHref } } : {})}
+        device={device}
+      />
     </section>
   );
 }
@@ -173,9 +176,31 @@ function Money({ view, device, underCover = false }: { view: CardView; device: D
 /** Ширина обложки: на компьютере — основная колонка `Split`, на телефоне — экран. */
 const COVER_SIZES = "(min-width: 64rem) 720px, 100vw";
 
-/** Обложка карточки: фото последнего отчёта, на нём шаг сделки капсулой (остановленная сделка — без капсулы). */
-function Cover({ cover, steps }: { cover: DealCover; steps: DealStepsView }) {
-  return <DealCoverPhoto cover={cover} caption={steps.kind === "steps" ? steps.caption : null} sizes={COVER_SIZES} className="rounded-card" />;
+/** Отчёт, чьё первое фото — обложка (`coverOf`: самый свежий отчёт с фото). */
+function coverReport(view: CardView): ReportView | null {
+  const src = view.cover?.src;
+  if (!src) return null;
+  return view.reports?.items.find((report) => report.photos[0]?.src === src) ?? null;
+}
+
+const photoCaption = (report: ReportView) => [report.title, report.time].filter(Boolean).join(" · ");
+
+/**
+ * Обложка карточки: фото последнего отчёта; на нём шаг идущей сделки капсулой (остановленная и завершённая — без капсулы). По
+ * нажатию — снимки этого отчёта на весь экран (листаются).
+ */
+function Cover({ cover, steps, report }: { cover: DealCover; steps: DealStepsView; report: ReportView | null }) {
+  const caption = running(steps) ? steps.caption : null;
+  if (!report) return <DealCoverPhoto cover={cover} caption={caption} sizes={COVER_SIZES} className="rounded-card" />;
+  return (
+    <PhotoGallery
+      layout="cover"
+      label={report.title}
+      sizes={COVER_SIZES}
+      photos={report.photos.map((photo) => ({ src: photo.src, alt: photo.alt, caption: photoCaption(report) }))}
+      overlay={caption ? <DealCoverCaption caption={caption} /> : null}
+    />
+  );
 }
 
 function OrderRows({ rows }: { rows: CardView["order"] }) {
@@ -202,31 +227,23 @@ function OrderRows({ rows }: { rows: CardView["order"] }) {
   );
 }
 
-/** «Заказ». Телефон — первые строки и «Показать всё»; компьютер — все строки. Под ними — дизайн-проект покупателя. */
-function Order({ view, device }: { view: CardView; device: Device }) {
-  const head = device === "mobile" ? view.order.slice(0, ORDER_SHOWN_MOBILE) : view.order;
-  const rest = device === "mobile" ? view.order.slice(ORDER_SHOWN_MOBILE) : [];
+/** «Заказ»: 2–3 строки условий — все сразу на телефоне и компьютере. Под ними — дизайн-проект покупателя. */
+function Order({ view }: { view: CardView }) {
   return (
     <Section title={t.order.section}>
       <Card padded={false}>
-        <OrderRows rows={head} />
-        {rest.length > 0 && (
-          // Разделитель с отступом 16 px слева — как у строк списка.
-          <More
-            label={t.order.all}
-            className="relative before:absolute before:top-0 before:right-0 before:left-card before:border-t before:border-line"
-            summaryClassName="px-card"
-          >
-            <OrderRows rows={rest} />
-          </More>
-        )}
+        <OrderRows rows={view.order} />
       </Card>
       {view.design && <DesignFiles title={t.design.title} view={view.design} />}
     </Section>
   );
 }
 
-/** Документ — строка-ссылка на PDF в новой вкладке (обработчик `/api/documents/<id>/pdf`): обычная ссылка, без перехода роутера. */
+/**
+ * Документ — строка-ссылка на PDF в новой вкладке (обработчик `/api/documents/<id>/pdf`): обычная ссылка, без перехода
+ * роутера. Справа — только значок ↗ («Открыть оферту» и «в новой вкладке» — для диктора); статус подписи — у документов,
+ * которые подписываются.
+ */
 function Documents({ view }: { view: CardView }) {
   const d = t.documents;
   return (
@@ -246,15 +263,15 @@ function Documents({ view }: { view: CardView }) {
                   rel="noopener noreferrer"
                   className="flex min-h-control w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 px-card py-3 text-body no-underline transition-colors duration-100 hover:bg-canvas active:bg-line"
                 >
-                  {/* Не помещается рядом (шрифт 200 %) — «Открыть ↗» целиком уходит строкой ниже вправо, а не за край. */}
                   <span className="flex min-w-0 flex-col gap-1">
                     <span className="text-ink wrap-break-word">{doc.name}</span>
-                    <span className="text-sub text-muted">{doc.status}</span>
+                    {doc.status && <span className="text-sub text-muted">{doc.status}</span>}
                   </span>
-                  <span className="ml-auto flex shrink-0 items-center gap-1 font-medium text-ink">
-                    {doc.open}
-                    <span className="sr-only"> ({ru.app.kit.externalHint})</span>
-                    <ExternalLink aria-hidden className="size-4 shrink-0 text-muted" />
+                  <span className="ml-auto flex shrink-0 items-center">
+                    <span className="sr-only">
+                      {doc.open} ({ru.app.kit.externalHint})
+                    </span>
+                    <ExternalLink aria-hidden className="size-5 shrink-0 text-muted" />
                   </span>
                 </a>
               </ListItem>
@@ -267,8 +284,8 @@ function Documents({ view }: { view: CardView }) {
 }
 
 /**
- * Другая сторона: покупателю — мастер (имя — как отдаёт модуль), мастеру — покупатель (имени модуль не отдаёт); контакты —
- * только после оферты (`dealContacts`), до неё — строка с пояснением.
+ * Другая сторона: покупателю — мастер, мастеру — покупатель; имени здесь нет (имя мастера — под заголовком экрана).
+ * Контакты — только после оферты (`dealContacts`), до неё — строка с пояснением.
  */
 function Party({ view, device }: { view: CardView; device: Device }) {
   const m = view.side === "EXECUTOR" ? tm.buyer : t.master;
@@ -277,11 +294,6 @@ function Party({ view, device }: { view: CardView; device: Device }) {
     <Section title={m.section}>
       <Card padded={false}>
         <List>
-          {view.party.label !== null && (
-            <ListItem>
-              <p className="px-card py-3 text-headline text-ink wrap-break-word">{view.party.label}</p>
-            </ListItem>
-          )}
           {contacts ? (
             <>
               <ListRow label={m.phone} value={contacts.phoneDisplay} />
@@ -311,10 +323,10 @@ function Party({ view, device }: { view: CardView; device: Device }) {
 
 /**
  * «Ход работ»: отчёты мастера свежими сверху (название, время, текст, лента фото 4 : 3 — по нажатию снимок открывается на весь
- * экран, листается) — обеим сторонам; мастеру ещё ссылка на экран
- * нового отчёта и пустое состояние (покупателю пустой блок не показывается).
+ * экран, листается) — обеим сторонам; мастеру ещё ссылка на экран нового отчёта и пустое состояние (покупателю пустой блок
+ * не показывается). Фото обложки (`coverId` — её отчёт) в ленте второй раз не показывается: оно уже вверху экрана.
  */
-function Reports({ reports }: { reports: NonNullable<CardView["reports"]> }) {
+function Reports({ reports, coverId }: { reports: NonNullable<CardView["reports"]>; coverId: string | null }) {
   const r = tm.reports;
   return (
     <Section title={t.reports.section}>
@@ -325,22 +337,25 @@ function Reports({ reports }: { reports: NonNullable<CardView["reports"]> }) {
       ) : (
         <Card padded={false}>
           <List>
-            {reports.items.map((report) => (
-              <ListItem key={report.id}>
-                <div className="flex flex-col gap-2 px-card py-3">
-                  <h3 className="text-headline text-ink wrap-break-word">{report.title}</h3>
-                  <p className="text-sub text-muted">{report.time}</p>
-                  {report.text && <p className="text-body whitespace-pre-line text-ink wrap-break-word">{report.text}</p>}
-                  {report.photos.length > 0 && (
-                    <PhotoGallery
-                      layout="strip"
-                      label={report.title}
-                      photos={report.photos.map((photo) => ({ src: photo.src, alt: photo.alt, caption: [report.title, report.time].filter(Boolean).join(" · ") }))}
-                    />
-                  )}
-                </div>
-              </ListItem>
-            ))}
+            {reports.items.map((report) => {
+              const photos = report.id === coverId ? report.photos.slice(1) : report.photos;
+              return (
+                <ListItem key={report.id}>
+                  <div className="flex flex-col gap-2 px-card py-3">
+                    <h3 className="text-headline text-ink wrap-break-word">{report.title}</h3>
+                    <p className="text-sub text-muted">{report.time}</p>
+                    {report.text && <p className="text-body whitespace-pre-line text-ink wrap-break-word">{report.text}</p>}
+                    {photos.length > 0 && (
+                      <PhotoGallery
+                        layout="strip"
+                        label={report.title}
+                        photos={photos.map((photo) => ({ src: photo.src, alt: photo.alt, caption: photoCaption(report) }))}
+                      />
+                    )}
+                  </div>
+                </ListItem>
+              );
+            })}
           </List>
         </Card>
       )}
@@ -400,10 +415,12 @@ function ShowcaseRow({ showcase }: { showcase: NonNullable<CardView["showcase"]>
 
 function History({ view }: { view: CardView }) {
   const h = t.history;
+  // Одно событие («Сделка создана») ничего не сообщает — раздел появляется со второго.
+  if (view.history.items.length < 2 && !view.history.more) return null;
   return (
     <Section title={h.section} id="history">
       <Card>
-        {view.history.items.length === 0 ? <p className="text-body text-muted">{h.empty}</p> : <Timeline label={h.label} items={view.history.items} />}
+        <Timeline label={h.label} items={view.history.items} />
       </Card>
       {view.history.more && <TextLink href={view.history.allHref}>{h.all}</TextLink>}
     </Section>
@@ -425,17 +442,18 @@ function Help({ side }: { side: DealSide }) {
  * в `ActionDock` последним. Есть фото отчёта — фото-герой: обложка сразу под заголовком, под ней сумма, затем «Сейчас»,
  * ход работ и ход сделки. Компьютер — `Split`: слева процесс (обложка, «Сейчас» с действием внутри, ход, ход работ,
  * документы, другая сторона, история), справа деньги, заказ и помощь. Второстепенное — меню «Действия» («…» в строке
- * заголовка).
+ * заголовка). Завершённой сделке без шага карточка «Сейчас» не нужна: о ней говорят плашка и сумма.
  */
 export function DealCardView({ view, device }: { view: CardView; device: Device }) {
   const { now } = view;
+  const showNow = now.kind !== "done";
   const primary = now.primary && <ButtonLink href={now.primary.href}>{now.primary.label}</ButtonLink>;
   const link = now.link && (
     <TextLink href={now.link.href} external={now.link.external === true}>
       {now.link.label}
     </TextLink>
   );
-  const nowBlock: ReactNode = (
+  const nowBlock: ReactNode = showNow && (
     <Stack>
       {/* Компьютер: главное действие внутри карточки «Сейчас» (разбор 3.6); телефон — в доке в конце экрана. */}
       <NowNext
@@ -459,13 +477,14 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
             <span>{view.lead}</span>
             {view.number !== undefined && <CopyButton value={tm.lead(view.number)} label={t.copyNumber} />}
           </span>
-          <StatusChip tone={view.chip.tone}>{view.chip.text}</StatusChip>
+          {view.chip && <StatusChip tone={view.chip.tone}>{view.chip.text}</StatusChip>}
         </span>
       }
     />
   );
-  const cover = view.cover && <Cover cover={view.cover} steps={view.steps} />;
-  const reports = view.reports && <Reports reports={view.reports} />;
+  const fromCover = coverReport(view);
+  const cover = view.cover && <Cover cover={view.cover} steps={view.steps} report={fromCover} />;
+  const reports = view.reports && <Reports reports={view.reports} coverId={fromCover?.id ?? null} />;
   const delivery = view.delivery && <Delivery delivery={view.delivery} />;
 
   if (device === "desktop") {
@@ -490,7 +509,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
           aside={
             <Stack gap="section">
               <Money view={view} device={device} />
-              <Order view={view} device={device} />
+              <Order view={view} />
               <Help side={view.side} />
             </Stack>
           }
@@ -508,12 +527,12 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
         <>
           <Stack>
             {cover}
-            <Money view={view} device={device} underCover />
+            <Money view={view} device={device} />
           </Stack>
           {nowBlock}
           {delivery}
           {reports}
-          <Progression steps={view.steps} device={device} />
+          <Progression steps={view.steps} device={device} captionOnCover />
         </>
       ) : (
         <>
@@ -524,7 +543,7 @@ export function DealCardView({ view, device }: { view: CardView; device: Device 
           {reports}
         </>
       )}
-      <Order view={view} device={device} />
+      <Order view={view} />
       <Documents view={view} />
       <Party view={view} device={device} />
       {view.review && <Review rows={view.review} side={view.side} />}

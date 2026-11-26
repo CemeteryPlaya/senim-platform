@@ -174,7 +174,7 @@ function buyerNow(i: NowInput): NowView {
       if (!i.manual) return row("pay-pending", n.payPending);
       return row(
         "pay-transfer",
-        { title: n.payTransfer.title(formatMoney(i.payTiyn)), body: n.payTransfer.body, next: n.payTransfer.next },
+        { title: n.payTransfer.title(formatMoney(i.payTiyn)), next: n.payTransfer.next },
         null,
         i.contractPdf ? { label: ru.app.deal.openDocument.CONTRACT, href: i.contractPdf, external: true } : null,
       );
@@ -304,51 +304,86 @@ export type MoneyInput = {
   manual?: boolean;
 };
 
+/**
+ * Где показан блок денег: `card` — карточка сделки (одна сумма крупно, без строк-повторов главной суммы и без даты
+ * резерва), `history` — история денег (полная смета строками и дата резерва из журнала). По умолчанию — история.
+ */
+export type MoneyPlace = "card" | "history";
+
 export type MoneyView = {
   tone: MoneyTone;
   title: string;
   amount: bigint;
+  /** Строки; `explain: true` — к этой строке пояснение `explain` («Что это?»). */
   rows: (Omit<MoneyRow, "explain"> & { explain?: true })[];
   note?: string;
-  /** Доказательство из журнала вторичным текстом под блоком: дата резерва (номер операции банка — только в «Операциях»). */
+  /**
+   * Пояснение «Что это?» по факту состояния (до приёмки — деньги в банке, после — оплата мастеру): у строки с `explain: true`,
+   * а если такой строки нет — в конце примечания. Нет — пояснения нет.
+   */
+  explain?: { title: string; body: string };
+  /** Доказательство из журнала вторичным текстом под блоком (история денег): дата резерва. */
   proof?: string;
+  /** Есть ли операции в журнале (оплата хотя бы начата): нет — ссылки «История денег» на карточке нет, экран был бы пуст. */
+  operations: boolean;
 };
+
+/** Операции в журнале есть, как только оплата начата (в обработке, прошла или не прошла); до неё история денег пуста. */
+const hasOperations = (block: MoneyBlock): boolean => block.kind !== "awaiting" || block.payment !== "none";
 
 /**
  * Блок денег покупателя — только из журнала (`moneyBlock`): тон по виду блока (`protected` — единственный зелёный),
- * главная сумма — то, что сейчас важно покупателю: к оплате, в банке, сколько он заплатил (после выплаты), сколько
- * возвращено. Выплату мастеру (цена − гарантия 6%) покупателю не показываем. Строка «Цена по оферте» — снимок оферты,
- * с пояснением «Что это?» (деньги в банке под защитой; доплат сверх цены нет, ADR-015). Пометка тестового платежа (`isTest`) в v2 не выводится.
+ * главная сумма — то, что сейчас важно покупателю: к оплате (без доплат), в банке, сколько он заплатил (после выплаты),
+ * сколько возвращено. Выплату мастеру (цена − гарантия 6%) покупателю не показываем. Покупатель платит ровно цену по
+ * оферте (ADR-015), поэтому на карточке (`place: "card"`) строк сметы нет — они повторяли бы главную сумму; «Что это?» —
+ * в конце примечания, а в споре и после выплаты его нет. В истории денег — смета строками («Цена по оферте», «Итого к
+ * оплате») с пояснением по факту: до приёмки — деньги в банке, после — оплата мастеру. Пометка тестового платежа (`isTest`)
+ * в v2 не выводится.
  */
-export function moneyView({ block, estimate, snapshot, manual = false }: MoneyInput): MoneyView {
+export function moneyView({ block, estimate, snapshot, manual = false }: MoneyInput, place: MoneyPlace = "history"): MoneyView {
   const m = t.money;
-  const offerRows = [
-    { label: m.price, amount: snapshot.priceTiyn, explain: true as const },
-  ];
+  const card = place === "card";
+  const operations = hasOperations(block);
+  const held = { title: m.explain.title, body: m.explain.body };
+  const offerRows = card ? [] : [{ label: m.price, amount: snapshot.priceTiyn, explain: true as const }];
   switch (block.kind) {
     case "awaiting": {
       const text = block.payment === "PENDING" ? (manual ? m.transfer : m.pending) : block.payment === "FAILED" ? m.failed : m.awaiting;
-      const rows = [
-        { label: m.price, amount: estimate.priceTiyn },
-        { label: m.total, amount: estimate.totalTiyn, total: true, explain: true as const },
-      ];
-      return { tone: "awaiting", title: text.title, amount: estimate.totalTiyn, rows, note: text.note };
+      const rows = card
+        ? []
+        : [
+            { label: m.price, amount: estimate.priceTiyn },
+            { label: m.total, amount: estimate.totalTiyn, total: true, explain: true as const },
+          ];
+      return { tone: "awaiting", title: text.title, amount: estimate.totalTiyn, rows, note: text.note, explain: held, operations };
     }
-    case "protected": {
-      return { tone: "protected", title: m.protected.title, amount: block.amountTiyn, rows: offerRows, note: m.protected.note, proof: m.reservedAt(formatDate(block.reservedAt)) };
-    }
+    case "protected":
+      return {
+        tone: "protected",
+        title: m.protected.title,
+        amount: block.amountTiyn,
+        rows: offerRows,
+        note: m.protected.note,
+        explain: held,
+        ...(card ? {} : { proof: m.reservedAt(formatDate(block.reservedAt)) }),
+        operations,
+      };
     case "frozen":
-      return { tone: "frozen", title: m.frozen.title, amount: block.bankBalanceTiyn, rows: offerRows, note: m.frozen.note };
+      // Карточка: заголовок и сумма — всё (что дальше — в «Сейчас»).
+      return card
+        ? { tone: "frozen", title: m.frozen.title, amount: block.bankBalanceTiyn, rows: [], operations }
+        : { tone: "frozen", title: m.frozen.title, amount: block.bankBalanceTiyn, rows: offerRows, note: m.frozen.note, explain: held, operations };
     case "completed": {
       const split = block.refundedTiyn > 0n;
       const rows = [...offerRows, ...(split ? [{ label: m.refundedRow, amount: block.refundedTiyn }] : [])];
       const c = m.completed;
       const note = split ? (block.settled ? c.splitDone : c.splitPending) : block.settled ? c.done : c.pending;
+      const after = block.settled ? m.explain.paid : m.explain.paying;
       // Сколько заплатил покупатель — из журнала (`paidTiyn`, подтверждённая оплата); снимок оферты — только если оплаты в журнале нет.
-      return { tone: "completed", title: c.title, amount: block.paidTiyn ?? snapshot.buyerTotalTiyn, rows, note };
+      return { tone: "completed", title: c.title, amount: block.paidTiyn ?? snapshot.buyerTotalTiyn, rows, note, ...(card ? {} : { explain: after }), operations };
     }
     case "refunded":
-      return { tone: "refunded", title: block.settled ? m.refunded.done : m.refunded.pending, amount: block.amountTiyn, rows: [] };
+      return { tone: "refunded", title: block.settled ? m.refunded.done : m.refunded.pending, amount: block.amountTiyn, rows: [], operations };
   }
 }
 
@@ -361,23 +396,27 @@ export type MasterMoneyInput = {
 /**
  * Блок денег мастера — только из журнала (`moneyBlock`) и сметы мастера, ничего не считается здесь. Главная сумма — всегда
  * сумма мастера, и заголовок называет её: пока оплаты мастеру нет (ждём оплату, оплата идёт или не прошла, деньги
- * покупателя в банке) — «Вы получите после приёмки» (цена по оферте − гарантия 6%), а состояние — первой фразой пояснения;
+ * покупателя в банке) — «Вы получите после приёмки» (цена по оферте − гарантия 6%), а состояние — пояснением;
  * спор — «Оплата вам приостановлена спором»; после раскрытия — его часть из журнала (`paidToMasterTiyn`: идёт или получена).
- * Строки — «Цена по оферте», «Гарантия оплаты и клиента (6%)» с пояснением и «Вы получите». Сумм покупателя (к оплате,
+ * Строки — «Цена по оферте» и «Гарантия оплаты и клиента (6%)» с пояснением по факту (до приёмки — деньги в банке, после —
+ * оплата); итог «Вы получите» — только в истории денег (на карточке он повторял бы главную сумму). Сумм покупателя (к оплате,
  * остаток в банке, возврат) мастеру не показываем: при возврате покупателю — «Вы получите по этой сделке: 0 ₸».
  */
-export function masterMoneyView({ block, estimate }: MasterMoneyInput): MoneyView {
+export function masterMoneyView({ block, estimate }: MasterMoneyInput, place: MoneyPlace = "history"): MoneyView {
   const m = tmd.card.money;
+  const card = place === "card";
+  const operations = hasOperations(block);
   const priceRow = { label: m.price, amount: estimate.priceTiyn };
   const offerRows = (youGet: bigint, label: string = m.youGet) => [
     priceRow,
     { label: m.guarantee, amount: estimate.extraTiyn, explain: true as const },
-    { label, amount: youGet, total: true },
+    ...(card ? [] : [{ label, amount: youGet, total: true }]),
   ];
+  const explain = (body: string) => ({ title: m.explain.title, body });
   switch (block.kind) {
     case "awaiting": {
       const note = block.payment === "PENDING" ? m.pending : block.payment === "FAILED" ? m.failed : m.awaiting;
-      return { tone: "awaiting", title: m.youGetAfter, amount: estimate.totalTiyn, rows: offerRows(estimate.totalTiyn), note };
+      return { tone: "awaiting", title: m.youGetAfter, amount: estimate.totalTiyn, rows: offerRows(estimate.totalTiyn), note, explain: explain(m.explain.body), operations };
     }
     case "protected":
       return {
@@ -386,10 +425,12 @@ export function masterMoneyView({ block, estimate }: MasterMoneyInput): MoneyVie
         amount: estimate.totalTiyn,
         rows: offerRows(estimate.totalTiyn),
         note: m.protected,
-        proof: m.reservedAt(formatDate(block.reservedAt)),
+        explain: explain(m.explain.body),
+        ...(card ? {} : { proof: m.reservedAt(formatDate(block.reservedAt)) }),
+        operations,
       };
     case "frozen":
-      return { tone: "frozen", title: m.frozen.title, amount: estimate.totalTiyn, rows: offerRows(estimate.totalTiyn), note: m.frozen.note };
+      return { tone: "frozen", title: m.frozen.title, amount: estimate.totalTiyn, rows: offerRows(estimate.totalTiyn), note: m.frozen.note, explain: explain(m.explain.body), operations };
     case "completed": {
       const c = m.completed;
       // Раздел по спору: часть оплаты мастеру по решению, гарантия от доли — не от сметы; строки сметы ввели бы в заблуждение.
@@ -400,6 +441,7 @@ export function masterMoneyView({ block, estimate }: MasterMoneyInput): MoneyVie
           amount: block.paidToMasterTiyn,
           rows: [priceRow],
           note: block.settled ? c.splitNote : c.splitNotePending,
+          operations,
         };
       }
       // Оплата получена — итог в прошедшем времени («Вы получили»); пока банк переводит — «Вы получите».
@@ -408,10 +450,15 @@ export function masterMoneyView({ block, estimate }: MasterMoneyInput): MoneyVie
         title: block.settled ? c.done : c.pending,
         amount: block.paidToMasterTiyn,
         rows: offerRows(block.paidToMasterTiyn, block.settled ? m.youGot : m.youGet),
+        explain: explain(block.settled ? m.explain.paid : m.explain.paying),
+        operations,
       };
     }
-    case "refunded":
-      return { tone: "refunded", title: m.refunded.title, amount: 0n, rows: [priceRow], note: block.settled ? m.refunded.done : m.refunded.pending };
+    case "refunded": {
+      // Карточка: «деньги вернулись покупателю» уже сказано в «Сейчас» — примечание только пока банк возвращает.
+      const note = block.settled ? (card ? null : m.refunded.done) : m.refunded.pending;
+      return { tone: "refunded", title: m.refunded.title, amount: 0n, rows: [priceRow], ...(note ? { note } : {}), operations };
+    }
   }
 }
 
@@ -440,14 +487,12 @@ export function cancelText(i: { side: DealSide; canCancel: boolean; status: Deal
 export type OrderMap = { point: { lat: number; lng: number } | null; address: string };
 
 export type OrderInput = {
-  title: string;
   city: string | null;
   /** Адрес заказа — мастеру, когда его отдал модуль заявок и оферта заключена; иначе нет. */
   address?: string | null;
   /** Точка заказа — вместе с адресом, из того же ответа модуля заявок; по ней ссылки на карты. */
   location?: { lat: number; lng: number } | null;
   plannedReadyAt: Date | null;
-  signedAt: Date | null;
   durationDays: number;
   warrantyMonths: number;
   /** Дата готовности уже стоит в «Сейчас» — здесь не повторяется. */
@@ -455,9 +500,10 @@ export type OrderInput = {
 };
 
 /**
- * «Заказ»: что делаем и существенные условия. Срок — одной строкой: известна плановая дата готовности — дата (если её уже
- * не назвала карточка «Сейчас»), иначе — срок изготовления в днях из оферты. Адрес — только если он передан (мастеру после
- * оферты). Другая сторона — в своём блоке.
+ * «Заказ»: существенные условия — 2–3 строки, все видны сразу. Название — в заголовке экрана, дата оферты — в «Истории»:
+ * здесь их нет. Город — пока нет адреса (адрес начинается с города): мастеру после оферты — адрес, покупателю — город. Срок —
+ * одной строкой: известна плановая дата готовности — дата (если её уже не назвала карточка «Сейчас»), иначе — срок
+ * изготовления в днях из оферты. Другая сторона — в своём блоке.
  */
 export function orderRows(o: OrderInput): { label: string; value: string; /** Под значением — ссылки «Открыть на карте» (адрес заказа): по точке, а без неё — поиск по адресу. */ map?: OrderMap }[] {
   const r = t.order;
@@ -467,12 +513,13 @@ export function orderRows(o: OrderInput): { label: string; value: string; /** П
       : [{ label: r.readyBy, value: formatDate(o.plannedReadyAt) }]
     : [{ label: r.duration, value: formatDays(o.durationDays) }];
   return [
-    { label: r.what, value: o.title },
-    ...(o.city ? [{ label: r.city, value: o.city }] : []),
-    ...(o.address ? [{ label: tmd.card.order.address, value: o.address, map: { point: o.location ?? null, address: o.address } }] : []),
+    ...(o.address
+      ? [{ label: tmd.card.order.address, value: o.address, map: { point: o.location ?? null, address: o.address } }]
+      : o.city
+        ? [{ label: r.city, value: o.city }]
+        : []),
     ...term,
     { label: r.warranty, value: formatMonths(o.warrantyMonths) },
-    ...(o.signedAt ? [{ label: r.signedAt, value: formatDate(o.signedAt) }] : []),
   ];
 }
 
@@ -491,20 +538,21 @@ export type DocumentInput = {
 export type DocumentRow = {
   id: string;
   name: string;
-  status: string;
+  /** Статус подписи; `null` — документ не подписывается (выписка, расписка): строки статуса нет. */
+  status: string | null;
   href: string;
-  /** Подпись ссылки: «Открыть» и вид документа («Открыть оферту», «Открыть акт», «Открыть выписку»). */
+  /** Имя ссылки для диктора: «Открыть» и вид документа («Открыть оферту», «Открыть акт», «Открыть выписку»); на экране — значок ↗. */
   open: string;
 };
 
 /**
- * Статус подписи словами по роду документа (оферта — она, акт — он); выписка и расписка не подписываются. Акт, который
+ * Статус подписи словами по роду документа (оферта — она, акт — он); выписка и расписка не подписываются — статуса нет. Акт, который
  * так и остался неподписанным, когда сделку закрыло решение по спору (раздел или полный возврат), — «Не подписан: спор
  * решён оператором», а не «Ждёт подписей».
  */
-function documentStatus(doc: DocumentInput, outcome: DisputeOutcome | null): string {
+function documentStatus(doc: DocumentInput, outcome: DisputeOutcome | null): string | null {
   const d = t.documents;
-  if (!doc.signable || (doc.kind !== "CONTRACT" && doc.kind !== "ACCEPTANCE_ACT")) return d.notSigned;
+  if (!doc.signable || (doc.kind !== "CONTRACT" && doc.kind !== "ACCEPTANCE_ACT")) return null;
   if (doc.kind === "ACCEPTANCE_ACT" && doc.status === "SIGNING" && (outcome === "PARTIAL_SPLIT" || outcome === "FULL_REFUND")) return d.actByDispute;
   if (doc.status === "SIGNING" && (doc.canSign.hand || doc.canSign.ecp)) return d.yours;
   return d.status[doc.kind][doc.status];
@@ -571,7 +619,8 @@ export type DeliveryView = { time: string; photos: { id: string; src: string; al
 
 /**
  * «Сдача работы»: фото результата и место сдачи — обеим сторонам, чтобы покупатель видел, что сдано, до подписи акта.
- * В радиусе — расстояние и радиус; дальше — предупреждение (`far`); геолокации не было — так и сказано. Не сдано — `null`.
+ * В радиусе — просто «у адреса заказа» (метры — в акте); дальше — предупреждение с метрами (`far`); геолокации не было —
+ * так и сказано. Не сдано — `null`.
  */
 export function deliveryView(ready: ReadyInput): DeliveryView | null {
   if (!ready) return null;
@@ -579,7 +628,9 @@ export function deliveryView(ready: ReadyInput): DeliveryView | null {
   const place =
     ready.distanceM === null || ready.withinRadius === null
       ? d.noGps
-      : (ready.withinRadius ? d.near : d.far)(String(ready.distanceM), String(ready.radiusM));
+      : ready.withinRadius
+        ? d.near
+        : d.far(String(ready.distanceM), String(ready.radiusM));
   return {
     time: formatDateTime(ready.at),
     photos: ready.photos.map((photo, index) => ({ id: photo.id, src: photo.src, alt: d.photoAlt(index + 1) })),
@@ -602,7 +653,6 @@ type HistoryTexts = {
   concluded: string;
   paid: string;
   started: string;
-  progress: string;
   ready: string;
   accepted: string;
   completed: string;
@@ -637,7 +687,7 @@ function whose<T>(actor: string, side: DealSide, texts: { readonly you: T; reado
  * Белый список событий для стороны: человеческий текст по действию и стороне («Вы …» / «Мастер …» у покупателя, «Вы …» /
  * «Покупатель …» у мастера). Подписи документа (от руки и ЭЦП) — одна строка на сторону и документ; документ определяется
  * по ходу сделки (до «Мастер сдал работу» — оферта, после — акт). Служебные события (выпуск документов, операции банка,
- * переписка) и неизвестные — `null`.
+ * переписка) и неизвестные — `null`. Отчёты о ходе работ — тоже `null`: они с теми же датами показаны в «Ходе работ».
  */
 function eventTitle(e: HistoryEvent, phase: Phase, side: DealSide, h: HistoryTexts): string | null {
   switch (e.action) {
@@ -652,8 +702,6 @@ function eventTitle(e: HistoryEvent, phase: Phase, side: DealSide, h: HistoryTex
       return h.paid;
     case "deal.started":
       return h.started;
-    case "deal.progress.reported":
-      return h.progress;
     case "deal.ready":
       return h.ready;
     case "deal.accepted":
@@ -707,8 +755,11 @@ export function historyView(
   return { items: opts.all ? fresh : fresh.slice(0, opts.limit), more: !opts.all && fresh.length > opts.limit };
 }
 
-/** Строка «Показ в профиле мастера: …» с выбором покупателя (`answered` — выбирал ли он) и ссылкой «Изменить». */
-export function showcaseLine(dealId: string, view: { answered: boolean; photos: boolean; price: boolean; address: string; signature: string }): { text: string; href: string } {
+/**
+ * Строка «Показ в профиле мастера: …» с выбором покупателя и ссылкой «Изменить». Только когда покупатель уже выбирал
+ * (страница проверяет `answered`): до ответа «Изменить» нечего, тот же выбор ждёт на экране отзыва.
+ */
+export function showcaseLine(dealId: string, view: { photos: boolean; price: boolean; address: string; signature: string }): { text: string; href: string } {
   const s = ru.app.deal.showcase;
-  return { text: s.line(view.answered ? s.summary.of(view) : s.summary.unanswered), href: dealHrefs(dealId).showcase };
+  return { text: s.line(s.summary.of(view)), href: dealHrefs(dealId).showcase };
 }

@@ -4,6 +4,7 @@ import { Chips, Columns, EmptyState, FilterList, PageTitle, Pagination, Sidebar,
 import { getDevice } from "@/platform/device";
 import { getCatalogFacets, listCatalog, parseCatalogFilter, type SearchParams } from "@/modules/companies";
 import { pageHref, userPastOnboarding } from "../../_shell/auth";
+import { cardMedia } from "../_parts/work-card";
 import { catalogView } from "./_parts/catalog-view";
 
 const t = ru.app.guest.catalog;
@@ -36,7 +37,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
               meta={card.meta}
               byline={card.byline}
               priceFrom={card.priceFrom}
-              media={view.media}
+              media={cardMedia(view.media, card, device)}
               photo={card.photo}
               headingLevel={2}
               priority={index < (device === "desktop" ? 3 : 1)}
@@ -53,7 +54,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const found = view.found && <p className="text-sub text-muted">{view.found}</p>;
   return (
     <Stack gap="section">
-      <PageTitle title={t.title} lead={t.lead} />
+      <PageTitle title={t.title} />
       {!view.showFilters ? (
         results
       ) : device === "desktop" ? (

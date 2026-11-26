@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { brand } from "@/config/brand";
 import { ru } from "@/i18n/ru";
-import { HelpBlock, PageTitle, Stack } from "@/kit";
+import { PageTitle, Stack } from "@/kit";
 import { listDeals, nextStepsOf, type NextStep } from "@/modules/deal-core";
 import { getDevice } from "@/platform/device";
 import { logger } from "@/platform/logger";
@@ -12,7 +11,6 @@ import type { DealSide } from "../../../_shell/side";
 import { REGISTER } from "../../executor/_parts/approved";
 import { GATE_BACK, MasterGate } from "../../executor/_parts/MasterGate";
 import { DealList } from "../_parts/DealList";
-import { dealHelpItems } from "../_parts/help-items";
 import { consentMissingOf, payWaitingMaster } from "../../_parts/pay-waits";
 import { dealListView } from "../_parts/list-view";
 
@@ -30,7 +28,8 @@ const OTHER: Record<DealSide, DealSide> = { CLIENT: "EXECUTOR", EXECUTOR: "CLIEN
  * статус, ход, деньги из журнала по стороне). Сделки другой роли сюда не попадают: если они есть и роль выдана, — строка-ссылка
  * на переключение роли. Пусто — обучающий экран с одним действием стороны (покупателю — «Заказать мебель», мастеру —
  * «Открыть заявки»). Мастер без одобрения и без сделок — экран статуса проверки, а не пустой список. Одна колонка на обоих
- * устройствах (компьютер — 760 px по центру), «Помощь» — под списком.
+ * устройствах (компьютер — 760 px по центру). «Помощи» здесь нет: те же вопросы — внутри каждой сделки (место блока по
+ * rules.md — главная и сделка).
  */
 export default async function DealsPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -57,15 +56,11 @@ export default async function DealsPage({ searchParams }: Props) {
   // После переключения роли человек остаётся в «Сделках» — уже другой роли.
   const otherRole = user.roles.includes(other) && all.some((d) => d.myRole === other) ? switchRoleTo(other, to("/deals")) : null;
 
-  const help = <HelpBlock items={dealHelpItems(side)} supportEmail={brand.support.email} />;
-  const list = <DealList view={view} otherRole={otherRole} side={side} />;
-
-  // Одна колонка на обоих устройствах (компьютер — 760 px по центру): «Помощь» — под списком, а не одна в правой колонке.
+  // Одна колонка на обоих устройствах (компьютер — 760 px по центру).
   return (
     <Stack gap="section" className="desktop:mx-auto desktop:w-full desktop:max-w-home">
       <PageTitle title={t.title} />
-      {list}
-      {help}
+      <DealList view={view} otherRole={otherRole} side={side} />
     </Stack>
   );
 }

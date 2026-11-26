@@ -89,7 +89,8 @@ test("список → диалог: собеседник, «Назад: Чат�
   await page.waitForLoadState("networkidle");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/Исполнитель №\d+/);
   await expect(page.getByRole("link", { name: new RegExp(t.room.back) }).first()).toBeVisible();
-  await expect(log(page).getByText(t.room.hiddenSystem)).toBeVisible();
+  // О скрытых контактах — одна строка под заголовком с «Почему?», в ленте второй нет.
+  await expect(page.getByText(t.room.hiddenShort)).toBeVisible();
   await expectScreenRules(page);
 
   // «Почему?» — пояснение: шторка на телефоне, поповер на компьютере.

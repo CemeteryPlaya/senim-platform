@@ -79,13 +79,14 @@ describe("«Заявки» мастера", () => {
 });
 
 describe("«Мои предложения»", () => {
-  it("пусто — обучающий экран; после предложения — карточка с ценой и статусом «Ждёт ответа»", async () => {
+  it("пусто — обучающий экран; после предложения — карточка с ценой, без плашки (ждёт покупателя — обычный ход)", async () => {
     const executor = await master({ segment: "COMFORT" });
     expect(await render(OffersPage)).toContain(m.offers.empty.title);
     const requestId = await makeOpenRequest(await makeClient(), { segment: "COMFORT" });
     await sendOffer(executor, offerInput(requestId, 500_000));
     const out = await render(OffersPage);
-    expect(out).toContain(m.offers.status.waiting);
+    // Своя цена ждёт покупателя: плашки нет; «Ждёт вашего ответа» — только при встречной цене покупателя.
+    expect(out).not.toContain(m.offers.status.buyerPrice);
     expect(out).toContain(`href="/v2/executor/requests/${requestId}"`);
     expect(out).toContain(m.offers.chip(m.offers.chips.waiting, 1));
     expect(await render(OffersPage, { show: "chosen" })).toContain(m.offers.emptyFilter.title);

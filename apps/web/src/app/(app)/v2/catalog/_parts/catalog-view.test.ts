@@ -79,14 +79,14 @@ describe("catalogView: карточки", () => {
     expect(v.cards[11].href).toBe("/v2/executors/111");
   });
 
-  it("карточка: ссылка на профиль, тип · место, цена в тиынах", () => {
+  it("карточка: ссылка на профиль, место (тип мебели не повторяется), цена в тиынах", () => {
     const [c] = view(result()).cards;
-    expect(c).toEqual({ id: "w1", href: "/v2/executors/7", title: "Светлая кухня", meta: "Кухня · Астана", byline: "Исполнитель №7 · 4,5 · 3 отзыва", priceFrom: 120_000_000n });
+    expect(c).toEqual({ id: "w1", href: "/v2/executors/7", title: "Светлая кухня", meta: "Астана", byline: "Исполнитель №7 · 4,5 · 3 отзыва", priceFrom: 120_000_000n });
   });
 
-  it("место не указано — в meta только тип; цены нет — поля priceFrom нет", () => {
+  it("место не указано — строки под названием нет; цены нет — поля priceFrom нет", () => {
     const [c] = view(result({ items: [card({ place: "", priceFrom: null })] })).cards;
-    expect(c.meta).toBe("Кухня");
+    expect(c.meta).toBe("");
     expect(c).not.toHaveProperty("priceFrom");
   });
 
@@ -142,6 +142,12 @@ describe("catalogView: счёт, страницы и состояния", () => 
     expect(v.hrefFor(3)).toBe("/v2/catalog?type=kitchen&page=3");
     expect(v.empty).toBeNull();
     expect(v.similarLink).toEqual({ href: "/v2/requests/new", label: t.similarLink });
+  });
+
+  it("без фильтра строки «Найдено N работ» нет: число ничего не говорит", () => {
+    const v = view(result({ total: 30, page: 1, pageCount: 3 }), { page: 1 });
+    expect(v.state).toBe("results");
+    expect(v.found).toBeNull();
   });
 
   it("пустой результат по фильтру: «Сбросить фильтр» на каталог", () => {

@@ -87,6 +87,14 @@ describe("PhotoGallery (закрытая)", () => {
   it("лента: плитка на каждый снимок", () => {
     expect(count(html(<PhotoGallery photos={photos} layout="strip" label="Ход" />), "<button")).toBe(5);
   });
+  it("обложка: одна кнопка 16 : 9 на первый снимок (остальные — в галерее), слой поверх", () => {
+    const out = html(<PhotoGallery photos={photos} layout="cover" label="Обложка" overlay={<span>Шаг 2 из 5</span>} />);
+    expect(count(out, "<button")).toBe(1);
+    expect(hasClass(out, "aspect-video")).toBe(true);
+    expect(out).toContain('alt="Работа 0"');
+    expect(out).not.toContain('alt="Работа 1"');
+    expect(out).toContain("Шаг 2 из 5");
+  });
   it("пусто — ничего", () => {
     expect(html(<PhotoGallery photos={[]} layout="mosaic" label="x" />)).toBe("");
   });

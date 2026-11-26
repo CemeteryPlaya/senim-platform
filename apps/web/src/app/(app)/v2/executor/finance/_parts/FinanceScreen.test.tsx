@@ -30,7 +30,10 @@ const render = (finance: ExecutorFinance, month: string | undefined, device: Dev
 
 const WITH_PAYMENTS = journal(
   [row(), row({ dealId: "d2", dealNumber: 8, state: "reserved", amountTiyn: 48_000_000n, at: new Date("2026-11-12T10:00:00Z") })],
-  [{ month: "2026-11", receivedTiyn: 115_200_000n, deals: 1 }],
+  [
+    { month: "2026-09", receivedTiyn: 60_000_000n, deals: 1 },
+    { month: "2026-11", receivedTiyn: 115_200_000n, deals: 1 },
+  ],
 );
 
 describe.each(["mobile", "desktop"] as const)("«Финансы» мастера (%s)", (device) => {
@@ -61,16 +64,28 @@ describe.each(["mobile", "desktop"] as const)("«Финансы» мастера
     expect(out).toContain('href="/v2/executor/finance?month=2026-08"');
   });
 
-  it("столбики: таблица-дубль для диктора по шести месяцам", () => {
+  it("столбики «По месяцам» — с месяца первой оплаты (пустые месяцы до неё не рисуем), таблица-дубль для диктора; последними", () => {
     const out = render(WITH_PAYMENTS, undefined, device);
-    expect(out).toContain("Ноябрь 2026");
-    expect(out).toContain("Июнь 2026");
-    expect(out).toContain(t.chart.label);
+    const chart = out.slice(out.indexOf(t.chart.label));
+    expect(chart).toContain("Сентябрь 2026");
+    expect(chart).toContain("Ноябрь 2026");
+    expect(chart).not.toContain("Август 2026");
+    expect(out).toContain(`>${t.chart.title}</h2>`);
+    // Оплаты месяца — сразу под суммой месяца, до графика; заголовок списка — только для диктора.
+    expect(out.indexOf("Сделка № 7, 3 ноября 2026")).toBeLessThan(out.indexOf(t.chart.label));
+    expect(out).toMatch(new RegExp(`<h2 id="fin-payments" class="sr-only">${t.payments.title}</h2>`));
   });
 
-  it("«Ожидает после приёмки» — героем: зелёный блок денег с крупной суммой первым, до месяца", () => {
+  it("оплата только в одном месяце — столбиков нет (сравнивать не с чем)", () => {
+    const one = journal([row()], [{ month: "2026-11", receivedTiyn: 115_200_000n, deals: 1 }]);
+    expect(render(one, undefined, device)).not.toContain(t.chart.title);
+  });
+
+  it("«Ожидает после приёмки» — героем: зелёный блок денег с крупной суммой первым, до месяца; имя раздела — для диктора", () => {
     const out = render(WITH_PAYMENTS, undefined, device);
     expect(out).toContain("bg-accent-soft");
+    expect(out).toMatch(new RegExp(`<h2 id="fin-awaiting" class="sr-only">${t.awaiting.title}</h2>`));
+    expect(out).toContain(t.awaiting.label);
     expect(out.indexOf(t.awaiting.title)).toBeLessThan(out.indexOf(t.total));
     expect(out).toContain("text-display-amount");
   });

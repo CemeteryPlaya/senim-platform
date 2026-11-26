@@ -7,6 +7,7 @@ import { incomePeriodSchema, incomeReport } from "@/modules/operator";
 import { pageHref, requireOperator } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
 import { TableOrCards } from "../_parts/TableOrCards";
+import { incomeTotals } from "./_parts/income-view";
 import { flatParams, thisMonth, type SearchParams } from "../_parts/search-params";
 
 const t = ru.app.operatorDeals;
@@ -21,7 +22,8 @@ type Props = { searchParams: Promise<SearchParams> };
  * Доход платформы по схеме «6% с мастера» (ADR-015) за период — только из журнала денег (`platformIncomeReport`), не из статусов сделок.
  * Период — форма GET (даты в адресе: ссылкой можно поделиться, работает без JavaScript); по умолчанию текущий месяц по
  * Астане. Неверный период — сообщение у поля и отчёт за месяц по умолчанию. Строки — сделки с пометкой «тестовая» у
- * тестовой операции (только оператору); внизу — выгрузка CSV за тот же период.
+ * тестовой операции (только оператору); внизу — выгрузка CSV за тот же период (её столбцы не меняются).
+ * «Итого» (показатель и столбец) — только когда доход отличается от гарантии (`incomeTotals`, ADR-015).
  */
 export default async function IncomePage({ searchParams }: Props) {
   const sp = await searchParams;
@@ -33,6 +35,7 @@ export default async function IncomePage({ searchParams }: Props) {
   const shown = parsed.success ? input : fallback;
   const report = await incomeReport(user, parsed.success ? parsed.data : incomePeriodSchema.parse(fallback));
   const csvHref = `${to("/operator/income/csv")}?${new URLSearchParams(shown)}`;
+  const totals = incomeTotals(report);
 
   return (
     <Stack gap="section">
@@ -48,7 +51,7 @@ export default async function IncomePage({ searchParams }: Props) {
       </form>
       <StatRow label={i.title}>
         <Stat compact label={i.guarantee} value={<Money tiyn={report.guaranteeTiyn} />} />
-        <Stat compact label={i.total} value={<Money tiyn={report.totalTiyn} />} />
+        {totals.total && <Stat compact label={i.total} value={<Money tiyn={report.totalTiyn} />} />}
       </StatRow>
       <TableOrCards
         caption={i.byDeal}
@@ -70,7 +73,7 @@ export default async function IncomePage({ searchParams }: Props) {
           },
           { key: "settledAt", header: c.settledAt, cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.settledAt)}</span> },
           { key: "guarantee", header: c.guarantee, numeric: true, cell: (r) => <Money tiyn={r.guaranteeTiyn} /> },
-          { key: "total", header: c.total, numeric: true, cell: (r) => <Money tiyn={r.totalTiyn} /> },
+          ...(totals.totalColumn ? [{ key: "total", header: c.total, numeric: true, cell: (r: (typeof report.rows)[number]) => <Money tiyn={r.totalTiyn} /> }] : []),
         ]}
       />
       <div className="flex flex-wrap items-center gap-3">

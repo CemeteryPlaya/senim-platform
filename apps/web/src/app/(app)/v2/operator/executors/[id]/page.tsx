@@ -62,7 +62,8 @@ function requisiteItems(x: ExecutorCard): KeyValueItem[] {
 /**
  * Карточка исполнителя: первым — решение, если регистрация ждёт (подтвердить с сегментом — главное действие экрана,
  * отклонить — тихая кнопка с окном причины); у подтверждённого — смена сегмента с причиной. Рядом (на компьютере справа)
- * — ход регистрации и история из журнала. «Назад» — к списку исполнителей.
+ * — ход регистрации (пока регистрация ждёт или отклонена) и история из журнала. Форма и город — в «Реквизитах» и «Адресе»,
+ * под заголовком их не повторяем. «Назад» — к списку исполнителей.
  */
 export default async function ExecutorCardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -92,11 +93,14 @@ export default async function ExecutorCardPage({ params }: { params: Promise<{ i
   );
   const aside = (
     <Stack gap="section">
-      <Section title={c.progress} id="progress">
-        <Card>
-          <Steps items={registrationSteps(x.status)} label={c.progress} />
-        </Card>
-      </Section>
+      {/* У подтверждённого ход не показываем: итог — чип «Подтверждён», шаги с датами — в «Истории». */}
+      {x.status !== "APPROVED" && (
+        <Section title={c.progress} id="progress">
+          <Card>
+            <Steps items={registrationSteps(x.status)} label={c.progress} />
+          </Card>
+        </Section>
+      )}
       <Section title={c.history} id="history">
         {history.length === 0 ? (
           <EmptyState title={c.historyEmpty.title} body={c.historyEmpty.body} />
@@ -111,7 +115,7 @@ export default async function ExecutorCardPage({ params }: { params: Promise<{ i
 
   const page = (
     <Stack gap="section">
-      <PageTitle title={q.executor(x.publicNumber, x.legalName)} back={{ href: to("/operator/executors"), label: c.back }} lead={`${q.legalForms[x.legalForm]}, ${x.city}`} />
+      <PageTitle title={q.executor(x.publicNumber, x.legalName)} back={{ href: to("/operator/executors"), label: c.back }} />
       <Split main={main} aside={aside} />
       {/* Телефон: главная кнопка решения — в доке внизу экрана (последний элемент страницы), форма — в карточке «Решение». */}
       {x.status === "PENDING" && device === "mobile" && (

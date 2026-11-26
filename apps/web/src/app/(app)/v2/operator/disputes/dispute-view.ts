@@ -17,17 +17,16 @@ export type DisputeMoney = {
   title: string;
   amount: bigint;
   rows: { label: string; amount: bigint }[];
-  note?: string;
 };
 
 /**
  * Панель денег карточки спора. Главная сумма — то, что называет блок (остаток под защитой, выплата мастеру, возврат);
- * внизу всегда остаток на счёте сделки по журналу. Пометка тестовой операции — только оператору (эта страница).
+ * внизу всегда остаток на счёте сделки по журналу. Тестовую сделку называет одна строка — «Провайдер оплаты: Тестовый
+ * (mock)» в «Сторонах»: провайдер у всех операций сделки один, пометки в панели и у каждой операции её повторяли.
  */
 export function disputeMoney(money: MoneyBlock): DisputeMoney {
   const m = t.money;
   const balance = [{ label: m.bankBalance, amount: money.bankBalanceTiyn }];
-  const note = money.isTest ? m.test : undefined;
   const base = (() => {
     switch (money.kind) {
       case "awaiting":
@@ -42,16 +41,15 @@ export function disputeMoney(money: MoneyBlock): DisputeMoney {
         return { tone: "refunded" as const, title: money.settled ? m.refunded : m.refundedPending, amount: money.amountTiyn };
     }
   })();
-  return { ...base, rows: balance, ...(note ? { note } : {}) };
+  return { ...base, rows: balance };
 }
 
-/** Журнал денег сделки лентой: тип операции, статус и время; сумма справа; «тестовая» — пометка для оператора. */
+/** Журнал денег сделки лентой: тип операции, статус и время; сумма справа. */
 export function moneyTimeline(items: readonly MoneyHistoryItem[]): TimelineItem[] {
   return items.map((item) => ({
     title: `${t.money.types[item.type]}, ${t.money.status[item.status]}`,
     time: formatDateTime(item.at),
     amount: item.amountTiyn,
-    ...(item.isTest ? { text: t.money.testMark } : {}),
   }));
 }
 
@@ -59,22 +57,25 @@ export function moneyTimeline(items: readonly MoneyHistoryItem[]): TimelineItem[
 export const auditTitle = (code: string): string =>
   (ru.deal.history.action as Record<string, string>)[code] ?? ru.app.operatorDeals.audit.actions[code] ?? code;
 
-/** Над чем событие: слово по типу записи (без учёта регистра и «_»); неизвестный тип — `null` (в ленте только роль). */
-export function entityLabel(entityType: string): string | null {
-  return t.card.entities[entityType.replace(/[_\s]/g, "").toLowerCase()] ?? null;
-}
-
-/** История сделки из журнала аудита лентой: событие, время, кто и над чем. */
+/**
+ * История сделки из журнала аудита лентой: событие и строка «время · кто» (две строки на событие, а не три). Над чем
+ * событие, не пишем: это видно из названия; полная запись — в журнале аудита.
+ */
 export function historyTimeline(events: readonly AuditView[]): TimelineItem[] {
   const actors = ru.deal.history.actor as Record<string, string>;
   return events.map((e) => ({
     title: auditTitle(e.action),
-    time: formatDateTime(e.createdAt),
-    text: t.card.historyActor(actors[e.actorRole] ?? e.actorRole, entityLabel(e.entityType)),
+    time: t.card.historyWhen(formatDateTime(e.createdAt), actors[e.actorRole] ?? e.actorRole),
   }));
 }
 
-/** «Открыт 12 марта 2026. Этап сделки при открытии: …». */
-export function openedLine(createdAt: Date, openedInStatus: keyof typeof t.dealStatus): string {
-  return t.card.openedAt(formatDate(createdAt), t.dealStatus[openedInStatus].toLowerCase());
+type DealStatus = keyof typeof t.dealStatus;
+
+/**
+ * Строка под чипами «что сейчас»: «С 12 марта 2026». Этап при открытии называем, только если сделка с тех пор на другом
+ * этапе: иначе его уже говорит чип этапа рядом.
+ */
+export function openedLine(createdAt: Date, openedInStatus: DealStatus, currentStatus: DealStatus): string {
+  const date = formatDate(createdAt);
+  return openedInStatus === currentStatus ? t.card.openedAt(date) : t.card.openedAtStage(date, t.dealStatus[openedInStatus].toLowerCase());
 }

@@ -173,7 +173,7 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
       device,
       listItem({ status: "CREATED" }),
     );
-    expect(out).not.toContain(ru.requests.requestTitle(17, "Прихожая"));
+    expect(out).not.toContain("Прихожая");
     expect(out).not.toContain(t.requests.section);
   });
 
@@ -200,29 +200,30 @@ describe.each(["mobile", "desktop"] as const)("главная покупател
 
   it("заявка CLOSED (сделка создана) в «Мои заявки» не показывается", () => {
     const out = render({ deals: [dealInput()], requests: [request({ id: "z", number: 3, title: "Шкаф", status: "CLOSED" })] }, device, listItem());
-    expect(out).not.toContain(ru.requests.requestTitle(3, "Шкаф"));
+    expect(out).not.toContain("Шкаф");
   });
 
-  it("несколько сделок: «Все сделки»; одна — без ссылки", () => {
+  it("несколько сделок: одиночной ссылки «Все сделки» нет (сделки — во вкладке)", () => {
     const many = render({ deals: [dealInput(), dealInput({ id: "d2" })], requests: [] }, device, listItem());
-    expect(many).toContain(t.deal.allDeals);
-    expect(render({ deals: [dealInput()], requests: [] }, device, listItem())).not.toContain(t.deal.allDeals);
+    expect(many).not.toContain("Все сделки");
   });
 
-  it("заявки: название, статус и число предложений; «Все заявки»; заявка из «Сейчас» не повторяется", () => {
+  it("заявки: название без «Заявка №», статус и число предложений; «Все» в строке заголовка; заявка из «Сейчас» не повторяется", () => {
     const out = render(
       { deals: [dealInput()], requests: [request({ id: "a", number: 4, title: "Шкаф", offers: live(3) }), request({ id: "dr", number: 5, title: "Прихожая", status: "DRAFT" })] },
       device,
       listItem(),
     );
-    expect(out).toContain(ru.requests.requestTitle(4, "Шкаф"));
+    expect(out).toContain(">Шкаф</span>");
+    expect(out).not.toContain(ru.requests.requestTitle(4, "Шкаф"));
     // Плашка в строке — коротко, число предложений — рядом с ней.
     expect(out).toContain(`>${ru.app.requests.state.chooseShort}<`);
     expect(out).toContain(ru.app.requests.list.offers(3));
     expect(out).toContain(`>${ru.app.requests.state.draft}<`);
     expect(out).not.toMatch(/отклик/i);
     expect(out).toContain('href="/v2/requests/new?draft=dr"');
-    expect(out).toContain(t.requests.all);
+    // «Все» — в строке заголовка «Мои заявки» (до карточки), для диктора — «Все заявки».
+    expect(out).toMatch(new RegExp(`>${t.requests.section}</h2><a [^>]*href="/v2/requests"[^>]*><span aria-hidden="true">${t.requests.allShort}</span><span class="sr-only">${t.requests.all}</span>`));
     // Предложения по заявке «a» — в карточке списка, а не в «Сейчас» (сделка важнее).
     expect(out).toContain(`>${t.now.waiting.waitReady}</h2>`);
   });

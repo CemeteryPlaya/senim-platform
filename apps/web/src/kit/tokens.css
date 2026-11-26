@@ -1096,17 +1096,19 @@
  * Короткая шапка переписки на телефоне (как большой заголовок iOS): закреплена только строка «‹ Чаты» с именем
  * собеседника, а большой заголовок и пояснения прокручиваются под ней. Имя в строке проявляется, когда большой заголовок
  * ушёл под шапку (анимация по прокрутке корня, без проверок ширины в JS). Без поддержки animation-timeline — видно всегда.
+ * Базовый вид — прозрачный: у короткой переписки страница не прокручивается, временная шкала прокрутки не активна и
+ * анимация не применяется — имя стояло бы в шапке сразу, над таким же крупным заголовком.
  */
 @utility compact-title {
-  animation: glass-edge-in linear both;
-  animation-timeline: scroll(root);
-  animation-range: 3rem 6rem;
-  @supports not (animation-timeline: scroll()) {
-    animation: none;
+  @supports (animation-timeline: scroll()) {
+    opacity: 0;
+    animation: glass-edge-in linear both;
+    animation-timeline: scroll(root);
+    animation-range: 3rem 6rem;
   }
-  /* Меньше движения — имя видно сразу, без проявления. */
+  /* Меньше движения — имя появляется сразу, когда заголовок ушёл под шапку, без плавного проявления. */
   @media (prefers-reduced-motion: reduce) {
-    animation: none;
+    animation-timing-function: step-end;
   }
 }
 

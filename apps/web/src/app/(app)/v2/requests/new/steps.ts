@@ -270,13 +270,15 @@ const kzt = (value: number): string => formatMoney(BigInt(Math.round(value)) * 1
 /**
  * Варианты уровня: название, что это значит и строка цены. Цена — только по настоящим предложениям мастеров (`offers`):
  * подсказка по материалам — возможность за флагом `materialsCalculator`, в v2 её нет (Фаза 1), уровень показывается без вилки.
+ * Без вилки строки цены нет: что цену назовут мастера, сказано один раз в подзаголовке шага.
  */
 export function segmentOptions(prices: Readonly<Record<Segment, PriceHint | null>>): { value: Segment; label: string; description: string }[] {
   const s = t.segment;
   return SEGMENTS.map((segment) => {
     const hint = prices[segment];
-    const price = hint?.source === "offers" ? s.price(kzt(hint.from), kzt(hint.to)) : s.noPrice;
-    return { value: segment, label: SEGMENT_NAMES[segment], description: `${ru.requests.wizard.segment.explain[segment]}. ${price}` };
+    const explain = `${ru.requests.wizard.segment.explain[segment]}.`;
+    const description = hint?.source === "offers" ? `${explain} ${s.price(kzt(hint.from), kzt(hint.to))}` : explain;
+    return { value: segment, label: SEGMENT_NAMES[segment], description };
   });
 }
 
@@ -310,27 +312,43 @@ export type SummaryDraft = {
 
 export type SummaryRow = { label: string; value: string; href: string };
 
-/** Строки сводки последнего шага: каждая ведёт на шаг, где её поменять. Материалы — только указанные. */
+type MissingKey = keyof typeof t.send.missing.names;
+
+/**
+ * Строки сводки последнего шага: каждая ведёт на шаг, где её поменять. Показано только то, что человек указал;
+ * неуказанное (стиль «не важно», размеры «не знаю», без фото, без даты…) — одной последней строкой «Не указано: …»,
+ * она ведёт на первый по порядку шаг, где это можно указать. Материалы — только указанные.
+ */
 export function summaryRows(draft: SummaryDraft): SummaryRow[] {
   const s = t.send;
   const d = draft.details;
   const at = (screen: WizardScreen) => wizardHref({ draft: draft.id, step: screen });
-  const style = draft.style && draft.style in STYLES ? STYLES[draft.style as StyleKey].name : t.start.styleAny;
+  const missing: { key: MissingKey; href: string }[] = [];
+  /** Строка, если значение есть; иначе — пометка в «Не указано». */
+  const row = (key: MissingKey, label: string, value: string | null, screen: WizardScreen): SummaryRow | null => {
+    if (value) return { label, value, href: at(screen) };
+    missing.push({ key, href: at(screen) });
+    return null;
+  };
+  const style = draft.style && draft.style in STYLES ? STYLES[draft.style as StyleKey].name : null;
+  const address = [draft.city, draft.district, draft.complex, draft.address].filter(Boolean).join(", ");
   const rows: (SummaryRow | null)[] = [
     { label: s.type, value: draft.title, href: at("start") },
-    { label: s.style, value: style, href: at("start") },
-    { label: s.size, value: d.widthCm ? s.sizeValue(d.widthCm, d.heightCm, d.depthCm) : t.start.sizeUnknown, href: at("start") },
+    row("style", s.style, style, "start"),
+    row("size", s.size, d.widthCm ? s.sizeValue(d.widthCm, d.heightCm, d.depthCm) : null, "start"),
     d.facade ? { label: s.facade, value: FACADES[d.facade].name, href: at("start") } : null,
     d.countertop ? { label: s.countertop, value: COUNTERTOPS[d.countertop].name, href: at("start") } : null,
     d.hardware ? { label: s.hardware, value: HARDWARE[d.hardware].name, href: at("start") } : null,
-    { label: s.segment, value: draft.segment ? SEGMENT_NAMES[draft.segment] : s.notSet, href: at("segment") },
-    { label: s.photos, value: draft.photos.length > 0 ? s.photosCount(draft.photos.length) : s.noPhotos, href: at("room") },
+    row("segment", s.segment, draft.segment ? SEGMENT_NAMES[draft.segment] : null, "segment"),
+    row("photos", s.photos, draft.photos.length > 0 ? s.photosCount(draft.photos.length) : null, "room"),
     draft.design.length > 0 ? { label: s.design, value: s.designCount(draft.design.length), href: at("room") } : null,
     d.description ? { label: s.description, value: d.description, href: at("room") } : null,
-    { label: s.address, value: [draft.city, draft.district, draft.complex, draft.address].filter(Boolean).join(", ") || s.notSet, href: at("place") },
-    { label: s.date, value: draft.desiredDate ? formatDate(draft.desiredDate) : s.notSet, href: at("place") },
+    row("address", s.address, address || null, "place"),
+    row("date", s.date, draft.desiredDate ? formatDate(draft.desiredDate) : null, "place"),
   ];
-  return rows.filter((row): row is SummaryRow => row !== null);
+  const first = missing[0];
+  if (first) rows.push({ label: s.missing.label, value: s.missing.list(missing.map((m) => s.missing.names[m.key])), href: first.href });
+  return rows.filter((r): r is SummaryRow => r !== null);
 }
 
 /** Сноска под сводкой: кто увидит заявку. */

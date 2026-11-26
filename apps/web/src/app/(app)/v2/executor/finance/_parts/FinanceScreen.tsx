@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Bars, Card, EmptyState, Explain, List, ListRow, Money, MoneyPanel, PageTitle, Section, Split, Stack, Stat } from "@/kit";
 import type { Device } from "@/platform/device";
 import { to } from "../../../../_shell/paths";
-import type { FinanceView, PaymentRow } from "./finance-view";
+import { chartBars, type FinanceView, type PaymentRow } from "./finance-view";
 
 const t = ru.app.masterFinance;
 
@@ -66,13 +66,17 @@ function MonthCard({ view }: { view: FinanceView }) {
 }
 
 /**
- * «Ожидает после приёмки» — героем экрана (разбор 3.1): зелёный блок денег «Деньги в банке под защитой» с крупной суммой,
- * пояснение и сделки, за которые деньги ждут приёмки.
+ * «Ожидает после приёмки» — героем экрана (разбор 3.1): зелёный блок денег «В банке под защитой до приёмки» с крупной
+ * суммой, пояснение и сделки, за которые деньги ждут приёмки. Имя раздела — только для диктора: видимый заголовок над
+ * подписью блока называл бы ту же сумму второй раз.
  */
 function Awaiting({ awaiting, device }: { awaiting: NonNullable<FinanceView["awaiting"]>; device: Device }) {
   const a = t.awaiting;
   return (
-    <Section title={a.title} id="fin-awaiting">
+    <section className="flex min-w-0 flex-col gap-stack-group" aria-labelledby="fin-awaiting">
+      <h2 id="fin-awaiting" className="sr-only">
+        {a.title}
+      </h2>
       <MoneyPanel tone="protected" title={a.label} amount={awaiting.totalTiyn} device={device} />
       <div>
         <Explain label={a.explain.label} title={a.explain.title} device={device}>
@@ -84,19 +88,19 @@ function Awaiting({ awaiting, device }: { awaiting: NonNullable<FinanceView["awa
         </Explain>
       </div>
       <Payments rows={awaiting.rows} />
-    </Section>
+    </section>
   );
 }
 
 /**
- * «Финансы» мастера: «Ожидает после приёмки» героем (если есть), месяц со стрелками и «Получено за месяц», столбики за
- * шесть месяцев (только если хоть один месяц не пустой — шесть нулевых полос не рисуем), оплаты месяца списком (сделка,
- * дата, сумма). Суммы — готовые из журнала денег. Нет ни одной оплаты и ничего в ожидании — обучающий пустой экран.
- * Телефон — колонкой; компьютер — слева деньги и оплаты, справа столбики (нет столбиков — одна колонка по центру).
- * Главного действия нет: экран только для чтения.
+ * «Финансы» мастера: «Ожидает после приёмки» героем (если есть), месяц со стрелками и «Получено за месяц», сразу под ним —
+ * оплаты месяца списком (сделка, дата, сумма; заголовок списка — для диктора), последними — столбики «По месяцам» с месяца
+ * первой оплаты (меньше двух месяцев — столбиков нет). Суммы — готовые из журнала денег. Нет ни одной оплаты и ничего в
+ * ожидании — обучающий пустой экран. Телефон — колонкой; компьютер — слева деньги и оплаты, справа столбики (нет
+ * столбиков — одна колонка по центру). Главного действия нет: экран только для чтения.
  */
 export function FinanceScreen({ view, device }: { view: FinanceView; device: Device }) {
-  const title = <PageTitle title={t.title} back={{ href: to("/executor/profile"), label: t.back }} />;
+  const title = <PageTitle title={t.title} back={{ href: to("/profile"), label: t.back }} />;
   if (view.empty) {
     return (
       <Stack gap="section">
@@ -105,15 +109,21 @@ export function FinanceScreen({ view, device }: { view: FinanceView; device: Dev
       </Stack>
     );
   }
-  const payments = (
-    <Section title={t.payments.title} id="fin-payments">
+  // Месяц и его оплаты — одной группой: список стоит сразу под суммой месяца, без видимого заголовка.
+  const month = (
+    <section className="flex min-w-0 flex-col gap-stack-group" aria-labelledby="fin-payments">
+      <MonthCard view={view} />
+      <h2 id="fin-payments" className="sr-only">
+        {t.payments.title}
+      </h2>
       {view.payments.length === 0 ? <EmptyState title={t.payments.empty.title} body={t.payments.empty.body} /> : <Payments rows={view.payments} />}
-    </Section>
+    </section>
   );
-  const chart = view.bars.some((bar) => bar.value > 0n) && (
+  const bars = chartBars(view.bars);
+  const chart = bars.length > 0 && (
     <Section title={t.chart.title} id="fin-chart">
       <Card>
-        <Bars label={t.chart.label} items={view.bars.map(({ selected, ...bar }) => ({ ...bar, current: selected }))} />
+        <Bars label={t.chart.label} items={bars.map(({ selected, ...bar }) => ({ ...bar, current: selected }))} />
       </Card>
     </Section>
   );
@@ -121,8 +131,7 @@ export function FinanceScreen({ view, device }: { view: FinanceView; device: Dev
   const main = (
     <Stack gap="section">
       {awaiting}
-      <MonthCard view={view} />
-      {payments}
+      {month}
     </Stack>
   );
 
@@ -146,9 +155,8 @@ export function FinanceScreen({ view, device }: { view: FinanceView; device: Dev
     <Stack gap="section">
       {title}
       {awaiting}
-      <MonthCard view={view} />
+      {month}
       {chart}
-      {payments}
     </Stack>
   );
 }

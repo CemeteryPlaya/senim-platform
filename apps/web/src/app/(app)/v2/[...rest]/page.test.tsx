@@ -27,7 +27,7 @@ beforeEach(() => {
   links.length = 0;
 });
 
-describe("заглушка «раздел переносится»", () => {
+describe("адрес v2 без своей страницы", () => {
   it("ссылка ведёт на тот же адрес в v1 без предзагрузки", async () => {
     await render(["deals", "1"]);
     expect(links).toEqual([{ href: "/deals/1", prefetch: false }]);
@@ -44,8 +44,8 @@ describe("заглушка «раздел переносится»", () => {
   });
 
   it("пустые сегменты отбрасываются: ссылка не начинается с «//»", async () => {
-    await render(["", "example.com"]);
-    expect(links[0].href).toBe("/example.com");
+    await render(["", "inspiration"]);
+    expect(links[0].href).toBe("/inspiration");
     await render(["", "", "deals", "", "1"]);
     expect(links[1].href).toBe("/deals/1");
     await render([""]);
@@ -54,23 +54,30 @@ describe("заглушка «раздел переносится»", () => {
 
   it.each([
     [["deals", "1"], "/deals/1"],
-    [["", "example.com"], "/example.com"],
-    [["//example.com"], "/"],
-    [["\\example.com"], "/"],
-    [["\\\\example.com"], "/"],
-    [[" //example.com"], "/"],
-    [["\t", "example.com"], "/"],
-    [["%2F%2Fexample.com"], "/%2F%2Fexample.com"],
-  ])("сегменты %j → ссылка %j: чужой сайт не получается, даже если сегменты пришли раскодированными", async (rest, href) => {
+    [["", "inspiration"], "/inspiration"],
+    [["d", "%2F%2Fexample.com"], "/d/%2F%2Fexample.com"],
+  ])("сегменты %j → ссылка %j", async (rest, href) => {
     await render(rest);
     expect(links[0].href).toBe(href);
   });
 
-  it("параметры адреса сохраняются после проверки, а у чужого адреса ссылка — «/»", async () => {
+  it.each([[["//example.com"]], [["\\example.com"]], [["\\\\example.com"]], [[" //example.com"]], [["\t", "example.com"]], [["", "example.com"]], [["%2F%2Fexample.com"]]])(
+    "сегменты %j — не экран v1: «Страница не найдена», ссылки на чужой сайт нет",
+    async (rest) => {
+      await expect(render(rest)).rejects.toThrow();
+      expect(links).toEqual([]);
+    },
+  );
+
+  it("неизвестный адрес — «Страница не найдена», а не перенос", async () => {
+    await expect(render(["nope"])).rejects.toThrow();
+    await expect(render(["deals", "1", "nope"])).rejects.toThrow();
+    expect(links).toEqual([]);
+  });
+
+  it("параметры адреса сохраняются после проверки", async () => {
     await render(["deals", "1"], { tab: "money" });
     expect(links[0].href).toBe("/deals/1?tab=money");
-    await render(["//example.com"], { tab: "money" });
-    expect(links[1].href).toBe("/");
   });
 
   it("закодированные сегменты не кодируются повторно", async () => {

@@ -66,6 +66,12 @@ export type SecondaryAction = { kind: "propose" } | { kind: "withdraw"; proposal
 export type MoneyView = {
   title: string;
   amountTiyn: bigint;
+  /**
+   * Подпись под суммой с пояснением («К оплате, без доплат · Что это?»), когда цена и «К оплате» совпадают — так и есть
+   * при модели «без доплат» (ADR-015). Тогда строк нет: одна сумма три раза выглядела бы как расчёт, которого нет.
+   */
+  caption: string | null;
+  /** Строки «Цена — К оплате» — только если суммы в смете разные. */
   rows: { label: string; amountTiyn: bigint; total?: true; explain?: true }[];
 };
 
@@ -86,7 +92,8 @@ export type OfferViewModel = {
   conditions: { label: string; value: string; stacked?: true }[];
   executor: { rating: { value: number | null; count: number }; deals: number; profileHref: string };
   chatHref: string;
-  history: { title: string; time: string; text: string; amountTiyn: bigint }[];
+  /** `text` — пометка исхода цены («Отозвана», «Принята», «Не принята»); у ждущей и заменённой — нет. */
+  history: { title: string; time: string; text?: string; amountTiyn: bigint }[];
 };
 
 function nowOf(state: OfferState, n: NegotiationView): Pick<OfferViewModel, "now" | "next"> {
@@ -97,7 +104,7 @@ function nowOf(state: OfferState, n: NegotiationView): Pick<OfferViewModel, "now
       return { now: { title: s.title(formatMoney(state.amountTiyn)) }, next: s.next };
     }
     case "waiting":
-      return { now: { title: t.now.waiting.title, body: t.now.waiting.body(formatMoney(state.amountTiyn)) }, next: t.now.waiting.next };
+      return { now: { title: t.now.waiting.title, body: t.now.waiting.body }, next: t.now.waiting.next };
     case "noPrice": {
       const s = state.by === "you" ? t.now.youWithdrew : t.now.masterWithdrew;
       return { now: { title: s.title, body: s.body }, next: s.next };
@@ -149,9 +156,12 @@ function moneyOf(state: OfferState, n: NegotiationView): MoneyView | null {
   const master = state.kind === "masterPrice" || state.kind === "masterCounter";
   if (!master && state.kind !== "waiting") return null;
   const e = n.estimate;
+  const title = master ? t.money.title : t.money.titleWaiting;
+  if (e.priceTiyn === e.totalTiyn) return { title, amountTiyn: e.totalTiyn, caption: t.money.caption, rows: [] };
   return {
-    title: master ? t.money.title : t.money.titleWaiting,
+    title,
     amountTiyn: e.totalTiyn,
+    caption: null,
     rows: [
       { label: master ? t.money.price.master : t.money.price.yours, amountTiyn: e.priceTiyn },
       { label: t.money.total, amountTiyn: e.totalTiyn, total: true, explain: true },
@@ -169,14 +179,18 @@ function conditionsOf(offer: OfferDetail): OfferViewModel["conditions"] {
   return rows;
 }
 
-/** История цены. Торг закрыт, а цена так и осталась ждать ответа (PROPOSED) — «Не принята», а не «Ждёт ответа». */
+/** Пометка исхода цены по статусу; у ждущей ответа и заменённой встречной её нет. */
+const OUTCOME: Partial<Record<Round["status"], string>> = t.history.status;
+
+/**
+ * История цены. Пометка — только у исхода: торг закрыт, а цена так и осталась ждать ответа (PROPOSED) — «Не принята»;
+ * ждущая ответа и заменённая встречной — без пометки (это говорят заголовок экрана и следующая запись).
+ */
 function historyOf(n: NegotiationView): OfferViewModel["history"] {
-  return n.rounds.map((r) => ({
-    title: r.mine ? t.history.you : t.history.master,
-    time: formatDateTime(r.createdAt),
-    text: !n.live && r.status === "PROPOSED" ? t.history.notAccepted : t.history.status[r.status],
-    amountTiyn: r.amountTiyn,
-  }));
+  return n.rounds.map((r) => {
+    const text = !n.live && r.status === "PROPOSED" ? t.history.notAccepted : OUTCOME[r.status];
+    return { title: r.mine ? t.history.you : t.history.master, time: formatDateTime(r.createdAt), ...(text ? { text } : {}), amountTiyn: r.amountTiyn };
+  });
 }
 
 /**

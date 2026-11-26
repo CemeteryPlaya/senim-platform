@@ -11,6 +11,7 @@ import {
   payWaitsMaster,
   paymentWait,
   progressCaption,
+  quietChip,
   stoppedLabel,
   type DealChip,
   type DealMoneyLine,
@@ -275,5 +276,16 @@ describe("сторона мастера: плашка, ход, строка де
       expect(dealMoneyLine(protectedBlock, { totalTiyn: 102_000_00n }, "CLIENT")).toEqual({ amountTiyn: 102_000_00n, label: ru.app.deal.line.inBank });
       expect(dealMoneyLine(completed(0n), { totalTiyn: 102_000_00n }, "CLIENT")).toEqual({ amountTiyn: null, label: ru.app.deal.line.payoutPending });
     });
+  });
+});
+
+describe("quietChip: плашки обычного хода в списке и на главной не показываются", () => {
+  it("обычный ход — без плашки; оплата в обработке, перевод и ожидание другой стороны — остаются", () => {
+    expect(quietChip({ text: st.inWork, tone: "neutral" })).toBeNull();
+    expect(quietChip({ text: st.protected, tone: "accent" })).toBeNull();
+    expect(quietChip({ text: ru.app.master.deal.status.inWork, tone: "neutral" })).toBeNull();
+    for (const text of [st.processing, st.transfer, st.waitAct, st.waitMasterBank]) {
+      expect(quietChip({ text, tone: "neutral" })).toEqual({ text, tone: "neutral" });
+    }
   });
 });

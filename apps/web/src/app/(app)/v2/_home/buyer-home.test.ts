@@ -106,7 +106,7 @@ describe("buyerHome: что сейчас", () => {
 });
 
 describe("buyerHome: сделка и заявки ниже «Сейчас»", () => {
-  it("карточка сделки — та, о которой «Сейчас»; остальные идущие — «Все сделки»", () => {
+  it("карточка сделки — та, о которой «Сейчас»", () => {
     const view = buyerHome({
       deals: [
         deal({ id: "a", status: "IN_PROGRESS", paid: true, action: "waitReady" }),
@@ -116,7 +116,6 @@ describe("buyerHome: сделка и заявки ниже «Сейчас»", ()
       requests: [],
     });
     expect(view.deal?.id).toBe("b");
-    expect(view.moreDeals).toBe(2);
   });
 
   it("без срочного — самая свежая идущая; завершённые не считаются", () => {
@@ -125,7 +124,6 @@ describe("buyerHome: сделка и заявки ниже «Сейчас»", ()
       requests: [],
     });
     expect(view.deal?.id).toBe("b");
-    expect(view.moreDeals).toBe(0);
   });
 
   it("оплата закрыта до согласия мастера для банка: не «Оплатите», а ожидание без кнопки (то же правило, что в карточке)", () => {
@@ -141,7 +139,6 @@ describe("buyerHome: сделка и заявки ниже «Сейчас»", ()
   it("отзыв по завершённой сделке: карточка — она", () => {
     const view = buyerHome({ deals: [deal({ id: "a", status: "SPLIT_PAYOUT", paid: true, action: "leaveReview", mine: true })], requests: [] });
     expect(view.deal?.id).toBe("a");
-    expect(view.moreDeals).toBe(0);
   });
 
   it("заявок не больше двух, заявка из «Сейчас» отдельно не повторяется, отменённые и закрытые не видны", () => {
@@ -177,7 +174,6 @@ describe("buyerHome: сделка и заявки ниже «Сейчас»", ()
     const view = buyerHome({ deals: [], requests: [] });
     expect(view.requests).toEqual([]);
     expect(view.deal).toBeNull();
-    expect(view.moreDeals).toBe(0);
   });
 
   it("черновик, пока важнее другое, остаётся в списке", () => {
@@ -269,7 +265,6 @@ describe("buyerHome: дополнительные случаи", () => {
     expect(view.now.kind).toBe("accept");
     expect(view.primary?.href).toBe("/v2/deals/sixth");
     expect(view.deal?.id).toBe("sixth");
-    expect(view.moreDeals).toBe(5);
   });
 });
 

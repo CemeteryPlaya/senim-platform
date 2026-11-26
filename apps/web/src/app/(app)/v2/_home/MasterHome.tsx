@@ -1,5 +1,5 @@
 import { ACTIVE_DEAL } from "@/features/deal-progress/active-deal";
-import { inWorkCount, isFreshIncoming } from "@/features/executor-requests/incoming";
+import { isFreshIncoming } from "@/features/executor-requests/incoming";
 import { ru } from "@/i18n/ru";
 import { getExecutorFinance, listDeals, monthOf, nextStepsOf, type NextStep } from "@/modules/deal-core";
 import { getOwnKyc, getOwnPayout, type CurrentUser } from "@/modules/identity";
@@ -109,7 +109,7 @@ export async function MasterHome({ user, status, device }: { user: CurrentUser; 
     deals: shown.map((d) => ({ item: d, next: nexts.get(d.id) ?? null, consentMissing: missing.has(d.id) })),
     moreDeals: more,
     fresh: fresh.slice(0, SHOWN_REQUESTS),
-    stats: { fresh: fresh.length, inWork: inWorkCount(mine), earnedTiyn: finance.months.find((m) => m.month === month)?.receivedTiyn ?? 0n },
+    stats: { fresh: fresh.length, earnedTiyn: finance.months.find((m) => m.month === month)?.receivedTiyn ?? 0n },
     cover,
   };
   return <MasterHomeView data={data} name={name} device={device} />;

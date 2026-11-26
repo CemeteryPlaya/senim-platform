@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { formatDateTime } from "@/features/format/format";
 import { ru } from "@/i18n/ru";
 import type { AuditView } from "@/modules/operator";
 import type { MoneyBlock, MoneyHistoryItem } from "@/modules/payments";
-import { disputeMoney, disputeTone, entityLabel, historyTimeline, moneyTimeline, openedLine } from "./dispute-view";
+import { disputeMoney, disputeTone, historyTimeline, moneyTimeline, openedLine } from "./dispute-view";
 import { hoursOptions } from "../requests/hours";
 import { previewState } from "./[id]/preview";
 
@@ -32,14 +33,13 @@ describe("disputeMoney: блок денег по журналу", () => {
     expect(disputeMoney(block)).toMatchObject({ ...expected, rows: [{ label: m.bankBalance, amount: 12_000_00n }] });
   });
 
-  it("тестовые деньги — пометка только в панели оператора", () => {
-    expect(disputeMoney({ kind: "frozen", amountTiyn: 1n, frozenAt: at, bankBalanceTiyn: 1n, isTest: true }).note).toBe(m.test);
-    expect(disputeMoney({ kind: "frozen", amountTiyn: 1n, frozenAt: at, ...bank }).note).toBeUndefined();
+  it("тестовые деньги — без примечания в панели: тестовую сделку называет провайдер в «Сторонах»", () => {
+    expect(disputeMoney({ kind: "frozen", amountTiyn: 1n, frozenAt: at, bankBalanceTiyn: 1n, isTest: true })).not.toHaveProperty("note");
   });
 });
 
 describe("ленты", () => {
-  it("журнал денег: тип и статус, сумма в тиынах, пометка «тестовая» только у тестовой операции", () => {
+  it("журнал денег: тип и статус, сумма в тиынах; пометки «тестовая» у операции нет (её называет провайдер сделки)", () => {
     const item = (over: Partial<MoneyHistoryItem>): MoneyHistoryItem => ({
       id: "1",
       type: "HOLD",
@@ -54,10 +54,11 @@ describe("ленты", () => {
     const [plain, test] = moneyTimeline([item({}), item({ id: "2", type: "FREEZE", status: "PENDING", isTest: true })]);
     expect(plain).toMatchObject({ title: `${m.types.HOLD}, ${m.status.SUCCEEDED}`, amount: 500_00n });
     expect(plain?.text).toBeUndefined();
-    expect(test).toMatchObject({ title: `${m.types.FREEZE}, ${m.status.PENDING}`, text: m.testMark });
+    expect(test).toMatchObject({ title: `${m.types.FREEZE}, ${m.status.PENDING}` });
+    expect(test?.text).toBeUndefined();
   });
 
-  it("история сделки: название события из текстов сделки, неизвестный код — как есть; автор и сущность по-русски, неизвестная сущность не показывается", () => {
+  it("история сделки: название события из текстов сделки, неизвестный код — как есть; время и автор одной строкой, без сущности", () => {
     const event = (action: string, actorRole: string, entityType = "Dispute"): AuditView => ({
       seq: "1",
       createdAt: at,
@@ -74,21 +75,12 @@ describe("ленты", () => {
       userAgent: null,
     });
     const [known, unknown] = historyTimeline([event("dispute.opened", "CLIENT"), event("some.new_code", "ROBOT", "SomethingNew")]);
-    expect(known).toMatchObject({ title: ru.deal.history.action["dispute.opened"], text: `${ru.deal.history.actor.CLIENT} · спор` });
-    expect(unknown).toMatchObject({ title: "some.new_code", text: "ROBOT" });
+    expect(known).toMatchObject({ title: ru.deal.history.action["dispute.opened"], time: `${formatDateTime(at)} · ${ru.deal.history.actor.CLIENT}` });
+    expect(known).not.toHaveProperty("text");
+    expect(unknown).toMatchObject({ title: "some.new_code", time: `${formatDateTime(at)} · ROBOT` });
     const [signing, masked] = historyTimeline([event("document.signing.started", "EXECUTOR"), event("chat.contacts_masked", "SYSTEM")]);
     expect(signing?.title).toBe("Сторона начала подпись документа");
     expect(masked?.title).toBe(ru.app.operatorDeals.audit.actions["chat.contacts_masked"]);
-  });
-});
-
-describe("entityLabel: тип записи журнала по-русски", () => {
-  it("известные типы — словом (регистр и «_» не важны); неизвестный — null, сырое имя не показывается", () => {
-    expect(entityLabel("Dispute")).toBe("спор");
-    expect(entityLabel("deal")).toBe("сделка");
-    expect(entityLabel("MoneyTransaction")).toBe("операция с деньгами");
-    expect(entityLabel("money_transaction")).toBe("операция с деньгами");
-    expect(entityLabel("SomethingNew")).toBeNull();
   });
 });
 
@@ -98,8 +90,9 @@ describe("мелочи экрана", () => {
     expect(disputeTone("RESOLVED")).toBe("neutral");
   });
 
-  it("строка «открыт …»: дата и этап сделки со строчной буквы", () => {
-    expect(openedLine(at, "IN_PROGRESS")).toBe(`Открыт 10 ноября 2026. Этап сделки при открытии: ${ru.app.operatorDisputes.dealStatus.IN_PROGRESS.toLowerCase()}`);
+  it("строка «с …»: только дата, пока этап тот же (его говорит чип); сделка ушла дальше — этап при открытии строчными", () => {
+    expect(openedLine(at, "READY", "READY")).toBe("С 10 ноября 2026");
+    expect(openedLine(at, "IN_PROGRESS", "READY")).toBe(`С 10 ноября 2026. Этап при открытии: ${ru.app.operatorDisputes.dealStatus.IN_PROGRESS.toLowerCase()}`);
   });
 });
 

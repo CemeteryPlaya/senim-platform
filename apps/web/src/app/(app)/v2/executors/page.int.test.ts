@@ -38,9 +38,9 @@ async function master() {
   return executor;
 }
 
-/** Обычный список: без подзаголовка заявки и без «Назад» к ней. */
+/** Обычный список: без подзаголовка (ни заявки, ни общего) и без «Назад» к ней. */
 function expectPlainList(out: string) {
-  expect(out).toContain(t.lead);
+  expect(out).not.toContain("Оценки, сделки и работы мастеров");
   expect(out).not.toContain("Для заявки №");
   expect(out).not.toMatch(/href="\/v2\/requests\//);
 }

@@ -71,17 +71,30 @@ export type SectionProps = {
   title: string;
   /** Якорь: id заголовка (ссылки вида #id); раздел подписан им. */
   id?: string;
+  /**
+   * Действие раздела справа в строке заголовка — обычно короткая ссылка «Все» (`TextLink`) на полный список вместо
+   * одиночной ссылки под карточками. Без него строка заголовка — только `<h2>`.
+   */
+  action?: ReactNode;
   children: ReactNode;
 };
 
 /**
  * Раздел экрана: заголовок h2 и содержимое через зазор группы (12 px). Заголовок стоит ровно по левому краю карточек —
- * своих отступов у него нет.
+ * своих отступов у него нет. `action` — справа в той же строке, по базовой линии заголовка.
  */
-export function Section({ title, id, children }: SectionProps) {
+export function Section({ title, id, action, children }: SectionProps) {
+  const heading = <h2 id={id} className={cn("text-title-2 text-ink", id && "desktop:scroll-anchor")}>{title}</h2>;
   return (
     <section className="flex min-w-0 flex-col gap-stack-group" aria-labelledby={id}>
-      <h2 id={id} className={cn("text-title-2 text-ink", id && "desktop:scroll-anchor")}>{title}</h2>
+      {action ? (
+        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          {heading}
+          {action}
+        </div>
+      ) : (
+        heading
+      )}
       {children}
     </section>
   );

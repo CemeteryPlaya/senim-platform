@@ -80,7 +80,6 @@ export function ProgressForm({ dealId, dealHref, device }: Props) {
             />
             <Stack>
               <p className="text-sub font-medium text-ink">{t.photosTitle}</p>
-              <p className="text-sub text-muted">{t.photosLead}</p>
               <Uploader
                 items={uploads.items}
                 max={MAX_PHOTOS}

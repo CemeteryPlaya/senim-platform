@@ -10,7 +10,16 @@ export type SegmentedOption = {
   formAction: ButtonHTMLAttributes<HTMLButtonElement>["formAction"];
 };
 
-export type SegmentedProps = { legend: string; options: readonly SegmentedOption[]; value: string };
+export type SegmentedProps = {
+  legend: string;
+  options: readonly SegmentedOption[];
+  value: string;
+  /**
+   * Подпись группы только для экранного диктора (`sr-only`, остаётся в разметке), как у `RadioGroup`: когда группу уже
+   * называет заголовок раздела или подписи сегментов говорят сами за себя.
+   */
+  legendHidden?: boolean;
+};
 
 /**
  * Сегментированный переключатель: дорожка `track`, равные сегменты в одну строку, выбранный — поверхность `raised`
@@ -20,10 +29,10 @@ export type SegmentedProps = { legend: string; options: readonly SegmentedOption
  * компьютере 36 px. Подписи короткие; подпись длиннее сегмента (крупный шрифт) переносится внутри него, а не уводит
  * сегменты на вторую строку.
  */
-export function Segmented({ legend, options, value }: SegmentedProps) {
+export function Segmented({ legend, options, value, legendHidden = false }: SegmentedProps) {
   return (
     <fieldset className="flex min-w-0 flex-col gap-2 border-0 p-0">
-      <legend className="mb-2 text-sub font-medium text-ink">{legend}</legend>
+      <legend className={legendHidden ? "sr-only" : "mb-2 text-sub font-medium text-ink"}>{legend}</legend>
       <div className="grid grid-flow-col auto-cols-fr rounded-control bg-track p-1">
         {options.map((option) => (
           <button

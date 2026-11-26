@@ -71,7 +71,7 @@ describe("/v2/requests/[id]: заявка с предложениями", () => 
     await signInAs(client);
     const out = await render(requestId);
     expect(out).toContain("Пришло 3 предложения");
-    expect(out).toContain(t.now.offers.body);
+    expect(out).toContain(t.now.offers.next);
     // Цены 300 000, 400 000, 500 000: мастера 2, 3, 1.
     expect(order(out)).toEqual([numbers[1], numbers[2], numbers[0]]);
     expect(out).toMatch(/aria-pressed="true"[^>]*>Дешевле/);
@@ -138,10 +138,10 @@ describe("/v2/requests/[id]: отклонённые предложения не 
     expect(out).not.toContain("aria-pressed");
   });
 
-  it("только отклонённое — «Ждём предложений», обучающий экран", async () => {
+  it("только отклонённое — «Ждём предложений», без раздела предложений", async () => {
     const out = await render(await withDeclined(false));
     expect(out).toContain(t.now.waiting.title);
-    expect(out).toContain(t.offers.empty.title);
+    expect(out).not.toContain(t.offers.section(0));
     expect(out).not.toContain("Пришло");
   });
 
@@ -152,13 +152,14 @@ describe("/v2/requests/[id]: отклонённые предложения не 
 });
 
 describe("/v2/requests/[id]: без предложений", () => {
-  it("«Ждём предложений», обучающий экран «Предложения придут сюда» без кнопки", async () => {
+  it("«Ждём предложений» со сроком и уведомлением в «Сейчас / Дальше», без карточки-заглушки и без кнопки", async () => {
     const client = await buyer();
     const requestId = await makeOpenRequest(client);
     await signInAs(client);
     const out = await render(requestId);
     expect(out).toContain(t.now.waiting.title);
-    expect(out).toContain(t.offers.empty.title);
+    expect(out).toContain(t.now.waiting.next);
+    expect(out).not.toContain(t.offers.section(0));
     expect(primaries(out)).toEqual([]);
     expect(out).not.toContain("aria-pressed");
   });
@@ -185,7 +186,7 @@ describe("/v2/requests/[id]: сделка и отмена", () => {
     expect(out).toContain(t.now.cancelled.title);
     expect(primaries(out)).toEqual([]);
     expect(out).not.toContain(`aria-label="${t.actions.menu}"`);
-    expect(out).not.toContain(t.offers.empty.title);
+    expect(out).not.toContain(t.offers.section(0));
   });
 });
 

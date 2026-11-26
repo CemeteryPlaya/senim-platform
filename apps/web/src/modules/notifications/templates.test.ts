@@ -29,8 +29,8 @@ describe("шаблоны уведомлений", () => {
 
   it("отклик: сумма и срок отформатированы, ссылка — на заявку заказчика", () => {
     const n = renderTemplate("offer.received", { requestId: "r1", requestTitle: "Кухня", price: 980000, durationDays: 35 });
-    expect(n.title).toBe("Новый отклик на заявку");
-    expect(plain(n.body)).toBe("На заявку «Кухня» пришёл отклик: 980 000 ₸, срок 35 дней.");
+    expect(n.title).toBe("Новое предложение");
+    expect(plain(n.body)).toBe("«Кухня»: 980 000 ₸, срок 35 дней.");
     expect(n.link).toBe("/requests/r1");
   });
 

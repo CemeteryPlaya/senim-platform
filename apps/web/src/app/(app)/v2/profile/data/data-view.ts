@@ -7,13 +7,19 @@ const t = ru.app.profile.data;
 
 export type DataRow = { label: string; value: string; stacked: boolean };
 
+/** Сделка, к которой дано согласие на передачу данных банку: подпись, ссылка и дата — если даты в карточке разные. */
+export type ConsentDealView = { label: string; href: string; granted: string | null };
+
+/**
+ * Карточка согласия. Одинаковые согласия (вид и редакция) — одной карточкой со строками сделок: карточки отличались бы
+ * только сделкой. Дата — у карточки, если она одна на всех; иначе — у строки каждой сделки (`granted` = null).
+ */
 export type ConsentView = {
   id: string;
   title: string;
   edition: string;
-  granted: string;
-  /** Сделка, к которой дано согласие на передачу данных банку: подпись и ссылка. */
-  deal: { label: string; href: string } | null;
+  granted: string | null;
+  deals: ConsentDealView[];
 };
 
 export type RevocationBlock = {
@@ -51,19 +57,38 @@ function revocationBlock(rev: RevocationView): RevocationBlock {
 /** Сделка согласия: номер и название заказа (по одному номеру сделку не узнать). */
 export type ConsentDeal = { number: number; title: string };
 
+/** Согласия одного вида и одной редакции — одной карточкой (порядок — по первому в группе, как отдал модуль). */
+function consentGroups(consents: MyData["consents"], deals: ReadonlyMap<string, ConsentDeal>): ConsentView[] {
+  const groups = new Map<string, MyData["consents"]>();
+  for (const c of consents) {
+    const key = `${c.kind}\u0000${c.version}`;
+    groups.set(key, [...(groups.get(key) ?? []), c]);
+  }
+  return [...groups.values()].flatMap((group) => {
+    const [first] = group;
+    if (!first) return [];
+    const dates = group.map((c) => formatDateTime(c.grantedAt));
+    const shared = dates.every((d) => d === dates[0]);
+    return [
+      {
+        id: first.id,
+        title: t.consentKinds[first.kind],
+        edition: ru.app.onboarding.consent.edition(first.version),
+        granted: shared ? (dates[0] ?? null) : null,
+        deals: group.flatMap((c, i) => {
+          if (!c.dealId) return [];
+          const deal = deals.get(c.dealId);
+          return [{ label: deal === undefined ? t.dealUnknown : t.deal(deal.number, deal.title), href: to(`/deals/${c.dealId}`), granted: shared ? null : (dates[i] ?? null) }];
+        }),
+      },
+    ];
+  });
+}
+
 /** Модель экрана «Мои данные»: личные данные, согласия с редакцией и датой, заявка на отзыв. `deals` — сделки по id. */
 export function dataView(data: MyData, deals: ReadonlyMap<string, ConsentDeal>): DataView {
   const notSet = t.notSet;
-  const consents: ConsentView[] = data.consents.map((c) => {
-    const deal = c.dealId ? deals.get(c.dealId) : undefined;
-    return {
-      id: c.id,
-      title: t.consentKinds[c.kind],
-      edition: ru.app.onboarding.consent.edition(c.version),
-      granted: formatDateTime(c.grantedAt),
-      deal: c.dealId ? { label: deal === undefined ? t.dealUnknown : t.deal(deal.number, deal.title), href: to(`/deals/${c.dealId}`) } : null,
-    };
-  });
+  const consents = consentGroups(data.consents, deals);
   const open = data.revocation?.status === "REQUESTED";
   const bankNumbers = data.consents.flatMap((c) => {
     const number = c.dealId ? deals.get(c.dealId)?.number : undefined;

@@ -42,6 +42,16 @@ export type FinanceView = {
   empty: boolean;
 };
 
+/**
+ * Столбики графика: с месяца первой оплаты в окне (нулевые месяцы до начала работы ничего не сравнивают); меньше двух
+ * месяцев — графика нет (`[]`): сравнивать не с чем.
+ */
+export function chartBars(bars: FinanceView["bars"]): FinanceView["bars"] {
+  const first = bars.findIndex((bar) => bar.value > 0n);
+  const shown = first === -1 ? [] : bars.slice(first);
+  return shown.length >= 2 ? shown : [];
+}
+
 function rowOf(r: FinanceRow): PaymentRow {
   return {
     key: `${r.dealId}-${r.state}-${r.at.getTime()}`,

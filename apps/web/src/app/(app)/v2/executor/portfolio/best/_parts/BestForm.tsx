@@ -28,6 +28,12 @@ export type BestCandidate = {
 
 type Props = { candidates: BestCandidate[]; hiddenDeals: number; max: number; backHref: string; device: Device };
 
+/** Список с заголовком раздела, когда списков два; один список делить заголовком не с чем — тогда без него. */
+function Group({ title, children }: { title: string | null; children: ReactNode }) {
+  if (title) return <Section title={title}>{children}</Section>;
+  return <div className="flex min-w-0 flex-col gap-stack-group">{children}</div>;
+}
+
 function Thumb({ photo }: { photo: BestCandidate["photo"] }) {
   if (!photo) return null;
   return (
@@ -39,7 +45,8 @@ function Thumb({ photo }: { photo: BestCandidate["photo"] }) {
 
 /**
  * Выбор лучших работ: сверху выбранные по порядку (стрелки «Выше» и «Ниже» с названием, отметка снимает), ниже — остальные
- * кандидаты. Седьмая отметка недоступна, пока не снята одна из выбранных. «Сохранить» — главное действие; после успеха
+ * кандидаты (заголовки «Выбрано» и «Можно добавить» — только когда есть оба списка; плашка — только у сделки). Седьмая
+ * отметка недоступна, пока не снята одна из выбранных. «Сохранить» — главное действие; после успеха
  * тост и возврат в портфолио.
  */
 export function BestForm({ candidates, hiddenDeals, max, backHref, device }: Props) {
@@ -86,6 +93,7 @@ export function BestForm({ candidates, hiddenDeals, max, backHref, device }: Pro
   const full = isFull(selected, max);
   const chosen = new Set(selected.map(refKey));
   const others = candidates.filter((c) => !chosen.has(refKey(c)));
+  const both = selected.length > 0 && others.length > 0;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     if (done) return event.preventDefault();
@@ -105,7 +113,7 @@ export function BestForm({ candidates, hiddenDeals, max, backHref, device }: Pro
           {...(!chosen.has(refKey(c)) && full ? { "aria-describedby": LIMIT_ID } : {})}
           onChange={() => setSelected((s) => toggleRef(s, { kind: c.kind, id: c.id }, max))}
         />
-        <StatusChip tone="neutral">{t.kind[c.kind]}</StatusChip>
+        {c.kind === "deal" && <StatusChip tone="neutral">{t.kind.deal}</StatusChip>}
       </div>
       {extra}
     </div>
@@ -122,7 +130,7 @@ export function BestForm({ candidates, hiddenDeals, max, backHref, device }: Pro
               {announce}
             </p>
             {selected.length > 0 && (
-              <Section title={t.chosenTitle}>
+              <Group title={both ? t.chosenTitle : null}>
                 <Card padded={false}>
                   <List>
                     {selected.map((ref, index) => {
@@ -148,10 +156,10 @@ export function BestForm({ candidates, hiddenDeals, max, backHref, device }: Pro
                     })}
                   </List>
                 </Card>
-              </Section>
+              </Group>
             )}
             {others.length > 0 && (
-              <Section title={t.othersTitle}>
+              <Group title={both ? t.othersTitle : null}>
                 <Card padded={false}>
                   <List>
                     {others.map((c) => (
@@ -164,7 +172,7 @@ export function BestForm({ candidates, hiddenDeals, max, backHref, device }: Pro
                     {t.limit(max)}
                   </p>
                 )}
-              </Section>
+              </Group>
             )}
             {hiddenDeals > 0 && <p className="text-sub text-muted">{t.hiddenDeals(hiddenDeals)}</p>}
             </div>

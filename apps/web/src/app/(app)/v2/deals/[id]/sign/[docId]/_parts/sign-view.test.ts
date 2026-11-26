@@ -71,13 +71,12 @@ describe("«Что вы подписываете»", () => {
   /** Смета мастера модуля (`partyEstimate("EXECUTOR")`): цена − гарантия 6%. */
   const master = { ...base, side: "EXECUTOR" as const, estimate: { priceTiyn: 100_000_00n, extraTiyn: 4_000_00n, totalTiyn: 96_000_00n } };
 
-  it("оферта: документ, стороны (мастер — подпись модуля), цена, к оплате с защитой, срок, гарантия; суммы — из сметы модуля как есть", () => {
+  it("оферта: документ, стороны (мастер — подпись модуля), цена по оферте без доплат одной строкой, срок, гарантия; суммы — из сметы модуля как есть", () => {
     expect(whatRows({ kind: "CONTRACT", ...base })).toEqual([
       { label: t.what.document, value: "Оферта № Д-0001/2026" },
       { label: t.what.master, value: "Исполнитель №3" },
       { label: t.what.buyer, value: "Айгерим Сапарова" },
-      { label: t.what.price, amount: 100_000_00n },
-      { label: t.what.total, amount: 102_000_00n, total: true },
+      { label: t.what.priceTotal, amount: 102_000_00n, total: true },
       { label: t.what.duration, value: formatDays(21) },
       { label: t.what.warranty, value: formatMonths(12) },
     ]);
@@ -101,7 +100,7 @@ describe("«Что вы подписываете»", () => {
       { label: t.what.duration, value: formatDays(21) },
       { label: tm.what.warranty, value: formatMonths(12) },
     ]);
-    expect(rows.map((r) => r.label)).not.toContain(t.what.total);
+    expect(rows.map((r) => r.label)).not.toContain(t.what.priceTotal);
     expect(rows.map((r) => r.label)).not.toContain(t.what.buyer);
     expect(tm.what.guarantee).toBe("Гарантия оплаты и клиента (6%)");
   });

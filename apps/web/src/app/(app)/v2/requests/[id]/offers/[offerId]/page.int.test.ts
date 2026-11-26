@@ -74,7 +74,7 @@ describe("экран предложения: состояния торга", () 
     expect(out).toContain(`href="/v2/chats/${offerId}"`);
     const plain = text(out);
     expect(plain).toContain(t.money.title);
-    expect(plain).toContain(t.money.total);
+    expect(plain).toContain(t.money.caption);
     expect(plain).not.toContain("Защита сделки");
     expect(plain).toContain(t.money.explain.label);
     for (const amount of [m.priceTiyn, m.protectionTiyn, m.buyerTotalTiyn]) expect(plain).toContain(formatMoney(amount));
@@ -101,7 +101,7 @@ describe("экран предложения: состояния торга", () 
     expect(out).toContain(t.now.waiting.title);
     expect(out).toContain(t.actions.withdraw);
     expect(out).not.toContain(t.actions.propose);
-    expect(text(out)).toContain(t.money.price.yours);
+    expect(text(out)).toContain(t.money.titleWaiting);
     expect(text(out)).toContain(formatMoney(computeDealMoney(1_000_000_00n).buyerTotalTiyn));
   });
 
@@ -113,7 +113,8 @@ describe("экран предложения: состояния торга", () 
     expect(primaries(out)).toEqual([t.actions.accept(formatMoney(990_000_00n))]);
     expect(out).toContain(t.now.masterCounter.title(formatMoney(990_000_00n)));
     expect(out).toContain(t.history.title);
-    expect(count(out, t.history.status.SUPERSEDED)).toBe(2);
+    // Заменённые встречной ценой без пометки: это видно по следующей записи.
+    expect(count(out, t.history.master)).toBe(2);
     expect(count(out, t.history.you)).toBe(1);
   });
 
@@ -179,7 +180,7 @@ describe("экран предложения: состояния торга", () 
     expect(out).not.toContain(t.actions.withdraw);
     expect(out).not.toContain(t.money.title);
     expect(out).toContain(t.history.notAccepted);
-    expect(out).not.toContain(t.history.status.PROPOSED);
+    expect(out).not.toContain("Ждёт ответа");
   });
 
   it("(5) заявка отменена: объяснение без действий", async () => {

@@ -20,7 +20,10 @@ export function liveMoney(raw: string): LiveMoney | null {
   return { priceTiyn: m.priceTiyn, guaranteeTiyn: m.guaranteeTiyn, youGetTiyn: m.payoutTiyn };
 }
 
-/** Смета формы для `MasterMoney`: «Цена покупателю X → Гарантия оплаты и клиента (6%) → Вы получите». Нет цены — `null`. */
+/**
+ * Смета формы для `MasterMoney`: «Вы получите» крупно (заголовок блока), под ним «Цена покупателю X» и «Гарантия оплаты и
+ * клиента (6%)»; строкой итога сумма не повторяется. Нет цены — `null`.
+ */
 export function formMoney(raw: string): MoneyView | null {
   const m = liveMoney(raw);
   if (!m) return null;
@@ -30,7 +33,6 @@ export function formMoney(raw: string): MoneyView | null {
     rows: [
       { label: t.price.form, amountTiyn: m.priceTiyn },
       { label: t.guarantee, amountTiyn: m.guaranteeTiyn, explain: true },
-      { label: t.youGet, amountTiyn: m.youGetTiyn, total: true },
     ],
   };
 }

@@ -31,7 +31,7 @@ const label = (f: DesignFileView) => (f.kind === "pdf" ? t.pdf(f.n) : t.photo(f.
  * Файлы заявки: дизайн-проект покупателя (фото и PDF по порядку, ссылки на 15 минут, в новой вкладке) — у каждого «Скрыть»
  * или «Вернуть». Скрытый файл не видят мастера и сделка, покупатель видит пометку. Сюда ведут форма «Открыть заявку» на
  * «Заявках без откликов» и ссылка «Файлы заявки» в карточке сделки. Главной кнопки нет: кнопки файлов равноправны.
- * Номер не число или заявки нет — 404.
+ * Вводная «как скрыть файл» — только когда файлы есть. Номер не число или заявки нет — 404.
  */
 export default async function RequestFilesPage({ params }: Props) {
   const { number: raw } = await params;
@@ -43,7 +43,7 @@ export default async function RequestFilesPage({ params }: Props) {
 
   return (
     <Stack gap="section">
-      <PageTitle title={t.title(number)} back={{ href: to("/operator/requests"), label: t.back }} lead={t.lead} />
+      <PageTitle title={t.title(number)} back={{ href: to("/operator/requests"), label: t.back }} {...(files.length > 0 ? { lead: t.lead } : {})} />
       <DataTable
         caption={t.tableCaption}
         captionHidden

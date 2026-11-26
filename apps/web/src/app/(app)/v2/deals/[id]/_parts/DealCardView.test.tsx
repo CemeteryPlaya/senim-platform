@@ -34,20 +34,20 @@ const nowBase: NowInput = {
 };
 
 function view(over: Partial<CardView> = {}, block: MoneyBlock = awaiting, now: Partial<NowInput> = {}): CardView {
-  const money = moneyView({ block, estimate: { priceTiyn: 100_000_00n, extraTiyn: 0n, totalTiyn: 100_000_00n }, snapshot: { priceTiyn: 100_000_00n, buyerTotalTiyn: 100_000_00n } });
+  const money = moneyView({ block, estimate: { priceTiyn: 100_000_00n, extraTiyn: 0n, totalTiyn: 100_000_00n }, snapshot: { priceTiyn: 100_000_00n, buyerTotalTiyn: 100_000_00n } }, "card");
   return {
     id: "d1",
     side: "CLIENT",
     title: "Кухня",
     lead: t.lead(7, "Исполнитель №4"),
-    chip: { text: ru.app.deal.status.pay, tone: "warn" },
+    chip: null,
     now: nowView({ ...nowBase, ...now }),
     steps: dealStepsView("CREATED", false, null, "CLIENT"),
     cover: null,
     money: { ...money, historyHref: "/v2/deals/d1/money" },
-    order: [{ label: t.order.what, value: "Кухня" }],
+    order: [{ label: t.order.city, value: "Астана" }],
     documents: [{ id: "c1", name: "Оферта № Д-1", status: "Подписан", href: "/api/documents/c1/pdf", open: ru.app.deal.openDocument.CONTRACT }],
-    party: { label: "Исполнитель №4", contacts: null, chatHref: "/v2/chats/o1" },
+    party: { contacts: null, chatHref: "/v2/chats/o1" },
     reports: null,
     history: { items: [{ title: "Оферта сформирована", time: "1 ноября 2026, 10:00" }], more: true, allHref: "/v2/deals/d1?history=all#history" },
     review: null,
@@ -59,13 +59,45 @@ function view(over: Partial<CardView> = {}, block: MoneyBlock = awaiting, now: P
 const primaries = (out: string) => [...out.matchAll(/<a [^>]*data-primary-action[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g)].map((m) => ({ href: m[1], label: m[2] }));
 
 describe.each(["mobile", "desktop"] as const)("карточка сделки, %s", (device) => {
-  it("один h1 — название заказа; «Назад: Сделки»; номер сделки и «Исполнитель №N» вторичной строкой; плашка статуса", () => {
+  it("один h1 — название заказа; «Назад: Сделки»; номер сделки и «Исполнитель №N» вторичной строкой; плашка — только когда передана", () => {
     const out = html(<DealCardView view={view()} device={device} />);
     expect(count(out, "<h1")).toBe(1);
     expect(out.match(/<h1[^>]*>([^<]*)<\/h1>/)?.[1]).toBe("Кухня");
     expect(out).toContain('href="/v2/deals"');
     expect(out).toContain(t.lead(7, "Исполнитель №4"));
-    expect(out).toContain(ru.app.deal.status.pay);
+    // Идущая сделка: шаг называет «Сейчас», плашки нет.
+    expect(out).not.toContain("data-status-chip");
+    const ended = html(<DealCardView view={view({ chip: { text: ru.app.deal.status.done, tone: "accent" } }, held, { next: { action: "done", mine: false } })} device={device} />);
+    expect(ended).toContain(ru.app.deal.status.done);
+  });
+
+  it("оконченная сделка: ни «Хода сделки», ни карточки «Сейчас» у завершённой; у остановленной — без «Хода сделки»", () => {
+    const done = html(<DealCardView view={view({ steps: dealStepsView("SPLIT_PAYOUT", false, null, "CLIENT") }, held, { next: { action: "done", mine: false } })} device={device} />);
+    expect(done).not.toContain(`>${t.steps.section}<`);
+    expect(done).not.toContain(t.now.done.title);
+    expect(done).not.toContain(ru.app.deal.allStepsDone);
+    const stopped = html(<DealCardView view={view({ steps: dealStepsView("IN_PROGRESS", true, null, "CLIENT") }, held, { next: { action: "waitDispute", mine: false } })} device={device} />);
+    expect(stopped).not.toContain(`>${t.steps.section}<`);
+    expect(stopped).toContain(t.now.dispute.title);
+    const going = html(<DealCardView view={view({}, held, { next: { action: "waitReady", mine: false } })} device={device} />);
+    expect(going).toContain(`>${t.steps.section}<`);
+  });
+
+  it("«История» — со второго события; «История денег» — с первой операции", () => {
+    const one = view({ history: { items: [{ title: t.history.created, time: "1 ноября 2026, 10:00" }], more: false, allHref: "/v2/deals/d1?history=all#history" } });
+    expect(html(<DealCardView view={one} device={device} />)).not.toContain(`>${t.history.section}<`);
+    expect(html(<DealCardView view={view()} device={device} />)).toContain(`>${t.history.section}<`);
+    const noOps = view({ money: { ...view().money, historyHref: null } });
+    expect(html(<DealCardView view={noOps} device={device} />)).not.toContain(t.money.history);
+  });
+
+  it("«Заказ» — все строки сразу, без «Показать всё»; документы — значок ↗, «Открыть оферту» только для диктора", () => {
+    const out = html(<DealCardView view={view()} device={device} />);
+    const from = out.indexOf(`>${t.order.section}<`);
+    const order = out.slice(from, out.indexOf("</section>", from));
+    expect(order).toContain("Астана");
+    expect(order).not.toContain("<details");
+    expect(out).toMatch(new RegExp(`<span class="sr-only">${ru.app.deal.openDocument.CONTRACT} \\(`));
   });
 
   it("оплата: одно главное действие «Оплатить N ₸» на экран оплаты", () => {
@@ -81,13 +113,17 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки, %s
     expect(out).toContain(t.now.waitReady.title);
   });
 
-  it("деньги: цена по оферте с пояснением, без доплат, «История денег»; без слов «комиссия», «эскроу», «тестов», «платформ», «демо», «отклик»", () => {
+  it("деньги: одна сумма, пояснение «Что это?», «История денег»; без доплат; без слов «комиссия», «эскроу», «тестов», «платформ», «демо», «отклик»", () => {
     const out = text(<DealCardView view={view({}, held)} device={device} />);
     expect(out).not.toMatch(/Защита сделки|2\s?%/);
     expect(out).toContain(t.money.explain.label);
     expect(out).toContain(t.money.history);
     expect(out).toContain("Деньги в банке под защитой");
+    // Строки «Цена по оферте» на карточке нет: она повторяла бы главную сумму (она — в истории денег).
+    expect(out).not.toContain(t.money.price);
     expect(out).not.toMatch(/комисси|эскроу|тестов|платформ|демо|отклик/i);
+    // До оплаты — «без доплат» видно словами.
+    expect(text(<DealCardView view={view()} device={device} />)).toContain("К оплате, без доплат");
   });
 
   it("мастер до оферты: «Исполнитель №N», контакты скрыты с пояснением; «Написать мастеру» — в диалог", () => {
@@ -100,7 +136,7 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки, %s
 
   it("мастер после оферты: телефон ссылкой tel:, Instagram ссылкой", () => {
     const contacts = { of: "executor" as const, phone: "+77000000204", phoneDisplay: "+7 700 000 02 04", instagram: "master.kz" };
-    const out = html(<DealCardView view={view({ party: { label: "ТОО Мебель", contacts, chatHref: "/v2/chats/o1" } })} device={device} />);
+    const out = html(<DealCardView view={view({ party: { contacts, chatHref: "/v2/chats/o1" } })} device={device} />);
     expect(out).toContain('href="tel:+77000000204"');
     expect(out).toContain('href="https://www.instagram.com/master.kz/"');
     expect(out).not.toContain(t.master.hidden);
@@ -137,6 +173,21 @@ it("телефон: деньги сразу после «Сейчас», ход 
   expect(mobile).toContain("<details");
   const desktop = html(<DealCardView view={view({}, held)} device="desktop" />);
   expect(desktop).not.toContain(t.steps.all);
+});
+
+it("обложка — фото отчёта: по нажатию на весь экран; в «Ходе работ» это фото второй раз не показано; на телефоне шага под обложкой нет", () => {
+  const items = reportsView([{ id: "r1", title: "Корпус готов", text: "Собрал", createdAt: new Date("2026-11-12T10:00:00Z"), photos: [{ id: "p1", src: "/f/p1.jpg" }, { id: "p2", src: "/f/p2.jpg" }] }]);
+  const over = { steps: dealStepsView("IN_PROGRESS", false, null, "CLIENT"), cover: { src: "/f/p1.jpg", alt: "Корпус готов" }, reports: { items, addHref: null } };
+  const mobile = html(<DealCardView view={view(over, held, { next: { action: "waitReady", mine: false } })} device="mobile" />);
+  expect(count(mobile, 'src="/f/p1.jpg"')).toBe(1);
+  expect(mobile).toContain('src="/f/p2.jpg"');
+  expect(mobile.slice(0, mobile.indexOf("photo-capsule"))).toContain('aria-haspopup="dialog"');
+  // «Шаг 2 из 5» — только на фото.
+  expect(count(mobile, "Шаг 2 из 5")).toBe(1);
+  // Завершённая сделка: на обложке нет плашки «Все шаги пройдены».
+  const done = html(<DealCardView view={view({ ...over, steps: dealStepsView("SPLIT_PAYOUT", false, null, "CLIENT") }, held, { next: { action: "done", mine: false } })} device="mobile" />);
+  expect(done).not.toContain("photo-capsule");
+  expect(done).not.toContain(ru.app.deal.allStepsDone);
 });
 
 it("фото-герой: обложка сразу под заголовком с шагом на стекле, сумма сразу под обложкой, «Ход работ» выше хода и «Заказа»", () => {
@@ -221,7 +272,7 @@ describe.each(["mobile", "desktop"] as const)("карточка сделки м�
       now: nowView({ ...nowBase, side: "EXECUTOR", payTiyn: 0n, ...now }),
       steps: dealStepsView("IN_PROGRESS", false, null, "EXECUTOR"),
       money: { ...masterMoneyView({ block, estimate }), historyHref: "/v2/deals/d1/money" },
-      party: { label: null, contacts: null, chatHref: "/v2/chats/o1" },
+      party: { contacts: null, chatHref: "/v2/chats/o1" },
       reports: { items: [], addHref: null },
       actions: { cancelText: null, disputeHref: "/v2/deals/d1/dispute" },
       ...over,
@@ -291,7 +342,8 @@ describe("«Сдача работы» — фото результата и ме�
       const out = html(<DealCardView view={view({ delivery: deliveryView(ready) })} device={device} />);
       expect(out).toContain(`>${t.delivery.section}<`);
       expect(out).toContain('src="/f/p9.jpg"');
-      expect(out).toContain("Сдано у адреса заказа: 36 м, в пределах 500 м");
+      expect(out).toContain("Сдано у адреса заказа");
+      expect(out).not.toContain("36 м");
     });
   }
 

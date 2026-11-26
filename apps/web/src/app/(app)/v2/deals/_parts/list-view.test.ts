@@ -57,10 +57,22 @@ describe("dealListView", () => {
     });
   });
 
-  it("ждём другую сторону — плашка по шагу; оплачено — «в банке под защитой»", () => {
-    const nexts = new Map<string, NextStep>([["b", { action: "waitReady", mine: false }]]);
+  it("обычный ход (мастер делает мебель, деньги под защитой) — без плашки: шаг и деньги и так на карточке", () => {
+    const nexts = new Map<string, NextStep>([
+      ["b", { action: "waitReady", mine: false }],
+      ["p", { action: "waitStart", mine: false }],
+    ]);
     const [card] = dealListView([deal("b", "IN_PROGRESS")], nexts, undefined).cards;
-    expect(card).toMatchObject({ chip: { text: ru.app.deal.status.inWork, tone: "neutral" }, money: { amountTiyn: 102_000_00n, label: ru.app.deal.line.inBank } });
+    expect(card).toMatchObject({ chip: null, money: { amountTiyn: 102_000_00n, label: ru.app.deal.line.inBank } });
+    expect(dealListView([deal("p", "PAID_HOLD")], nexts, undefined).cards[0]?.chip).toBeNull();
+    // «Что дальше» не прочиталось — плашка по статусу тоже не пишется для обычного хода.
+    expect(dealListView([deal("x", "IN_PROGRESS")], none, undefined).cards[0]?.chip).toBeNull();
+  });
+
+  it("ждём другую сторону и итог — плашка остаётся", () => {
+    const nexts = new Map<string, NextStep>([["w", { action: "waitMasterActSignature", mine: false }]]);
+    expect(dealListView([deal("w", "READY")], nexts, undefined).cards[0]?.chip).toEqual({ text: ru.app.deal.status.waitAct, tone: "neutral" });
+    expect(dealListView([deal("c", "CANCELLED")], none, undefined).cards[0]?.chip?.text).toBe(ru.app.deal.status.cancelled);
   });
 
   it("спор — плашка «Идёт спор», ход остановлен", () => {
@@ -103,9 +115,15 @@ describe("dealListView мастера", () => {
   it("оферта заключена, своего согласия для банка нет — «Дайте согласие для банка»", () => {
     const nexts = new Map<string, NextStep>([["a", { action: "waitPayment", mine: false }]]);
     const [card] = dealListView([mine("a", "CREATED")], nexts, undefined, new Set(["a"]), "EXECUTOR").cards;
-    expect(card?.chip.text).toBe(tm.status.bankConsent);
+    expect(card?.chip?.text).toBe(tm.status.bankConsent);
     const [given] = dealListView([mine("a", "CREATED")], nexts, undefined, new Set(), "EXECUTOR").cards;
-    expect(given?.chip.text).toBe(tm.status.waitPay);
+    expect(given?.chip?.text).toBe(tm.status.waitPay);
+  });
+
+  it("мастер: «В работе» при изготовлении не подписывается; спор и «ваш шаг» — подписываются", () => {
+    const nexts = new Map<string, NextStep>([["a", { action: "submitReady", mine: true }]]);
+    expect(dealListView([mine("a", "IN_PROGRESS")], nexts, undefined, new Set(), "EXECUTOR").cards[0]?.chip).toBeNull();
+    expect(dealListView([mine("s", "IN_PROGRESS", { hasOpenDispute: true })], none, undefined, new Set(), "EXECUTOR").cards[0]?.chip?.text).toBe(tm.status.dispute);
   });
 
   it("спор — ход остановлен словами мастера, деньги без суммы", () => {

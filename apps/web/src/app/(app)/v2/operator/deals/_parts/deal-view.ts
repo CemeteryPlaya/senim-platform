@@ -12,17 +12,16 @@ export type DealMoney = {
   title: string;
   amount: bigint;
   rows: { label: string; amount: bigint }[];
-  note?: string;
 };
 
 /**
  * Панель денег карточки сделки оператора. Главная сумма — то, что называет блок (остаток под защитой, выплата мастеру,
- * возврат); внизу всегда остаток на счёте сделки по журналу. Пометка тестовых денег — только оператору (эта страница).
+ * возврат); внизу всегда остаток на счёте сделки по журналу. Примечания о тестовых деньгах нет: тестовую сделку называют
+ * чип «тестовая» рядом, провайдер и пометка у операций журнала.
  */
 export function dealMoney(money: MoneyBlock): DealMoney {
   const m = t.money;
   const rows = [{ label: m.bankBalance, amount: money.bankBalanceTiyn }];
-  const note = money.isTest ? m.test : undefined;
   const base = (() => {
     switch (money.kind) {
       case "awaiting":
@@ -37,18 +36,21 @@ export function dealMoney(money: MoneyBlock): DealMoney {
         return { tone: "refunded" as const, title: money.settled ? m.refunded : m.refundedPending, amount: money.amountTiyn };
     }
   })();
-  return { ...base, rows, ...(note ? { note } : {}) };
+  return { ...base, rows };
 }
 
 /**
- * Журнал денег лентой (источник правды о деньгах): номер, тип и статус операции, сумма справа; в тексте — время итога,
- * документ банка, причина отказа, ключ идемпотентности и пометка «тестовая» (только оператору).
+ * Журнал денег лентой (источник правды о деньгах): номер, тип и статус операции, сумма справа; в тексте — время итога (только
+ * когда оно отличается от времени записи: иначе одна дата стояла бы двумя строками), документ банка, причина отказа, ключ
+ * идемпотентности и пометка «тестовая» (только оператору).
  */
 export function journalTimeline(rows: readonly JournalRow[]): TimelineItem[] {
   const c = t.card;
   return rows.map((r) => {
+    const time = formatDateTime(r.createdAt);
+    const settled = r.settledAt ? formatDateTime(r.settledAt) : null;
     const lines = [
-      ...(r.settledAt ? [formatDateTime(r.settledAt)] : []),
+      ...(settled && settled !== time ? [settled] : []),
       ...(r.bankDocNumber && r.bankDocDate ? [c.bankDoc(r.bankDocNumber, formatDate(r.bankDocDate))] : []),
       ...(r.error ? [c.error(r.error)] : []),
       c.key(r.idempotencyKey),
@@ -56,7 +58,7 @@ export function journalTimeline(rows: readonly JournalRow[]): TimelineItem[] {
     ];
     return {
       title: c.journalItem(r.seq, t.moneyTypes[r.type], t.moneyStatus[r.status]),
-      time: formatDateTime(r.createdAt),
+      time,
       text: lines.join(" · "),
       amount: r.amountTiyn,
     };

@@ -16,7 +16,10 @@ export const metadata: Metadata = { title: t.metaTitle };
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-/** Строка предложения — ссылка: заявка, статус, цена («Ваша цена» — сумма из предложения) и сведения. */
+/**
+ * Строка предложения — ссылка: заявка, статус (только где нужен ответ мастера или есть исход), цена («Ваша цена» — сумма
+ * из предложения) и сведения. Сведения переносятся только между частями (« · »), часть не рвётся — без висячей точки.
+ */
 function OfferRow({ card }: { card: OfferCardView }) {
   return (
     <ListRow
@@ -24,12 +27,19 @@ function OfferRow({ card }: { card: OfferCardView }) {
       label={
         <span className="flex flex-col items-start gap-1">
           <span className="text-headline wrap-break-word text-ink">{card.title}</span>
-          <StatusChip tone={card.status.tone}>{card.status.text}</StatusChip>
+          {card.status && <StatusChip tone={card.status.tone}>{card.status.text}</StatusChip>}
           <span className="text-body text-ink">
             <span className="text-sub text-muted">{t.card.price}: </span>
             <Money tiyn={card.priceTiyn} />
           </span>
-          <span className="text-sub text-muted">{card.meta.join(" · ")}</span>
+          <span className="flex flex-wrap gap-x-1 text-sub text-muted">
+            {card.meta.map((part, index) => (
+              <span key={part} className="whitespace-nowrap">
+                {index > 0 && "· "}
+                {part}
+              </span>
+            ))}
+          </span>
         </span>
       }
     />

@@ -65,19 +65,21 @@ function Facts({ view }: { view: ExecutorViewModel }) {
   );
 }
 
-/** Карточка «Условия»: строки, ссылка-пояснение и (на компьютере) главная кнопка последней в карточке. */
 /**
- * Главное действие экрана. Есть приглашение (кнопка) — оно главное, а «Предложить заказ» становится тихой ссылкой рядом;
- * иначе «Предложить заказ» — главное. Одна главная кнопка на экране в любом случае.
+ * Главное действие экрана. Заказ в адресе (`?request`) — только «Пригласить к заказу №N»: покупатель пришёл выбирать
+ * мастера к этому заказу, вторая кнопка «Предложить заказ» лишняя. Заказ выбирают в шторке — приглашение главное, а
+ * «Предложить заказ» тихой ссылкой рядом; иначе «Предложить заказ» — главное. Одна главная кнопка в любом случае.
  */
 function PrimaryActions({ view, invite, device, publicNumber }: { view: ExecutorViewModel; invite: InviteView; device: Device; publicNumber: number }) {
   const withInvite = invite.kind === "context" || invite.kind === "pick";
   return (
     <>
       {withInvite && <InviteControl view={invite} publicNumber={publicNumber} device={device} />}
-      <ButtonLink href={view.action.href} {...(withInvite ? { variant: "quiet" as const } : {})}>
-        {view.action.label}
-      </ButtonLink>
+      {invite.kind !== "context" && (
+        <ButtonLink href={view.action.href} {...(withInvite ? { variant: "quiet" as const } : {})}>
+          {view.action.label}
+        </ButtonLink>
+      )}
     </>
   );
 }
@@ -88,6 +90,7 @@ function InviteNote({ invite }: { invite: InviteView }) {
   return <p className="text-body text-muted">{invite.text}</p>;
 }
 
+/** Карточка «Условия»: строки, ссылка-пояснение и (на компьютере) главная кнопка последней в карточке. */
 function Conditions({ view, device, invite, publicNumber }: { view: ExecutorViewModel; device: Device; invite: InviteView; publicNumber: number }) {
   return (
     <Section title={t.conditionsTitle}>
@@ -234,7 +237,11 @@ function Deals({ view }: { view: ExecutorViewModel }) {
   );
 }
 
-/** «Работы вне площадки»: мозаика снимков (галерея на весь экран) и компактные карточки с пометкой. Пусто — раздела нет. */
+/**
+ * «Работы вне площадки»: мозаика снимков (галерея на весь экран) и компактные карточки — название, место, цена. Пометки
+ * «Вне площадки» на карточке нет: её держит заголовок раздела (в «Лучших работах», где всё вперемешку, она остаётся).
+ * Пусто — раздела нет.
+ */
 function OffPlatform({ view }: { view: ExecutorViewModel }) {
   const { works, gallery } = view.offPlatform;
   if (works.length === 0) return null;
@@ -244,7 +251,7 @@ function OffPlatform({ view }: { view: ExecutorViewModel }) {
         {gallery.length > 0 && <PhotoGallery photos={gallery} layout="mosaic" label={t.offPlatformTitle} />}
         <Columns count={2}>
           {works.map((work) => (
-            <WorkCard key={work.id} title={work.title} meta={work.meta} byline={work.byline} priceFrom={work.priceFrom} />
+            <WorkCard key={work.id} title={work.title} meta={work.meta} priceFrom={work.priceFrom} />
           ))}
         </Columns>
       </Stack>
@@ -253,7 +260,7 @@ function OffPlatform({ view }: { view: ExecutorViewModel }) {
 }
 
 /**
- * Профиль мастера для заказчика (спека 2026-11-17, 3.3): монограмма и числа (рейтинг, отзывы, сделки, доля успешных),
+ * Профиль мастера для заказчика (спека 2026-11-17, 3.3): монограмма (у открытого имени) и числа (рейтинг, отзывы, сделки, доля успешных),
  * «Лучшие работы», «Сделки на площадке» с отзывом под каждой, «Работы вне площадки», «О мастере», условия. Отдельного
  * раздела отзывов нет. Открыт гостю. Мастер показан ровно так, как его отдаёт модуль (`toPublicView`, ADR-006): по
  * умолчанию «Исполнитель №N», без телефона, Instagram и ИИН/БИН; тексты уже очищены; фото, стоимость, место и подпись
@@ -272,7 +279,14 @@ export default async function ExecutorPage({ params, searchParams }: Props) {
   const { requestId } = parseExecutorsSearch(search);
   const view = executorView(page, { requestId });
   const invite = await loadInvite(user, { publicNumber: page.view.publicNumber, segment: page.view.segment }, requestId);
-  const title = <PageTitle title={view.title} back={{ href: view.backHref, label: t.backLabel }} leading={<Monogram name={view.title} size="lg" />} />;
+  // Монограмма — только у открытого имени (инициалы): у «Исполнитель №N» кружок «№N» повторял бы заголовок.
+  const title = (
+    <PageTitle
+      title={view.title}
+      back={{ href: view.backHref, label: t.backLabel }}
+      {...(view.monogram ? { leading: <Monogram name={view.title} size="lg" /> } : {})}
+    />
+  );
 
   if (device === "desktop") {
     return (

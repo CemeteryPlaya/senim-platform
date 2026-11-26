@@ -148,7 +148,9 @@ describe("карточка сделки покупателя: «что сейч�
     expect(primaries(out)).toEqual([]);
     expect(plain(out)).toContain("Деньги в банке под защитой");
     expect(out).toContain("bg-accent-soft");
-    expect(plain(out)).toContain("Зарезервировано");
+    // Дата резерва — в истории денег; на карточке — кто и когда получит деньги.
+    expect(plain(out)).not.toContain("Зарезервировано");
+    expect(plain(out)).toContain(t.card.money.protected.note);
     expect(out).toContain(`aria-label="${t.card.actions.menu}"`);
     expect(shown(out)).not.toMatch(FORBIDDEN);
   });
@@ -181,9 +183,10 @@ describe("карточка сделки покупателя: «что сейч�
     expect(h2s(out)).toContain(now.dispute.title);
     expect(primaries(out)).toEqual([]);
     expect(plain(out)).toContain(t.card.money.frozen.title);
-    expect(plain(out)).toContain(ru.app.buyer.home.deal.stopped.dispute);
+    // Остановленная сделка — без «Хода сделки»; плашки на карточке идущей сделки нет (спор назван в «Сейчас»).
+    expect(h2s(out)).not.toContain(t.card.steps.section);
     expect(out).toContain(`href="/v2/deals/${f.dealId}/dispute"`);
-    expect(plain(out)).toContain(t.status.dispute);
+    expect(out).not.toContain("data-status-chip");
   });
 
   it("отменена до оплаты: «Сделка отменена. Деньги не списывались», меню нет", async () => {
@@ -220,7 +223,9 @@ describe("карточка сделки покупателя: «что сейч�
     resetEnvCache();
     await signInAs(client);
     const done = await card(f.dealId);
-    expect(h2s(done)).toContain(now.done.title);
+    // Завершена без шага: карточки «Сейчас» нет — о ней говорят плашка и сумма.
+    expect(h2s(done)).not.toContain(now.done.title);
+    expect(plain(done)).toContain(t.status.done);
     expect(primaries(done)).toEqual([]);
     expect(plain(done)).toContain(t.card.money.completed.done);
     process.env.FEATURE_REVIEWS = "true";
@@ -245,7 +250,8 @@ describe("карточка сделки покупателя: «что сейч�
     await signInAs(client);
     const out = await card(f.dealId);
     expect(h2s(out)).toContain(now.disputeSplit.title);
-    expect(plain(out)).toContain(t.card.steps.disputeSplit);
+    // Остановленная сделка — без раздела «Ход сделки»: о состоянии говорят «Сейчас» и деньги.
+    expect(h2s(out)).not.toContain(t.card.steps.section);
     expect(plain(out)).not.toContain(ru.app.deal.allStepsDone);
     expect(plain(out)).toContain(t.card.money.completed.title);
     expect(plain(out)).toContain(t.card.money.refundedRow);
@@ -386,8 +392,8 @@ describe("список «Сделки»", () => {
 
     const done = await list({ group: "done" });
     expect(done).toContain(`href="/v2/deals/${cancelled.dealId}"`);
-    expect(out).toContain('href="/v2/help#money"');
-    expect(out).toContain('href="/v2/help#not-fit"');
+    // «Помощи» в списке нет: она внутри каждой сделки.
+    expect(out).not.toContain('href="/v2/help#money"');
     expect(done).not.toContain(`href="/v2/deals/${pay.dealId}"`);
   });
 
@@ -493,7 +499,8 @@ describe("карточка сделки мастера: «что сейчас» 
     expect(plain(out)).toContain("ул. Абая, 12, кв. 5");
     expect(plain(out)).toContain(t.card.reports.section);
     expect(plain(out)).toContain("Корпус собран");
-    expect(plain(out)).toContain(m.status.inWork);
+    // Идущая сделка: плашки статуса на карточке нет (шаг называет «Сейчас»); в списке она остаётся.
+    expect(out).not.toContain("data-status-chip");
   });
 
   it("до оферты адреса нет, даже если модуль заявок его уже знает", async () => {
@@ -524,7 +531,7 @@ describe("карточка сделки мастера: «что сейчас» 
     expect(h2s(out)).toContain(mn.dispute.title);
     expect(primaries(out)).toEqual([]);
     expect(plain(out)).toContain(md.money.frozen.title);
-    expect(plain(out)).toContain(m.stopped.dispute);
+    expect(h2s(out)).not.toContain(t.card.steps.section);
     expect(out).toContain(`href="/v2/deals/${f.dealId}/dispute"`);
     expect(buyerMoney(out)).toEqual([]);
   });
@@ -536,7 +543,8 @@ describe("карточка сделки мастера: «что сейчас» 
     await processDealMoney(f.dealId);
     await signInAs(executor);
     const out = await card(f.dealId);
-    expect(h2s(out)).toContain(mn.done.title);
+    expect(h2s(out)).not.toContain(mn.done.title);
+    expect(plain(out)).toContain(m.status.done);
     expect(plain(out)).toContain(md.money.completed.done);
     expect(plain(out)).toContain(money(94_000_00n));
     expect(buyerMoney(out)).toEqual([]);
@@ -551,7 +559,8 @@ describe("карточка сделки мастера: «что сейчас» 
     const out = await card(f.dealId);
     expect(h2s(out)).toContain(mn.refunded.title);
     expect(plain(out)).toContain(md.money.refunded.title);
-    expect(plain(out)).toContain(md.money.refunded.done);
+    // «Деньги вернулись покупателю» уже сказано в «Сейчас» — в блоке денег не повторяется.
+    expect(plain(out)).not.toContain(md.money.refunded.done);
     expect(buyerMoney(out)).toEqual([]);
     expect(out).not.toContain(`aria-label="${t.card.actions.menu}"`);
   });
@@ -593,9 +602,8 @@ describe("список «Сделки» мастера", () => {
     expect(plain(out)).toContain(ru.app.masterDeal.list.otherRole);
     // После переключения роли — снова «Сделки» (другой роли).
     expect(out).toContain(`/switch-role?to=CLIENT&amp;returnTo=${encodeURIComponent("/v2/deals")}"`);
-    // «Помощь» мастера: деньги и спор, а не «мебель не подошла» покупателя.
-    expect(out).toContain('href="/v2/help#dispute"');
-    expect(out).not.toContain('href="/v2/help#not-fit"');
+    // «Помощи» в списке нет: она внутри каждой сделки.
+    expect(out).not.toContain('href="/v2/help#dispute"');
     expect(shown(out)).not.toMatch(FORBIDDEN);
   });
 });

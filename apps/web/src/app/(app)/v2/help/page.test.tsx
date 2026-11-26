@@ -46,6 +46,9 @@ describe("/v2/help", () => {
       const toc = out.indexOf(`>${t.tocTitle}</h2>`);
       const first = out.indexOf(`<h2 id="${HELP_ANCHORS.how}"`);
       expect(toc).toBeGreaterThan(-1);
+      // Телефон: заголовок оглавления — только для диктора.
+      const tocTag = out.slice(out.lastIndexOf("<h2", toc), toc);
+      expect(tocTag.includes('class="sr-only"')).toBe(device === "mobile");
       // Телефон: оглавление раньше первой секции; компьютер: справа, то есть в разметке после основной колонки.
       expect(device === "mobile" ? toc < first : toc > first).toBe(true);
     }
@@ -57,10 +60,27 @@ describe("/v2/help", () => {
     expect(out).not.toMatch(/class="text-(sub|small)[^"]*"[^>]*>Деньги лежат/);
   });
 
+  it("без подзаголовка; поддержка — заголовок-вопрос и одна ссылка, в оглавлении — «Написать в поддержку»", async () => {
+    const out = await render();
+    expect(out).not.toContain("Короткие ответы");
+    expect(out).toContain(`>${t.support.title}</h2>`);
+    expect(count(out, `>${t.support.action}`)).toBe(2);
+    expect(t.support.tocLabel).toBe(t.support.action);
+    expect(out).not.toContain("ответим на почту");
+  });
+
+  it("цена — одной фразой «без доплат», без примера «200 000 = 200 000»", async () => {
+    const out = await render();
+    expect(out).toContain(`>${t.price.intro}</p>`);
+    expect(t.price.intro).toContain("без доплат");
+    expect(out).not.toContain(formatMoney(20_000_000n));
+  });
+
   it("поддержка — адрес из конфига бренда; деньги не проходят через счета сервиса; слов «комиссия» и «эскроу» нет", async () => {
     const out = await render();
     expect(out).toContain('href="mailto:');
-    expect(out).toContain(t.money.paragraphs[1]);
+    expect(out).toContain(t.money.paragraphs[0]);
+    expect(t.money.paragraphs[0]).toContain("не проходят через счета сервиса");
     expect(out.toLowerCase()).not.toMatch(/комисси|эскроу|платформ|демо|тестов|отклик/);
     expect(out).toContain(ru.app.profile.help.price.intro);
     expect(out).not.toMatch(/Защита сделки|2\s?%/);

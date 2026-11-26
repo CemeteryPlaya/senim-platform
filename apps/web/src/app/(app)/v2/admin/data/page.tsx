@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ru } from "@/i18n/ru";
-import { PageTitle, Stack, StatusChip, TextLink } from "@/kit";
+import { PageTitle, Stack, TextLink } from "@/kit";
 import { listModels } from "@/modules/admin";
 import { requireAdmin } from "../../../_shell/auth";
 import { to } from "../../../_shell/paths";
@@ -12,8 +12,9 @@ const t = ru.app.admin.data;
 export const metadata: Metadata = { title: t.metaTitle };
 
 /**
- * Все таблицы базы `apps/web` (модуль admin): имя как в схеме, число записей и «только чтение» у таблиц, которые
- * админка не правит. Раздел из меню: «Назад» не нужно; главной кнопки нет — каждая строка ведёт в свою таблицу.
+ * Все таблицы базы `apps/web` (модуль admin): имя как в схеме, число записей и отметка «Правка» у таблиц, которые админка
+ * правит (чтение — обычное состояние, его не подписываем). Телефон — одна карточка со строками «User › — 28» (`compact`).
+ * Раздел из меню: «Назад» не нужно; главной кнопки нет — каждая строка ведёт в свою таблицу.
  */
 export default async function AdminDataPage() {
   const user = await requireAdmin(to("/admin/data"));
@@ -22,6 +23,7 @@ export default async function AdminDataPage() {
     <Stack gap="section">
       <PageTitle title={t.title} lead={t.lead} />
       <TableOrCards
+        compact
         caption={t.title}
         captionHidden
         rows={models}
@@ -30,7 +32,7 @@ export default async function AdminDataPage() {
         columns={[
           { key: "model", header: t.columns.model, rowHeader: true, width: "mid", cell: (m) => <TextLink href={to(tablePath(m.name))}>{m.name}</TextLink> },
           { key: "count", header: t.columns.count, numeric: true, cell: (m) => m.count },
-          { key: "access", header: t.columns.access, cell: (m) => (m.readonly ? <StatusChip tone="neutral">{t.readonly}</StatusChip> : t.editable) },
+          { key: "access", header: t.columns.access, cell: (m) => (m.readonly ? null : t.editable) },
         ]}
       />
     </Stack>
