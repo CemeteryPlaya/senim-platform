@@ -55,6 +55,11 @@ const base = z
     APP_URL: z.url().default("http://localhost:3100"),
     /** Пароль стенда (basic-auth всего сайта, src/proxy.ts): только вне APP_ENV=prod (standChecks). */
     STAND_ACCESS_PASSWORD: optional,
+    /**
+     * Открытый стенд: production-сборка с моком SMS без пароля стенда — решение владельца 26.11.2026 (показ тестировщикам по
+     * ссылке). Только вне APP_ENV=prod и только без STAND_ACCESS_PASSWORD (standChecks).
+     */
+    STAND_OPEN: bool,
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
     TRUST_PROXY: bool,
 
@@ -156,10 +161,15 @@ function productionChecks({ env, require, issue }: Checks) {
  *
  * Ruling P5-3: production-сборка вне prod с моком SMS показывает код входа на экране — любой, кто открыл адрес, войдёт
  * любым человеком сида (и оператором). Такой стенд без пароля не стартует. Dev-сервер (NODE_ENV=development) — без
- * требования: он слушает только машину разработчика.
+ * требования: он слушает только машину разработчика. Исключение — явный STAND_OPEN=true (решение владельца 26.11.2026):
+ * стенд открыт всем, у кого есть адрес; операторов и администраторов по-прежнему закрывает 2FA.
  */
 function standChecks({ env, require, issue }: Checks) {
-  if (env.NODE_ENV === "production" && env.APP_ENV !== "prod" && env.SMS_PROVIDER === "mock") {
+  if (env.STAND_OPEN) {
+    if (env.APP_ENV === "prod") issue("STAND_OPEN", "запрещена при APP_ENV=prod: открытым бывает только стенд");
+    if (env.STAND_ACCESS_PASSWORD) issue("STAND_OPEN", "не задаётся вместе с STAND_ACCESS_PASSWORD: стенд либо открыт, либо за паролем");
+  }
+  if (env.NODE_ENV === "production" && env.APP_ENV !== "prod" && env.SMS_PROVIDER === "mock" && !env.STAND_OPEN) {
     require("STAND_ACCESS_PASSWORD", "NODE_ENV=production и SMS_PROVIDER=mock: код входа виден на экране");
   }
   if (!env.STAND_ACCESS_PASSWORD) return;

@@ -95,6 +95,13 @@ describe("env: production", () => {
     expect(problems({ ...standProduction, NODE_ENV: "development", STAND_ACCESS_PASSWORD: "" })).toBe("");
   });
 
+  it("STAND_OPEN=true: production-стенд с моком SMS стартует без пароля; в prod и вместе с паролем — нет", () => {
+    expect(problems({ ...standProduction, STAND_ACCESS_PASSWORD: "", STAND_OPEN: "true" })).toBe("");
+    expect(problems({ ...standProduction, STAND_ACCESS_PASSWORD: "", STAND_OPEN: "false" })).toMatch(/STAND_ACCESS_PASSWORD: обязательна/);
+    expect(problems({ ...standProduction, STAND_OPEN: "true" })).toMatch(/STAND_OPEN: не задаётся вместе с STAND_ACCESS_PASSWORD/);
+    expect(problems({ ...production, STAND_OPEN: "true" })).toMatch(/STAND_OPEN: запрещена при APP_ENV=prod/);
+  });
+
   it("стенд в production-сборке: пароль стенда — не короче 16 символов", () => {
     expect(problems({ ...standProduction, STAND_ACCESS_PASSWORD: "короткий-пароль" })).toMatch(/STAND_ACCESS_PASSWORD: не короче 16/);
     expect(problems({ ...standProduction, STAND_ACCESS_PASSWORD: "ровно-16-символ!" })).toBe("");

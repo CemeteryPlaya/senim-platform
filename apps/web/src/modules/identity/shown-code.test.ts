@@ -12,4 +12,9 @@ describe("mayShowCode: код входа на экране (мок у identity)"
     expect(mayShowCode({ nodeEnv: "development", standPassword: undefined })).toBe(true);
     expect(mayShowCode({ nodeEnv: "test", standPassword: undefined })).toBe(true);
   });
+
+  it("открытый стенд (STAND_OPEN) — показываем без пароля", () => {
+    expect(mayShowCode({ nodeEnv: "production", standPassword: undefined, standOpen: true })).toBe(true);
+    expect(mayShowCode({ nodeEnv: "production", standPassword: undefined, standOpen: false })).toBe(false);
+  });
 });
