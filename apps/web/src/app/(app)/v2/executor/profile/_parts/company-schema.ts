@@ -10,8 +10,6 @@ const t = ru.app.masterCompany.company.form.errors;
 export const ABOUT_MAX = 2000;
 export const FEE_MIN = 1_000;
 export const FEE_MAX = 200_000;
-export const DISTRICT_MAX = 100;
-export const STREET_MAX = 200;
 export const SPECIALIZATIONS_MAX = 30;
 
 export const MEASUREMENT_TERMS = ["FREE", "INCLUDED", "FEE_IF_NO_DEAL"] as const;
@@ -24,9 +22,8 @@ export const companySchema = z
     specializationIds: z.array(z.string().min(1)).max(SPECIALIZATIONS_MAX, t.specializations),
     measurementTerms: z.enum(MEASUREMENT_TERMS),
     measurementFee: z.number().int().nullable(),
+    // Место мастера — только город (ADR-016): района и адреса мастерской нет.
     city: z.string().trim().min(2, t.city).max(100, t.city),
-    district: z.string().trim().max(DISTRICT_MAX, t.district(DISTRICT_MAX)),
-    streetAddress: z.string().trim().max(STREET_MAX, t.street(STREET_MAX)),
   })
   .superRefine((v, ctx) => {
     if (v.measurementTerms !== "FEE_IF_NO_DEAL") return;

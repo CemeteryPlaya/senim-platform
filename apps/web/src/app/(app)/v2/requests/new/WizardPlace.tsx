@@ -1,127 +1,27 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { ru } from "@/i18n/ru";
-import { Button, CityField, Explain, HiddenField, Select, Stack, TextField } from "@/kit";
-import { districtsOf, LIMITS, SUGGESTED_CITIES, type GeoPoint } from "@/modules/requests/client";
-import type { Device } from "@/platform/device";
-import { outcomeOf } from "../../../_shell/form";
-import { locateAddressAction } from "./actions";
-import { locateDevice } from "./locate";
+import { Button, CityField, Stack, TextField } from "@/kit";
+import { LIMITS, SUGGESTED_CITIES } from "@/modules/requests/client";
 import { WizardFrame, useWizardStep, type WizardBase } from "./WizardFrame";
 import { addDays, todayAstana } from "./steps";
 import { useStepMemory } from "./wizard-memory";
 
 const t = ru.app.requests.wizard.place;
 
-export type PlaceInitial = { city: string; district: string; complex: string; address: string; desiredDate: string; location: GeoPoint | null };
-
-/** Что сейчас с точкой: найдена (как и с какой точностью), ищется, не найдена. */
-type PointState =
-  | { kind: "idle" }
-  | { kind: "busy" }
-  | { kind: "gps"; accuracyM: number }
-  | { kind: "geocoded"; precision: "address" | "city" }
-  | { kind: "error"; message: string };
-
-function pointStatus(point: GeoPoint | null, state: PointState): string | null {
-  switch (state.kind) {
-    case "error":
-      return state.message;
-    case "gps":
-      return t.pointAccuracy(state.accuracyM);
-    case "geocoded":
-      return state.precision === "city" ? t.pointCity : t.pointSet;
-    case "idle":
-    case "busy":
-      return point ? t.pointSet : null;
-  }
-}
+export type PlaceInitial = { city: string; desiredDate: string };
 
 /**
- * Точка адреса (необязательна): «Найти по адресу» — геокодер модуля (сейчас мок: только центр города), «Моё
- * местоположение» — геолокация браузера с точностью в метрах. Карты нет. Отказ — понятная строка; адрес сохраняется и
- * без точки. Найденная точка уходит скрытыми полями `lat` / `lng`.
+ * Шаг 4 «Где и когда?»: город и желаемая дата (ADR-016). Адреса, района, ЖК и точки в заявке нет: адрес покупатель
+ * укажет в сделке, его увидит только мастер, с которым заключена оферта.
  */
-function PointField({ value, onChange, city, address, device }: { value: GeoPoint | null; onChange: (p: GeoPoint | null) => void; city: string; address: string; device: Device }) {
-  const [state, setState] = useState<PointState>({ kind: "idle" });
-  const [, startTransition] = useTransition();
-
-  const locate = async () => {
-    setState({ kind: "busy" });
-    const found = await locateDevice();
-    if ("error" in found) return setState({ kind: "error", message: found.error });
-    onChange(found.point);
-    setState({ kind: "gps", accuracyM: found.accuracyM });
-  };
-
-  const geocode = () => {
-    if (city.trim().length < 2) return setState({ kind: "error", message: t.cityFirst });
-    startTransition(async () => {
-      setState({ kind: "busy" });
-      const outcome = outcomeOf(await locateAddressAction({ city, address }), window.location);
-      if (outcome.kind === "leave") return window.location.assign(outcome.href);
-      if (outcome.kind === "error") return setState({ kind: "error", message: outcome.error });
-      if (!outcome.data) return setState({ kind: "error", message: t.pointNotFound });
-      onChange({ lat: outcome.data.lat, lng: outcome.data.lng });
-      setState({ kind: "geocoded", precision: outcome.data.precision });
-    });
-  };
-
-  const busy = state.kind === "busy";
-  return (
-    <fieldset className="flex min-w-0 flex-col gap-2 border-0 p-0">
-      <legend className="mb-2 text-sub font-medium text-ink">{t.pointLegend}</legend>
-      <div>
-        <Explain label={t.pointExplain.label} title={t.pointExplain.title} device={device}>
-          <p>{t.pointExplain.body}</p>
-        </Explain>
-      </div>
-      {value && (
-        <>
-          <HiddenField name="lat" value={String(value.lat)} />
-          <HiddenField name="lng" value={String(value.lng)} />
-        </>
-      )}
-      <div className="flex flex-wrap gap-3">
-        <Button variant="secondary" size="sm" pending={busy} onClick={geocode}>
-          {t.findPoint}
-        </Button>
-        <Button variant="quiet" size="sm" disabled={busy} onClick={locate}>
-          {t.locate}
-        </Button>
-        {value && (
-          <Button
-            variant="quiet"
-            size="sm"
-            disabled={busy}
-            onClick={() => {
-              onChange(null);
-              setState({ kind: "idle" });
-            }}
-          >
-            {t.clearPoint}
-          </Button>
-        )}
-      </div>
-      <p role="status" className="text-sub text-muted">
-        {pointStatus(value, state)}
-      </p>
-    </fieldset>
-  );
-}
-
-/** Шаг 4 «Где и когда?»: город, район, ЖК, адрес (его увидит только мастер, с которым договоритесь), точка и желаемая дата. */
-export function WizardPlace({ base, device, initial }: { base: WizardBase; device: Device; initial: PlaceInitial }) {
+export function WizardPlace({ base, initial }: { base: WizardBase; initial: PlaceInitial }) {
   const form = useWizardStep("place", base);
   // Несохранённый ввод шага переживает «Назад» и перезагрузку (sessionStorage).
   const [place, setPlace] = useStepMemory(base.draftId, "place", initial);
-  // Функциональное обновление: точка от геокодера приходит позже и не должна стереть то, что ввели за это время.
   const set = (patch: Partial<PlaceInitial>) => setPlace((p) => ({ ...p, ...patch }));
   const e = form.errors;
-  const districts = districtsOf(place.city);
-  // Район другого города не подходит: при смене списка районов выбор сбрасывается.
-  const changeCity = (city: string) => set({ city, ...(districtsOf(city) === districts ? {} : { district: "" }) });
   // Сегодня по Астане: раньше желаемую дату выбрать нельзя; быстрые сроки считаются от этого дня.
   const [today] = useState(() => todayAstana());
   const quick = [
@@ -131,38 +31,7 @@ export function WizardPlace({ base, device, initial }: { base: WizardBase; devic
   ];
   return (
     <WizardFrame base={base} title={t.title} lead={t.lead} form={form}>
-      <Stack>
-        <CityField label={t.city} name="city" aria-required suggestions={SUGGESTED_CITIES} maxLength={LIMITS.city} value={place.city} onChange={changeCity} error={e.city} />
-        {districts ? (
-          <Select label={t.district} name="district" value={place.district} onChange={(ev) => set({ district: ev.target.value })} error={e.district}>
-            <option value="">{t.districtNone}</option>
-            {districts.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <TextField label={t.district} name="district" maxLength={LIMITS.district} value={place.district} onChange={(ev) => set({ district: ev.target.value })} error={e.district} />
-        )}
-        <TextField label={t.complex} name="complex" maxLength={LIMITS.complex} value={place.complex} onChange={(ev) => set({ complex: ev.target.value })} error={e.complex} />
-        <TextField
-          label={t.address}
-          name="address"
-          aria-required
-          autoComplete="street-address"
-          maxLength={LIMITS.address}
-          value={place.address}
-          onChange={(ev) => set({ address: ev.target.value })}
-          error={e.address}
-        />
-      </Stack>
-      <PointField value={place.location} onChange={(location) => set({ location })} city={place.city} address={place.address} device={device} />
-      {e.location && (
-        <p role="alert" className="text-sub text-danger">
-          {e.location}
-        </p>
-      )}
+      <CityField label={t.city} name="city" aria-required suggestions={SUGGESTED_CITIES} maxLength={LIMITS.city} value={place.city} onChange={(city) => set({ city })} error={e.city} />
       <Stack>
         <TextField label={t.date} name="desiredDate" type="date" min={today} value={place.desiredDate} onChange={(ev) => set({ desiredDate: ev.target.value })} error={e.desiredDate} />
         <div className="flex flex-wrap gap-2">

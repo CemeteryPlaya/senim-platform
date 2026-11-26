@@ -246,11 +246,11 @@ function addressHasCity(city: string, address: string | null): boolean {
 
 /**
  * Что нужно покупателю строками «подпись — значение»; пустое не показывается. Что за мебель — заголовок экрана, когда
- * опубликована — строка под ним: в разделе их нет; город — только если адрес с него не начинается. Адрес и точку модуль отдаёт только мастеру,
- * с которым договорились о цене: до того вместо адреса — пояснение, а когда договориться уже нельзя (`addressHint: false`:
- * торг закрыт, заявка не принимает предложений) — строки адреса нет. Длинное (размеры, описание, адрес, пожелания) — стопкой.
+ * опубликована — строка под ним: в разделе их нет. Место — город (ADR-016): адрес покупатель указывает в сделке, и модуль
+ * отдаёт его только мастеру выбранного предложения — тогда строка «Адрес» со ссылками на карты, а город — только если адрес
+ * с него не начинается. Подсказки «адрес скрыт» и строки точки нет. Длинное (размеры, описание, адрес, пожелания) — стопкой.
  */
-export function detailRows(r: DetailsInput, addressHint = true): DetailRow[] {
+export function detailRows(r: DetailsInput): DetailRow[] {
   const d = r.details;
   const unknown = new Set<string>(d.unknown ?? []);
   const size = unknown.has("size") ? t.request.unknown : d.widthCm || d.heightCm || d.depthCm ? t.request.sizeValue(d.widthCm, d.heightCm, d.depthCm) : null;
@@ -267,14 +267,12 @@ export function detailRows(r: DetailsInput, addressHint = true): DetailRow[] {
     [t.request.description, d.description, true],
     [t.request.city, addressHasCity(r.city, r.address) ? null : r.city],
     [t.request.desiredDate, r.desiredDate ? formatDate(r.desiredDate) : null],
-    [t.request.address, r.address ?? (addressHint ? t.request.addressHidden : null), true],
-    [t.request.location, r.location && !r.address ? t.request.locationValue : null],
+    [t.request.address, r.address, true],
     [t.request.wishes, r.wishes, true],
   ];
-  // Ссылки на карты — под адресом (а если адреса нет, а точка есть, — под строкой точки); координаты на экране не показываются.
-  const map: DetailMap | null = r.address || r.location ? { point: r.location ?? null, address: r.address ?? null } : null;
-  const mapLabel = r.address ? t.request.address : t.request.location;
-  return rows.flatMap(([label, value, stacked]) => (value ? [{ label, value, stacked: stacked === true, ...(map && label === mapLabel ? { map } : {}) }] : []));
+  // Ссылки на карты — под адресом; координаты на экране не показываются.
+  const map: DetailMap | null = r.address ? { point: r.location ?? null, address: r.address } : null;
+  return rows.flatMap(([label, value, stacked]) => (value ? [{ label, value, stacked: stacked === true, ...(map && label === t.request.address ? { map } : {}) }] : []));
 }
 
 /** Снимки помещения с описанием по порядку; снимок без адреса (ещё нельзя показать) пропускается. */
@@ -298,7 +296,7 @@ export function requestView(r: IncomingRequest, n: NegotiationView | null, now: 
   const live = state.kind === "buyerPrice" || state.kind === "waiting" || state.kind === "noPrice";
   const buyerOpen = n?.open && !n.open.mine ? n.open.amountTiyn : null;
   const offerId = state.kind === "form" ? null : (r.myOffer?.id ?? null);
-  // Договориться уже нельзя: ни подсказки об адресе, ни строки о контактах (они не откроются).
+  // Договориться уже нельзя: строки о контактах нет (они не откроются).
   const over = state.kind === "closed" || state.kind === "unavailable";
   return {
     state,
@@ -317,7 +315,7 @@ export function requestView(r: IncomingRequest, n: NegotiationView | null, now: 
     proposeDescription: buyerOpen === null ? t.propose.description : t.propose.buyerPrice(formatMoney(buyerOpen)),
     money: moneyOf(state, n),
     conditions: conditionsOf(state, r.myOffer),
-    details: detailRows(r, !over),
+    details: detailRows(r),
     photos: photoView(r.photos),
     design: designView(r.design, t.request.design),
     chat: offerId ? { href: to(`/chats/${encodeURIComponent(offerId)}`), label: over ? t.actions.chatClosed : t.actions.chat } : null,

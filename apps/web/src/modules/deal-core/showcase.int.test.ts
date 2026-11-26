@@ -145,29 +145,37 @@ describe("выбор покупателя: что из сделки видно �
     expect(await db.auditEvent.count({ where: { action: "deal.showcase.changed" } })).toBe(0);
   });
 
-  it("COMPLEX без ЖК у заявки и DISTRICT без района — VALIDATION", async () => {
+  it("место — только «не показывать» или «город» (ADR-016): DISTRICT и COMPLEX — VALIDATION даже при районе и ЖК в заявке", async () => {
     const f = await endedAt();
-    expect((await getDealShowcase(f.client, f.dealId)).addressOptions).toEqual(["NONE", "CITY"]);
-    await expect(setDealShowcase(f.client, { ...open(f.dealId), address: "DISTRICT" })).rejects.toMatchObject({ code: "VALIDATION" });
-    await expect(setDealShowcase(f.client, { ...open(f.dealId), address: "COMPLEX" })).rejects.toMatchObject({ code: "VALIDATION" });
-
-    await db.request.update({ where: { id: f.requestId }, data: { district: "Есильский район" } });
-    expect((await getDealShowcase(f.client, f.dealId)).addressOptions).toEqual(["NONE", "CITY", "DISTRICT"]);
-    await expect(setDealShowcase(f.client, { ...open(f.dealId), address: "COMPLEX" })).rejects.toMatchObject({ code: "VALIDATION" });
-    await setDealShowcase(f.client, { ...open(f.dealId), address: "DISTRICT" });
-
-    // ЖК без района не показывается.
-    await db.request.update({ where: { id: f.requestId }, data: { district: null, complex: "Хайвил" } });
-    expect((await getDealShowcase(f.client, f.dealId)).addressOptions).toEqual(["NONE", "CITY"]);
-
     await db.request.update({ where: { id: f.requestId }, data: { district: "Есильский район", complex: "Хайвил" } });
-    expect((await getDealShowcase(f.client, f.dealId)).addressOptions).toEqual(["NONE", "CITY", "DISTRICT", "COMPLEX"]);
-    await setDealShowcase(f.client, { ...open(f.dealId), address: "COMPLEX" });
-    expect((await getDealShowcase(f.client, f.dealId)).address).toBe("COMPLEX");
+    expect((await getDealShowcase(f.client, f.dealId)).addressOptions).toEqual(["NONE", "CITY"]);
+    // @ts-expect-error — «город и район» выбрать больше нельзя: тип схемы его не допускает, сервис отказывает
+    await expect(setDealShowcase(f.client, { ...open(f.dealId), address: "DISTRICT" })).rejects.toMatchObject({ code: "VALIDATION", details: { fieldErrors: { address: [expect.any(String)] } } });
+    // @ts-expect-error — «город, район и ЖК» выбрать больше нельзя: тип схемы его не допускает, сервис отказывает
+    await expect(setDealShowcase(f.client, { ...open(f.dealId), address: "COMPLEX" })).rejects.toMatchObject({ code: "VALIDATION" });
+    expect(await db.dealShowcase.count()).toBe(0);
+    expect(await showcaseAudit(f.dealId)).toHaveLength(0);
 
     // Лишнее поле и чужое значение — отказ схемы.
     await expect(setDealShowcase(f.client, { ...open(f.dealId), address: "STREET" } as never)).rejects.toMatchObject({ code: "VALIDATION" });
     await expect(setDealShowcase(f.client, { ...open(f.dealId), street: "ул. Тестовая" } as never)).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("прежний выбор DISTRICT или COMPLEX показан как город; новый выбор «город» его заменяет", async () => {
+    for (const saved of ["DISTRICT", "COMPLEX"] as const) {
+      const f = await endedAt();
+      await db.request.update({ where: { id: f.requestId }, data: { district: "Есильский район", complex: "Хайвил" } });
+      await db.dealShowcase.create({
+        data: { dealId: f.dealId, photos: true, price: true, address: saved, signature: "NAME", signedAs: "Айгерим", textVersion: "2026-11-26", updatedById: f.client.id },
+      });
+
+      expect(await getDealShowcase(f.client, f.dealId)).toMatchObject({ address: "CITY", answered: true, addressOptions: ["NONE", "CITY"] });
+
+      await setDealShowcase(f.client, open(f.dealId));
+      expect(await db.dealShowcase.findUniqueOrThrow({ where: { dealId: f.dealId } })).toMatchObject({ address: "CITY", textVersion: SHOWCASE_TEXT_VERSION });
+      const choice = { photos: true, price: true, signature: "NAME" };
+      expect((await showcaseAudit(f.dealId)).map((a) => [a.before, a.after])).toEqual([[{ ...choice, address: saved }, { ...choice, address: "CITY" }]]);
+    }
   });
 
   it("повтор с тем же содержимым — одна запись аудита", async () => {
@@ -191,8 +199,8 @@ describe("выбор покупателя: что из сделки видно �
     const first = await endedAt();
     const second = await endedAt("REFUNDED");
     for (const f of [first, second]) await db.deal.update({ where: { id: f.dealId }, data: { clientId: client.id } });
-    await db.request.updateMany({ where: { id: { in: [first.requestId, second.requestId] } }, data: { clientId: client.id, district: "Есильский район" } });
-    await setDealShowcase(client, { ...open(first.dealId), address: "DISTRICT" });
+    await db.request.updateMany({ where: { id: { in: [first.requestId, second.requestId] } }, data: { clientId: client.id } });
+    await setDealShowcase(client, open(first.dealId));
     await setDealShowcase(client, { ...open(second.dealId), signature: "INITIAL" });
     const someoneElse = await endedAt();
     await setDealShowcase(someoneElse.client, open(someoneElse.dealId));

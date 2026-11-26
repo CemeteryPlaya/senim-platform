@@ -105,13 +105,11 @@ export function NameFields({ answers, errors, onChange, ownIinLast4 }: FieldsPro
   );
 }
 
-/** Шаг 3: город, район и адрес мастерской (необязательно), опыт. */
+/** Шаг 3: город и опыт (района и адреса мастерской нет, ADR-016). */
 export function PlaceFields(props: FieldsProps) {
   return (
     <Stack gap="section">
       <CityField label={t.place.city} name="city" suggestions={SUGGESTED_CITIES} value={props.answers.city} onChange={(city) => props.onChange("city", city)} maxLength={100} error={props.errors.city} />
-      <Field {...props} name="district" label={t.place.district} autoComplete="address-level3" maxLength={100} />
-      <Field {...props} name="streetAddress" label={t.place.street} autoComplete="street-address" maxLength={200} />
       <Field {...props} name="yearsExperience" label={t.place.experience} inputMode="numeric" autoComplete="off" maxLength={2} />
     </Stack>
   );

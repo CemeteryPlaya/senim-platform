@@ -85,15 +85,20 @@ describe("saveShowcaseAction", () => {
     expect(await db.dealShowcase.count({ where: { dealId: f.dealId } })).toBe(0);
   });
 
-  it("адрес, которого нет в заявке (район), — отказ", async () => {
+  it("«город и район» и «город, район и ЖК» выбрать нельзя (ADR-016), даже если в заявке есть район и ЖК, — отказ", async () => {
     const f = await completed();
-    await place(f.dealId, { district: null, complex: null });
-    expect((await saveShowcaseAction({ ...choice(f.dealId), address: "DISTRICT" })).ok).toBe(false);
+    await place(f.dealId, { district: "Алмалинский", complex: "Нурлы Тау" });
+    for (const address of ["DISTRICT", "COMPLEX"]) {
+      // Значение приходит из формы строкой: проверяем отказ схемы действия, а не типов.
+      const result = await saveShowcaseAction({ ...choice(f.dealId), address } as unknown as Parameters<typeof saveShowcaseAction>[0]);
+      expect(result.ok ? null : result.code).toBe("VALIDATION");
+    }
+    expect(await db.dealShowcase.count({ where: { dealId: f.dealId } })).toBe(0);
   });
 });
 
 describe("страница выбора", () => {
-  it("варианты адреса — только доступные: без района — не показывать и город", async () => {
+  it("варианты места — не показывать и город", async () => {
     const f = await completed();
     await place(f.dealId, { district: null, complex: null });
     const out = await showcasePage(f.dealId);
@@ -102,10 +107,14 @@ describe("страница выбора", () => {
     expect([...out.matchAll(/data-primary-action/g)]).toHaveLength(1);
   });
 
-  it("район и ЖК есть — все четыре варианта", async () => {
+  it("район и ЖК в заявке есть — всё равно только не показывать и город; прежний выбор «город и район» отмечен как город", async () => {
     const f = await completed();
     await place(f.dealId, { district: "Алмалинский", complex: "Нурлы Тау" });
-    expect(radioValues(await showcasePage(f.dealId))).toEqual(["NONE", "CITY", "DISTRICT", "COMPLEX"]);
+    expect(radioValues(await showcasePage(f.dealId))).toEqual(["NONE", "CITY"]);
+    await db.dealShowcase.create({
+      data: { dealId: f.dealId, photos: false, price: false, address: "DISTRICT", signature: "INITIAL", signedAs: "", textVersion: "2026-11-26", updatedById: f.client.id },
+    });
+    expect(await showcasePage(f.dealId)).toMatch(/<input(?=[^>]*name="address")(?=[^>]*value="CITY")(?=[^>]*checked)[^>]*>/);
   });
 
   it("сделка не окончена — карточка сделки; чужая — 404", async () => {

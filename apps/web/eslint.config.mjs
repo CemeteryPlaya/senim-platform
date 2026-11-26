@@ -51,7 +51,7 @@ const eslintConfig = defineConfig([
     files: ["src/platform/logger.ts"],
     rules: { "no-console": "off" },
   },
-  globalIgnores([".next/**", "src/gen/**", ".next-e2e/**", ".next-prod/**", ".remember/**", "out/**", "build/**", "next-env.d.ts", "src/generated/**", ".agents/**", ".windsurf/**", ".claude/**", "playwright-report/**", "test-results/**", "coverage/**", ".playwright-mcp/**", ".harness-worktrees/**", ".worktrees/**", ".stryker-tmp/**", "reports/**"]),
+  globalIgnores([".next/**", "src/gen/**", ".next-e2e/**", ".next-prod/**", ".next-stand/**", ".remember/**", "out/**", "build/**", "next-env.d.ts", "src/generated/**", ".agents/**", ".windsurf/**", ".claude/**", "playwright-report/**", "test-results/**", "coverage/**", ".playwright-mcp/**", ".harness-worktrees/**", ".worktrees/**", ".stryker-tmp/**", "reports/**"]),
 ]);
 
 export default eslintConfig;

@@ -74,7 +74,6 @@ test("дизайн-проект: покупатель прикладывает P
   await page.waitForURL(/step=place/);
 
   await page.getByLabel(w.place.city, { exact: true }).fill("Астана");
-  await page.getByLabel(w.place.address).fill("ул. Достык, 5");
   await button(page, w.next).click();
   await page.waitForURL(/step=send/);
   await button(page, w.submit).click();

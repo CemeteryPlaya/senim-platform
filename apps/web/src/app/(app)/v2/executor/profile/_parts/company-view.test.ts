@@ -17,8 +17,6 @@ const profile: CompanyProfile = {
   measurementTerms: "FEE_IF_NO_DEAL",
   measurementFee: 10_000,
   city: "Астана",
-  district: "Есильский район",
-  streetAddress: "ул. Сыганак, 10",
 };
 
 describe("карточка «Сейчас / Дальше» компании", () => {
@@ -71,8 +69,6 @@ const base: CompanyInput = {
   measurementTerms: "FREE",
   measurementFee: null,
   city: "Астана",
-  district: "",
-  streetAddress: "",
 };
 const issues = (input: unknown) => {
   const r = companySchema.safeParse(input);
@@ -99,10 +95,10 @@ describe("проверка формы компании", () => {
     expect(issues({ ...base, measurementTerms: "INCLUDED", measurementFee: null })).toEqual([]);
   });
 
-  it("город обязателен, район и улица — необязательны, но с пределом; лишние поля отвергаются", () => {
+  it("город обязателен; района и улицы в форме нет (ADR-016) — как и любые лишние поля, они отвергаются", () => {
     expect(issues({ ...base, city: " " })).toEqual([`city: ${t.form.errors.city}`]);
-    expect(issues({ ...base, district: "я".repeat(101) })).toEqual([`district: ${t.form.errors.district(100)}`]);
-    expect(issues({ ...base, streetAddress: "я".repeat(201) })).toEqual([`streetAddress: ${t.form.errors.street(200)}`]);
+    expect(issues({ ...base, district: "Есильский район" })).not.toEqual([]);
+    expect(issues({ ...base, streetAddress: "ул. Сыганак, 10" })).not.toEqual([]);
     expect(issues({ ...base, status: "APPROVED" })).not.toEqual([]);
   });
 

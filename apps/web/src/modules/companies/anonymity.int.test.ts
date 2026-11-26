@@ -86,15 +86,16 @@ describe("publicExecutorView", () => {
     });
   });
 
-  it("не раскрывает наименование, улицу, ФИО, телефон и ИИН/БИН", async () => {
+  it("не раскрывает наименование, район, улицу, ФИО, телефон и ИИН/БИН", async () => {
     const { executor, profile } = await makeAddressedExecutor();
 
     const view = await publicExecutorView(executor.executor.id);
     const json = JSON.stringify(view);
 
     expect(Object.keys(view).sort()).toEqual(ALLOWED_KEYS);
-    expect(view.address).toBe("Астана, Есильский район");
+    expect(view.address).toBe("Астана");
     expect(json).not.toContain("Секретная Мебель");
+    expect(json).not.toContain("Есиль");
     expect(json).not.toContain("Потайная");
     expect(json).not.toContain(profile.user.phone);
     expect(json).not.toContain(profile.user.phone.slice(2));
@@ -104,7 +105,7 @@ describe("publicExecutorView", () => {
     expect(json).not.toContain(profile.user.fullName!);
   });
 
-  it("режим «имя показано»: наименование и полный адрес; телефон, ФИО владельца и ИИН/БИН — нет", async () => {
+  it("режим «имя показано»: наименование и город (района и улицы нет, ADR-016); телефон, ФИО владельца и ИИН/БИН — нет", async () => {
     const { executor, profile } = await makeAddressedExecutor();
     await showNames();
 
@@ -115,9 +116,11 @@ describe("publicExecutorView", () => {
     expect(view).toMatchObject({
       label: "ТОО «Секретная Мебель»",
       labelGen: "ТОО «Секретная Мебель»",
-      address: "Астана, Есильский район, ул. Потайная, 7",
+      address: "Астана",
       nameShown: true,
     });
+    expect(json).not.toContain("Есиль");
+    expect(json).not.toContain("Потайная");
     expect(json).not.toContain(profile.user.phone);
     expect(json).not.toContain(profile.user.phone.slice(2));
     expectNoLast4(view, profile.binIinLast4);
@@ -130,13 +133,13 @@ describe("publicExecutorView", () => {
     const id = executor.executor.id;
 
     const hidden = await executorDisplayOf(db, id);
-    expect(hidden).toMatchObject({ label: `Исполнитель №${executor.executor.publicNumber}`, address: "Астана, Есильский район" });
-    expect(JSON.stringify(hidden)).not.toContain("Потайная");
+    expect(hidden).toMatchObject({ label: `Исполнитель №${executor.executor.publicNumber}`, address: "Астана" });
+    expect(JSON.stringify(hidden)).not.toContain("Есиль");
 
     await showNames();
     const shown = await executorDisplays(db, [id, id]);
     expect(shown.size).toBe(1);
-    expect(shown.get(id)).toMatchObject({ label: "ТОО «Секретная Мебель»", address: "Астана, Есильский район, ул. Потайная, 7" });
+    expect(shown.get(id)).toMatchObject({ label: "ТОО «Секретная Мебель»", address: "Астана" });
   });
 
   it("неизвестный исполнитель — NOT_FOUND", async () => {

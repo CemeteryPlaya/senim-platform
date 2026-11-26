@@ -47,7 +47,7 @@ export default async function ExecutorProfilePage() {
             {profile.city && (
               <p className="flex items-center gap-1 text-base text-ink-soft">
                 <MapPin aria-hidden className="size-5 shrink-0" />
-                {[profile.city, profile.district].filter(Boolean).join(", ")}
+                {profile.city}
               </p>
             )}
           </div>
@@ -105,8 +105,8 @@ export default async function ExecutorProfilePage() {
             measurementTerms: profile.measurementTerms,
             measurementFee: profile.measurementFee,
             city: profile.city,
-            district: profile.district,
-            streetAddress: profile.streetAddress,
+            district: "",
+            streetAddress: "",
           }}
           types={types}
         />

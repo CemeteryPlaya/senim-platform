@@ -192,6 +192,7 @@ export const deal = {
       "portfolio.consent_given": "Покупатель разрешил показать фото в портфолио мастера",
       "portfolio.consent_revoked": "Покупатель отозвал разрешение показывать фото",
       "deal.showcase.changed": "Покупатель изменил, что видно в профиле мастера",
+      "request.address.set": "Покупатель указал адрес сделки",
       "payment.operation.succeeded": "Банк провёл операцию",
       "payment.operation.failed": "Операция банка не прошла",
       "payment.operation.confirmed": "Оператор подтвердил операцию банковским документом",
@@ -246,7 +247,7 @@ export const deal = {
     rationale: "Обоснуйте решение — хотя бы 10 символов",
     shareOnlyPartial: "Сумма мастеру указывается только при частичном разделе",
     rating: "Оценка от 1 до 5",
-    showcaseAddress: "Такого адреса в заявке нет — выберите другой вариант",
+    showcaseAddress: "Выберите, показывать ли город",
   },
 
   errors: {

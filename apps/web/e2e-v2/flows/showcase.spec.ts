@@ -6,10 +6,10 @@ import { open } from "../support";
 
 /**
  * Что из сделки видно в профиле мастера (спека 2026-11-17, 3.3–3.5; набор flows: отзыв и выбор меняют данные базы e2e).
- * Засеянная оконченная сделка Айгерим «Гостиная и ТВ-зона» (мастер — Qazaq Wood, район и ЖК в заявке, фото сдачи; отзыва и
+ * Засеянная оконченная сделка Айгерим «Гостиная и ТВ-зона» (мастер — Qazaq Wood, адрес в сделке, фото сдачи; отзыва и
  * выбора нет): до ответа покупателя страница мастера показывает сделку закрыто — без фото и места. Покупатель с карточки
- * сделки оставляет отзыв и под оценкой выбирает «фото, город и район, имя» → гость видит у сделки фото сдачи, «Астана, Есиль»
- * и подпись «— Айгерим», без улицы. Покупатель меняет выбор на закрытый («Изменить» на карточке сделки) → фото и место
+ * сделки оставляет отзыв и под оценкой выбирает «фото, город, имя» (место — только «не показывать» или «город», ADR-016) →
+ * гость видит у сделки фото сдачи, «Астана» и подпись «— Айгерим», без улицы. Покупатель меняет выбор на закрытый («Изменить» на карточке сделки) → фото и место
  * исчезают, подпись — «— А.», отзыв остаётся. Вид компьютера проверяет второй гостевой контекст в конце.
  *
  * Отзыв по сделке один, поэтому сценарий идёт только в проекте flows-mobile (в flows-desktop — явный пропуск). Покупатель
@@ -44,7 +44,7 @@ async function guestDeal(browser: Browser, info: TestInfo, publicNumber: number,
   return { page, deal, close: () => context.close() };
 }
 
-test("покупатель решает, что из сделки видно в профиле мастера: фото, город и район, имя — и обратно закрыто", async ({ browser }, info) => {
+test("покупатель решает, что из сделки видно в профиле мастера: фото, город, имя — и обратно закрыто", async ({ browser }, info) => {
   test.skip(info.project.name !== "flows-mobile", "отзыв по сделке сида один на пересев: сценарий — в flows-mobile, вид компьютера — вторым контекстом в нём же");
   test.setTimeout(300_000);
   const pd = await seedProfileDeal(SEED_BUYER.phone);
@@ -58,7 +58,7 @@ test("покупатель решает, что из сделки видно в 
   await expect(before.deal.locator("figcaption")).toHaveCount(0);
   await before.close();
 
-  // ── Покупатель: отзыв с выбором «фото, город и район, имя».
+  // ── Покупатель: отзыв с выбором «фото, город, имя».
   const storageState = await seedBuyerState(browser, info.project.use.baseURL, "showcase-flow.json");
   const buyer = await browser.newContext({ ...devices["Pixel 7"], baseURL: info.project.use.baseURL, locale: "ru-RU", timezoneId: "Asia/Almaty", storageState });
   const page = await buyer.newPage();
@@ -72,26 +72,28 @@ test("покупатель решает, что из сделки видно в 
   await page.waitForURL(new RegExp(`${cardPath}/review$`));
   await page.waitForLoadState("networkidle");
   await expect(page.locator("h1")).toHaveText(r.title);
-  // Вариант «Город, район и ЖК» есть: в заявке указаны и район, и ЖК.
-  await expect(page.getByRole("radio", { name: s.address.COMPLEX, exact: true })).toHaveCount(1);
+  // Место — только «Не показывать» и «Город» (ADR-016).
+  await expect(page.getByRole("radio", { name: s.address.NONE, exact: true })).toHaveCount(1);
+  await expect(page.getByRole("radio", { name: s.address.CITY, exact: true })).toHaveCount(1);
+  await expect(page.getByRole("radio", { name: /район|ЖК/ })).toHaveCount(0);
   await choose(page, "radio", r.rating(5));
   await page.getByLabel(r.textLabel).fill("ТВ-зону собрали аккуратно, полки ровные, провода спрятали.");
   await choose(page, "checkbox", s.photos);
   await choose(page, "checkbox", s.price, false);
-  await choose(page, "radio", s.address.DISTRICT!);
+  await choose(page, "radio", s.address.CITY!);
   await choose(page, "radio", s.signature.NAME!);
   await page.getByRole("button", { name: r.submit, exact: true }).dblclick();
   await page.waitForURL(new RegExp(`${cardPath}$`));
-  const open1 = s.line(s.summary.of({ photos: true, price: false, address: "DISTRICT", signature: "NAME" }));
+  const open1 = s.line(s.summary.of({ photos: true, price: false, address: "CITY", signature: "NAME" }));
   await expect(page.getByText(open1, { exact: true })).toBeVisible();
 
-  // Гость: фото сдачи, «Астана, Есиль», подпись «— Айгерим»; стоимости нет.
+  // Гость: фото сдачи, «Астана», подпись «— Айгерим»; стоимости нет.
   const shown = await guestDeal(browser, info, pd.publicNumber, pd.dealId, pd.title);
   await expect(shown.deal.locator("img").first()).toBeVisible();
   await expect(shown.deal.getByText(g.dealPlace, { exact: true })).toBeVisible();
-  await expect(shown.deal.getByText("Астана, Есиль", { exact: true })).toBeVisible();
+  await expect(shown.deal.getByText("Астана", { exact: true })).toBeVisible();
   await expect(shown.deal).not.toContainText(g.dealPrice);
-  await expect(shown.deal).not.toContainText("Тестовый квартал");
+  await expect(shown.deal).not.toContainText(/район|ЖК/);
   await expect(shown.deal.getByText(g.reviewRating(5), { exact: true })).toBeVisible();
   await expect(shown.deal.locator("figcaption")).toHaveText(g.reviewSignature("Айгерим"));
   await expect(shown.deal).not.toContainText("Сапарова");
@@ -115,7 +117,6 @@ test("покупатель решает, что из сделки видно в 
   const hidden = await guestDeal(browser, info, pd.publicNumber, pd.dealId, pd.title, devices["Desktop Chrome"]);
   await expect(hidden.deal.locator("img")).toHaveCount(0);
   await expect(hidden.deal).not.toContainText(g.dealPlace);
-  await expect(hidden.deal).not.toContainText("Есиль");
   await expect(hidden.deal.getByText(g.reviewRating(5), { exact: true })).toBeVisible();
   await expect(hidden.deal.locator("figcaption")).toHaveText(g.reviewSignature("А."));
   await expect(hidden.page.getByRole("main")).not.toContainText("Айгерим");

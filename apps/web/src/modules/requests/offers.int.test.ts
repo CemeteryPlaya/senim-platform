@@ -18,6 +18,7 @@ import {
   listIncomingRequests,
   listOffers,
   sendOffer,
+  setDealAddress,
   withdrawOffer,
 } from "./index";
 
@@ -53,9 +54,15 @@ describe("видимость заявок исполнителю", () => {
     expect(await listIncomingRequests(sameSegment)).toEqual([]);
   });
 
-  it("адрес и точка заказчика раскрываются только мастеру, чью цену приняли (оферта создана)", async () => {
+  it("адрес и точка сделки (указал покупатель) раскрываются только мастеру, чью цену приняли, и только после заключения оферты", async () => {
     const client = await makeClient();
-    const { requestId, executor } = await makeAccepted(client);
+    const { requestId, executor, dealId } = await makeAccepted(client);
+    expect(await getIncomingRequest(executor, requestId)).toMatchObject({ address: null, location: null });
+    await setDealAddress(client, dealId, { address: "ул. Тестовая, 1, кв. 2", location: POINT });
+    // Оферта создана, но не заключена — адреса нет, как и контактов (ADR-016).
+    await db.deal.update({ where: { id: dealId }, data: { signedAt: null } });
+    expect(await getIncomingRequest(executor, requestId)).toMatchObject({ address: null, location: null });
+    await db.deal.update({ where: { id: dealId }, data: { signedAt: new Date() } });
     const loser = await makeExecutor({ segment: "COMFORT" });
     const open = await makeOpenRequest(client, { segment: "COMFORT" });
     await sendOffer(loser, offerInput(open));

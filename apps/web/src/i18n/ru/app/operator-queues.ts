@@ -164,7 +164,7 @@ export const operatorQueues = {
       experience: "Опыт",
       years: (n: number) => `${n} ${word(n, "год", "года", "лет")}`,
       specializations: "Специализация",
-      address: "Адрес",
+      address: "Город",
       about: "О себе",
       registered: "Зарегистрирован",
       addedByOperator: "Добавлен оператором",

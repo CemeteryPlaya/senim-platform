@@ -170,8 +170,6 @@ describe("сохранение компании", () => {
     measurementTerms: "FREE" as const,
     measurementFee: null,
     city: "Астана",
-    district: "Есильский район",
-    streetAddress: "ул. Сыганак, 10",
   };
 
   it("мастер на проверке сохраняет; повтор — тот же результат", async () => {
@@ -179,7 +177,7 @@ describe("сохранение компании", () => {
     const first = await saveCompanyAction(input);
     expect(first).toEqual({ ok: true, data: { aboutMasked: false, about: "Делаю кухни и шкафы" } });
     expect(await saveCompanyAction(input)).toEqual(first);
-    expect(await db.executorProfile.findUniqueOrThrow({ where: { id: executor.executor.id } })).toMatchObject({ city: "Астана", yearsExperience: 7, district: "Есильский район" });
+    expect(await db.executorProfile.findUniqueOrThrow({ where: { id: executor.executor.id } })).toMatchObject({ city: "Астана", yearsExperience: 7, district: "", streetAddress: "" });
   });
 
   it("«О себе» проходит маску: телефон и ссылка убираются, признак возвращается", async () => {

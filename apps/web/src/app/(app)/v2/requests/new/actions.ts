@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser } from "@/modules/identity";
-import { geocodeAddress, geocodeSchema, getDraft, publishRequest, saveDraftSchema, saveDraftStep, WIZARD_SCREENS } from "@/modules/requests";
+import { getDraft, publishRequest, saveDraftSchema, saveDraftStep, WIZARD_SCREENS } from "@/modules/requests";
 import { action } from "@/platform/action";
 import { AppError, isAppError } from "@/platform/errors";
 import { to } from "../../../_shell/paths";
@@ -51,8 +51,3 @@ export const submitRequestAction = action("app.requests.submit", z.strictObject(
   redirect(`${to(`/requests/${encodeURIComponent(requestId)}`)}?sent=1`);
 });
 
-/** «Найти по адресу» на шаге адреса: точка от геокодера (сейчас мок — только центр города) или `null`. */
-export const locateAddressAction = action("app.requests.locate", geocodeSchema, async (input) => {
-  const user = await requireUser("CLIENT");
-  return geocodeAddress(user, input);
-});

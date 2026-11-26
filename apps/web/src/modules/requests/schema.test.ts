@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
-import { applyStep, parseDetails, requestDetailsSchema, resumeIndex, screenIndex, segmentInputOf, stepInputSchema, WIZARD_SCREENS } from "./schema";
+import { applyStep, dealAddressSchema, parseDetails, requestDetailsSchema, resumeIndex, screenIndex, segmentInputOf, stepInputSchema, WIZARD_SCREENS } from "./schema";
 
 describe("схема details", () => {
   it("принимает формат сида, включая групповое «не знаю» по материалам", () => {
@@ -121,17 +121,28 @@ describe("шаги мастера", () => {
     expect(six.error?.issues).toEqual([expect.objectContaining({ path: ["designFileIds"], message: ru.requests.validation.designTooMany })]);
   });
 
-  it("адрес: город и адрес обязательны, дата и точка — по желанию; точка — обе координаты в пределах Земли", () => {
-    const base = { screen: "place", city: "Астана", address: "ул. Тестовая, 1", desiredDate: null };
+  it("«Где и когда» (ADR-016): город обязателен, дата — по желанию; адреса, точки, района и ЖК в шаге нет", () => {
+    const base = { screen: "place", city: "Астана", desiredDate: null };
     expect(stepInputSchema.safeParse(base).success).toBe(true);
-    expect(stepInputSchema.parse(base)).toMatchObject({ location: null });
-    expect(stepInputSchema.safeParse({ ...base, address: "" }).success).toBe(false);
     expect(stepInputSchema.safeParse({ ...base, city: "" }).success).toBe(false);
     expect(stepInputSchema.safeParse({ ...base, desiredDate: "31.12.2026" }).success).toBe(false);
-    expect(stepInputSchema.safeParse({ ...base, location: { lat: 51.128, lng: 71.43 } }).success).toBe(true);
-    expect(stepInputSchema.safeParse({ ...base, location: { lat: 51.128 } }).success).toBe(false);
-    expect(stepInputSchema.safeParse({ ...base, location: { lat: 91, lng: 71.43 } }).success).toBe(false);
-    expect(stepInputSchema.safeParse({ ...base, location: { lat: 51.128, lng: 181 } }).success).toBe(false);
+    for (const extra of [{ address: "ул. Тестовая, 1" }, { location: { lat: 51.128, lng: 71.43 } }, { district: "Есиль" }, { complex: "ЖК" }]) {
+      expect(stepInputSchema.safeParse({ ...base, ...extra }).success).toBe(false);
+    }
+  });
+
+  it("адрес сделки: 5–200 знаков, точка — по желанию, обе координаты в пределах Земли", () => {
+    const base = { dealId: "d1", address: "ул. Тестовая, 1" };
+    expect(dealAddressSchema.parse(base)).toEqual({ ...base, location: null });
+    expect(dealAddressSchema.parse({ ...base, address: "  ул. Абая, 1  " }).address).toBe("ул. Абая, 1");
+    const short = dealAddressSchema.safeParse({ ...base, address: " ул " });
+    expect(short.error?.issues).toEqual([expect.objectContaining({ path: ["address"], message: ru.requests.validation.dealAddressRequired })]);
+    expect(dealAddressSchema.safeParse({ ...base, address: "у".repeat(201) }).success).toBe(false);
+    expect(dealAddressSchema.safeParse({ ...base, location: { lat: 51.128, lng: 71.43 } }).success).toBe(true);
+    expect(dealAddressSchema.safeParse({ ...base, location: { lat: 51.128 } }).success).toBe(false);
+    expect(dealAddressSchema.safeParse({ ...base, location: { lat: 91, lng: 71.43 } }).success).toBe(false);
+    expect(dealAddressSchema.safeParse({ ...base, location: { lat: 51.128, lng: 181 } }).success).toBe(false);
+    expect(dealAddressSchema.safeParse({ ...base, dealId: "" }).success).toBe(false);
   });
 
   it("первый экран — только тип и стиль; блок «Для продвинутых» необязателен", () => {
@@ -179,7 +190,7 @@ describe("шаги мастера", () => {
 });
 
 describe("с какого экрана продолжить черновик", () => {
-  const full = { wizardStep: WIZARD_SCREENS.length, segment: "COMFORT", address: "ул. Тестовая, 1", typeChosen: true };
+  const full = { wizardStep: WIZARD_SCREENS.length, segment: "COMFORT", typeChosen: true };
   const at = (screen: (typeof WIZARD_SCREENS)[number]) => WIZARD_SCREENS.indexOf(screen);
 
   it("новый черновик — первый экран", () => {
@@ -187,9 +198,9 @@ describe("с какого экрана продолжить черновик", (
   });
 
   it("без запроса — последний сохранённый экран; дальше сохранённого не пускает", () => {
-    expect(resumeIndex({ ...full, wizardStep: 2, segment: null, address: null }, undefined)).toBe(at("segment"));
-    expect(resumeIndex({ ...full, wizardStep: 1, segment: null, address: null }, "place")).toBe(at("segment"));
-    expect(resumeIndex({ ...full, wizardStep: 2, segment: "ECONOMY", address: null }, "start")).toBe(0);
+    expect(resumeIndex({ ...full, wizardStep: 2, segment: null }, undefined)).toBe(at("segment"));
+    expect(resumeIndex({ ...full, wizardStep: 1, segment: null }, "place")).toBe(at("segment"));
+    expect(resumeIndex({ ...full, wizardStep: 2, segment: "ECONOMY" }, "start")).toBe(0);
     expect(resumeIndex(full, undefined)).toBe(at("send"));
     expect(resumeIndex(full, "room")).toBe(at("room"));
   });
@@ -198,9 +209,9 @@ describe("с какого экрана продолжить черновик", (
     expect(resumeIndex(full, "materials")).toBe(at("send"));
   });
 
-  it("черновик прежнего мастера без типа, уровня или адреса возвращается к этому экрану", () => {
-    expect(resumeIndex({ wizardStep: 6, segment: null, address: null, typeChosen: true }, undefined)).toBe(at("segment"));
-    expect(resumeIndex({ wizardStep: 6, segment: "ECONOMY", address: null, typeChosen: true }, "send")).toBe(at("place"));
-    expect(resumeIndex({ wizardStep: 6, segment: "ECONOMY", address: "ул. Тестовая, 1", typeChosen: false }, "send")).toBe(0);
+  it("черновик прежнего мастера без типа или уровня возвращается к этому экрану; без адреса — нет (ADR-016)", () => {
+    expect(resumeIndex({ wizardStep: 6, segment: null, typeChosen: true }, undefined)).toBe(at("segment"));
+    expect(resumeIndex({ wizardStep: 6, segment: "ECONOMY", typeChosen: true }, "send")).toBe(at("send"));
+    expect(resumeIndex({ wizardStep: 6, segment: "ECONOMY", typeChosen: false }, "send")).toBe(0);
   });
 });

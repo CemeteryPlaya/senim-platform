@@ -255,7 +255,7 @@ export type IncomingListItem = Awaited<ReturnType<typeof listIncomingRequests>>[
 
 /**
  * Заявка для исполнителя: видимая ему или та, где есть его отклик.
- * Адрес и точка — только если выбран именно его отклик (на пути ТЗ — принята цена и создана оферта).
+ * Адрес и точка — только если выбран именно его отклик и оферта заключена (`Deal.signedAt`, ADR-016).
  */
 export async function getIncomingRequest(user: CurrentUser, requestId: string) {
   const executor = await loadExecutor(db, user);
@@ -264,7 +264,7 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     include: {
       furnitureType: { select: { name: true } },
       photos: { where: { purpose: "REQUEST_ROOM" }, orderBy: { sortOrder: "asc" }, select: { id: true, provider: true, storageKey: true } },
-      offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, include: { measurement: true, deal: { select: { id: true } } } },
+      offers: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, include: { measurement: true, deal: { select: { id: true, signedAt: true } } } },
       offerRetries: { where: { executorId: executor.id }, orderBy: { round: "desc" }, take: 1, select: { round: true } },
       invitations: { where: { executorId: executor.id }, select: { status: true }, take: 1 },
     },
@@ -279,6 +279,8 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
   });
   const mine = r.offers[0] ?? null;
   const chosen = mine?.status === "ACCEPTED";
+  // Адрес сделки (ADR-016) — мастеру выбранного отклика и только после заключения оферты, как контакты.
+  const addressShown = chosen && mine.deal?.signedAt != null;
   // Оператор разрешил следующую попытку после отклонённого отклика (№16).
   const retryAllowed = mine !== null && (r.offerRetries[0]?.round ?? 1) > mine.round;
   return {
@@ -291,8 +293,8 @@ export async function getIncomingRequest(user: CurrentUser, requestId: string) {
     style: r.style,
     details: parseDetails(r.details),
     city: r.city,
-    address: chosen ? r.address : null,
-    location: chosen ? pointOf(r) : null,
+    address: addressShown ? r.address : null,
+    location: addressShown ? pointOf(r) : null,
     path: pathOf(r),
     desiredDate: r.desiredDate,
     wishes: r.wishes,

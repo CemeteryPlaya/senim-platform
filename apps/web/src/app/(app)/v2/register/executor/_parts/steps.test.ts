@@ -90,14 +90,13 @@ describe("сводка последнего шага", () => {
     expect(rows.map((r) => r.step)).toEqual(["form", "name", "name", "name", "name", "place", "place"]);
   });
 
-  it("самозанятый: ФИО и ИИН из знакомства (4 цифры); район и адрес — только указанные; опыт словами", () => {
-    const rows = summaryRows({ ...initialAnswers(), legalForm: "SELF_EMPLOYED", legalName: "Сапаров Ерлан", district: "Есиль", yearsExperience: "1" }, "1234");
+  it("самозанятый: ФИО и ИИН из знакомства (4 цифры); из места — только город; опыт словами", () => {
+    const rows = summaryRows({ ...initialAnswers(), legalForm: "SELF_EMPLOYED", legalName: "Сапаров Ерлан", yearsExperience: "1" }, "1234");
     expect(rows).toEqual([
       { label: t.check.form, value: t.form.legalForms.SELF_EMPLOYED, step: "form" },
       { label: t.check.fullName, value: "Сапаров Ерлан", step: "name" },
       { label: t.check.ownIin, value: "•••• 1234", step: "name" },
       { label: t.check.city, value: t.place.defaultCity, step: "place" },
-      { label: t.check.district, value: "Есиль", step: "place" },
       { label: t.check.experience, value: "1 год", step: "place" },
     ]);
   });

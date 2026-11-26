@@ -66,7 +66,6 @@ export function wizardBack(
 
 /** Тексты модуля requests (словари v1: «исполнитель», «шаги мастера») → тексты экрана v2. Прочие — как есть. */
 const V2_MESSAGES: ReadonlyMap<string, string> = new Map([
-  [ru.requests.validation.addressRequired, t.errors.addressRequired],
   [ru.requests.validation.chooseOrUnknown, t.errors.chooseOrUnknown],
   [ru.requests.errors.targetUnavailable, t.errors.targetUnavailable],
   [ru.requests.errors.selfDeal, t.errors.selfDeal],
@@ -120,13 +119,6 @@ function advancedFields(fd: Fields) {
   return { size, facade: text(fd, "facade") || UNKNOWN, countertop: text(fd, "countertop") || UNKNOWN, hardware: text(fd, "hardware") || UNKNOWN };
 }
 
-/** Точка адреса из скрытых полей `lat` / `lng`: обе или ни одной. */
-function locationFields(fd: Fields): { lat: number; lng: number } | null {
-  const lat = text(fd, "lat");
-  const lng = text(fd, "lng");
-  return lat && lng ? { lat: Number(lat), lng: Number(lng) } : null;
-}
-
 /** Поля формы шага → шаг модуля в «сыром» виде (его разбирает stepInputSchema — здесь и в действии на сервере). */
 export function readStep(screen: WizardScreen, fd: Fields): StepFormInput {
   switch (screen) {
@@ -145,7 +137,7 @@ export function readStep(screen: WizardScreen, fd: Fields): StepFormInput {
         designContactsConfirmed: text(fd, "designContactsConfirmed") === "on",
       };
     case "place":
-      return { screen, city: text(fd, "city"), district: text(fd, "district") || null, complex: text(fd, "complex") || null, address: text(fd, "address"), desiredDate: text(fd, "desiredDate") || null, location: locationFields(fd) };
+      return { screen, city: text(fd, "city"), desiredDate: text(fd, "desiredDate") || null };
     case "send":
       return { screen };
   }
@@ -153,7 +145,7 @@ export function readStep(screen: WizardScreen, fd: Fields): StepFormInput {
 
 /**
  * Ошибки шага по полям (первое сообщение на поле) или `null`, если шаг верен. Ключ — имя поля формы: последний элемент
- * пути (`advanced.size.widthCm` → `widthCm`), точка адреса — `location`, ошибка без поля — `form`.
+ * пути (`advanced.size.widthCm` → `widthCm`), ошибка без поля — `form`.
  */
 export function stepErrors(screen: WizardScreen, fd: Fields, now: number = Date.now()): Record<string, string> | null {
   const parsed = stepInputSchema.safeParse(readStep(screen, fd));
@@ -161,7 +153,7 @@ export function stepErrors(screen: WizardScreen, fd: Fields, now: number = Date.
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       const names = issue.path.filter((p): p is string => typeof p === "string");
-      const key = names.includes("location") ? "location" : (names.at(-1) ?? "form");
+      const key = names.at(-1) ?? "form";
       errors[key] ??= v2Message(issue.message);
     }
   }
@@ -302,9 +294,6 @@ export type SummaryDraft = {
   segment: Segment | null;
   photos: readonly { id: string; src: string }[];
   city: string;
-  district: string | null;
-  complex: string | null;
-  address: string | null;
   desiredDate: Date | null;
   /** Свой дизайн-проект покупателя (`getDraft().design`): в сводке — число файлов. */
   design: readonly { id: string }[];
@@ -331,7 +320,6 @@ export function summaryRows(draft: SummaryDraft): SummaryRow[] {
     return null;
   };
   const style = draft.style && draft.style in STYLES ? STYLES[draft.style as StyleKey].name : null;
-  const address = [draft.city, draft.district, draft.complex, draft.address].filter(Boolean).join(", ");
   const rows: (SummaryRow | null)[] = [
     { label: s.type, value: draft.title, href: at("start") },
     row("style", s.style, style, "start"),
@@ -343,7 +331,7 @@ export function summaryRows(draft: SummaryDraft): SummaryRow[] {
     row("photos", s.photos, draft.photos.length > 0 ? s.photosCount(draft.photos.length) : null, "room"),
     draft.design.length > 0 ? { label: s.design, value: s.designCount(draft.design.length), href: at("room") } : null,
     d.description ? { label: s.description, value: d.description, href: at("room") } : null,
-    row("address", s.address, address || null, "place"),
+    { label: s.city, value: draft.city, href: at("place") },
     row("date", s.date, draft.desiredDate ? formatDate(draft.desiredDate) : null, "place"),
   ];
   const first = missing[0];

@@ -28,9 +28,8 @@ export type Answers = {
   /** ФИО и ИИН директора — только у ТОО. */
   directorName: string;
   directorIin: string;
+  /** Город — единственное место мастера (ADR-016): района и адреса мастерской в анкете нет. */
   city: string;
-  district: string;
-  streetAddress: string;
   yearsExperience: string;
 };
 
@@ -40,16 +39,13 @@ export type AnswerField = keyof Answers;
 export const STEP_FIELDS: Readonly<Record<Exclude<RegisterStep, "check">, readonly AnswerField[]>> = {
   form: ["legalForm"],
   name: ["legalName", "binIin", "ownerName", "directorName", "directorIin"],
-  place: ["city", "district", "streetAddress", "yearsExperience"],
+  place: ["city", "yearsExperience"],
 };
 
 export type Issue = { field: AnswerField; message: string };
 
 /** Пробелы внутри номера не считаются: «870304 300 612» — 12 цифр (как в схеме модуля). */
 export const digitsOf = (value: string): string => value.replace(/\s/g, "");
-
-const DISTRICT_MAX = 100;
-const STREET_MAX = 200;
 
 /** Подписант по форме работы: самозанятый — он сам (наименование и есть ФИО), ИП — владелец, ТОО — директор. */
 function signerIssues(a: Answers): Issue[] {
@@ -85,8 +81,6 @@ function placeIssues(a: Answers): Issue[] {
   const experience = a.yearsExperience.trim();
   return [
     ...(city.length < 2 || city.length > 100 ? [{ field: "city" as const, message: t.city }] : []),
-    ...(a.district.trim().length > DISTRICT_MAX ? [{ field: "district" as const, message: t.district }] : []),
-    ...(a.streetAddress.trim().length > STREET_MAX ? [{ field: "streetAddress" as const, message: t.street }] : []),
     ...(/^\d{1,2}$/.test(experience) && Number(experience) <= 60 ? [] : [{ field: "yearsExperience" as const, message: t.experience }]),
   ];
 }
@@ -146,8 +140,6 @@ export const answersSchema = z
     directorName: text(400, t.directorName),
     directorIin: text(40, t.directorIin),
     city: text(200, t.city),
-    district: text(400, t.district),
-    streetAddress: text(800, t.street),
     yearsExperience: text(10, t.experience),
   })
   .superRefine((raw, ctx) => {
@@ -168,8 +160,6 @@ export function moduleInput(a: SubmittedAnswers) {
     legalName: a.legalName.trim(),
     binIin: a.legalForm === "TOO" ? digitsOf(a.binIin) : "",
     city: a.city.trim(),
-    district: a.district.trim(),
-    streetAddress: a.streetAddress.trim(),
     yearsExperience: Number(a.yearsExperience.trim()),
     ownerName: a.legalForm === "IP" ? a.ownerName.trim() : undefined,
     directorName: a.legalForm === "TOO" ? a.directorName.trim() : undefined,

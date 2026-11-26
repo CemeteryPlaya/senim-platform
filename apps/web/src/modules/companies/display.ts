@@ -2,7 +2,8 @@ import { ru } from "@/i18n/ru";
 
 /**
  * Как заказчик видит исполнителя (ответ владельца №6, ADR-006). Единственное место, где решается,
- * раскрывать ли наименование и улицу: экраны получают готовые строки и условий на режим не пишут.
+ * раскрывать ли наименование: экраны получают готовые строки и условий на режим не пишут. Из места мастера в любом
+ * режиме — только город (ADR-016): район и адрес мастерской не показываются.
  * Телефон и ИИН/БИН сюда не попадают ни в одном режиме.
  */
 export const EXECUTOR_IDENTITY_MODES = ["HIDDEN", "SHOWN"] as const;
@@ -17,8 +18,6 @@ export type ExecutorIdentitySource = {
   publicNumber: number;
   legalName: string;
   city: string;
-  district: string;
-  streetAddress: string;
 };
 
 export type ExecutorDisplay = {
@@ -28,16 +27,10 @@ export type ExecutorDisplay = {
   labelGen: string;
   /** Дательный: «Написать Исполнителю №17». */
   labelDat: string;
-  /** HIDDEN — город и район; SHOWN — ещё улица и дом. Пустая строка — адреса нет. */
+  /** Город мастера в любом режиме. Пустая строка — города нет. */
   address: string;
   nameShown: boolean;
 };
-
-const joinAddress = (parts: readonly string[]) =>
-  parts
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .join(", ");
 
 export function executorDisplay(src: ExecutorIdentitySource, mode: ExecutorIdentityMode): ExecutorDisplay {
   if (mode === "SHOWN") {
@@ -45,7 +38,7 @@ export function executorDisplay(src: ExecutorIdentitySource, mode: ExecutorIdent
       label: src.legalName,
       labelGen: src.legalName,
       labelDat: src.legalName,
-      address: joinAddress([src.city, src.district, src.streetAddress]),
+      address: src.city.trim(),
       nameShown: true,
     };
   }
@@ -54,7 +47,7 @@ export function executorDisplay(src: ExecutorIdentitySource, mode: ExecutorIdent
     label: ru.common.executorLabel(n),
     labelGen: ru.companies.identity.labelGen(n),
     labelDat: ru.companies.identity.labelDat(n),
-    address: joinAddress([src.city, src.district]),
+    address: src.city.trim(),
     nameShown: false,
   };
 }

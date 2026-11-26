@@ -207,7 +207,6 @@ export type DetailsInput = {
   segment: Segment | null;
   details: RequestDetails;
   city: string | null;
-  address: string | null;
   wishes: string | null;
   /** Заявка для одного мастера: подпись «Исполнитель №N». */
   directLabel: string | null;
@@ -219,17 +218,10 @@ function material(unknown: ReadonlySet<string>, key: "facade" | "countertop" | "
   return value ? (names[value]?.name ?? value) : null;
 }
 
-/** Адрес уже начинается с города («Астана, ул. …»): строка «Город» его повторила бы. */
-function addressHasCity(city: string, address: string | null): boolean {
-  const a = address?.trim().toLocaleLowerCase("ru") ?? "";
-  const c = city.trim().toLocaleLowerCase("ru");
-  return c !== "" && a.startsWith(c);
-}
-
 /**
- * Сводка заявки строками «подпись — значение»; пустое не показывается. Длинное (размеры, описание, адрес, пожелания) —
- * стопкой: в одну строку оно наезжало на подпись. Тип мебели («Что делаем») не выводится — он заголовок экрана; город —
- * только если адреса нет или адрес начинается не с него.
+ * Сводка заявки строками «подпись — значение»; пустое не показывается. Длинное (размеры, описание, пожелания) — стопкой:
+ * в одну строку оно наезжало на подпись. Тип мебели («Что делаем») не выводится — он заголовок экрана. Место — только город
+ * (ADR-016): адрес покупатель указывает в сделке, района и ЖК нет.
  */
 export function detailRows(i: DetailsInput): DetailRow[] {
   const d = i.details;
@@ -247,8 +239,7 @@ export function detailRows(i: DetailsInput): DetailRow[] {
     [t.details.color, d.color],
     [t.details.extras, d.extras?.length ? d.extras.map((x) => ru.requests.extras[x]).join(", ") : null],
     [t.details.description, d.description, true],
-    [t.details.city, i.city && !addressHasCity(i.city, i.address) ? i.city : null],
-    [t.details.address, i.address, true],
+    [t.details.city, i.city],
     [t.details.wishes, i.wishes, true],
   ];
   return rows.flatMap(([label, value, stacked]) => (value ? [{ label, value, stacked: stacked === true }] : []));

@@ -193,11 +193,13 @@ describe("согласие с договором MEASURING → CONTRACTING → C
     await expect(agreeToContract(m.executor, { requestId: m.requestId })).rejects.toThrow(code("FORBIDDEN"));
   });
 
-  it("исполнитель видит адрес и итоговую цену в своей заявке", async () => {
+  it("исполнитель выбранного отклика видит итоговую цену; адреса нет, пока не заключена оферта сделки (ADR-016)", async () => {
     const client = await makeClient();
     const m = await makeMeasured(client, 620_000);
+    // Адрес прежней заявки остался в колонке, но сделки с заключённой офертой нет — мастеру он не отдаётся.
+    await db.request.update({ where: { id: m.requestId }, data: { address: "ул. Тестовая, 1, кв. 2" } });
     expect(await getIncomingRequest(m.executor, m.requestId)).toMatchObject({
-      address: "ул. Тестовая, 1, кв. 2",
+      address: null,
       myOffer: { status: "ACCEPTED", measurement: { status: "DONE", finalPrice: 620_000 } },
     });
   });

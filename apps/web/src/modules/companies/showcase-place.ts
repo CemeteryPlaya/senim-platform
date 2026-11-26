@@ -1,31 +1,23 @@
 import type { ShowcaseAddress } from "@/generated/prisma/enums";
 
 /**
- * Место оконченной сделки на публичных страницах (спека 2026-11-17, 3.5) — только по выбору покупателя (DealShowcase.address)
- * и только из заявки: город, район, ЖК; улица и дом (Request.address) не читаются никогда. Одно правило для истории сделок
- * мастера (deal-core) и работ портфолио из сделки (каталог, «Вдохновение», «Хочу похожее»).
+ * Место оконченной сделки на публичных страницах (спека 2026-11-17, 3.5; ADR-016) — только по выбору покупателя
+ * (DealShowcase.address) и только город заявки: район, ЖК, улица и дом не читаются никогда. Одно правило для истории
+ * сделок мастера (deal-core) и работ портфолио из сделки (каталог, «Вдохновение», «Хочу похожее»).
  */
-export const ADDRESS_LEVELS: readonly ShowcaseAddress[] = ["NONE", "CITY", "DISTRICT", "COMPLEX"];
 
-export type ShowcasePlaceSource = { city: string; district: string | null; complex: string | null };
+/** Что покупатель выбирает сейчас: не показывать или город. Значения DISTRICT и COMPLEX остались только в старых записях. */
+export const SHOWCASE_ADDRESS_CHOICES = ["NONE", "CITY"] as const satisfies readonly ShowcaseAddress[];
+export type ShowcaseAddressChoice = (typeof SHOWCASE_ADDRESS_CHOICES)[number];
 
-const present = (s: string | null) => (s ?? "").trim() !== "";
-
-/** Доступные варианты адреса: район — если он есть в заявке, ЖК — если есть и район, и ЖК. */
-export function addressOptionsOf(request: { district: string | null; complex: string | null }): ShowcaseAddress[] {
-  const options: ShowcaseAddress[] = ["NONE", "CITY"];
-  if (present(request.district)) options.push("DISTRICT");
-  if (present(request.district) && present(request.complex)) options.push("COMPLEX");
-  return options;
+/** Сохранённый выбор так, как он действует и показывается: прежние «город и район» и «город, район и ЖК» — город. */
+export function shownAddressOf(saved: ShowcaseAddress): ShowcaseAddressChoice {
+  return saved === "NONE" ? "NONE" : "CITY";
 }
 
-/** Выбранный уровень адреса, пониженный до доступного по данным заявки (ЖК — только с районом); NONE — null. Без маски. */
-export function placeOf(request: ShowcasePlaceSource, chosen: ShowcaseAddress): string | null {
-  const options = addressOptionsOf(request);
-  const level = ADDRESS_LEVELS.slice(0, ADDRESS_LEVELS.indexOf(chosen) + 1).findLast((l) => options.includes(l)) ?? "NONE";
-  const parts = [request.city, request.district, request.complex]
-    .slice(0, ADDRESS_LEVELS.indexOf(level))
-    .map((p) => (p ?? "").trim())
-    .filter(Boolean);
-  return parts.length ? parts.join(", ") : null;
+/** Место по выбору: NONE или пустой город — null, иначе город заявки. Без маски. */
+export function placeOf(request: { city: string }, chosen: ShowcaseAddress): string | null {
+  if (shownAddressOf(chosen) === "NONE") return null;
+  const city = request.city.trim();
+  return city === "" ? null : city;
 }

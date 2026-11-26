@@ -65,7 +65,7 @@ async function buyer(phone: string, iin = IIN) {
   return (await getCurrentUser())!;
 }
 
-const base: Answers = { ...initialAnswers(), city: "Астана", district: "Есильский район", yearsExperience: "7" };
+const base: Answers = { ...initialAnswers(), city: "Астана", yearsExperience: "7" };
 const selfEmployed: Answers = { ...base, legalForm: "SELF_EMPLOYED", legalName: "Жумабаев Ерлан" };
 const too: Answers = {
   ...base,
@@ -85,7 +85,7 @@ describe("registerMasterAction", () => {
     expect(await run(registerMasterAction(selfEmployed))).toEqual({ redirect: STATUS });
 
     const [profile] = await profiles(user.id);
-    expect(profile).toMatchObject({ status: "PENDING", legalForm: "SELF_EMPLOYED", legalName: "Жумабаев Ерлан", binIinLast4: IIN.slice(-4), city: "Астана", district: "Есильский район", yearsExperience: 7 });
+    expect(profile).toMatchObject({ status: "PENDING", legalForm: "SELF_EMPLOYED", legalName: "Жумабаев Ерлан", binIinLast4: IIN.slice(-4), city: "Астана", district: "", streetAddress: "", yearsExperience: 7 });
     expect((await getCurrentUser())?.role).toBe("EXECUTOR");
     // Оболочка перерисовывается с новой ролью.
     expect(h.revalidated).toContainEqual(["/(app)", "layout"]);

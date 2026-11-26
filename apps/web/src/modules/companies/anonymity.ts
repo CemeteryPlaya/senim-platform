@@ -9,14 +9,12 @@ import type { GetPublicExecutorView, PublicExecutorView } from "./types";
 /**
  * Слой анонимизации: единственное место, где профиль исполнителя превращается в то, что видит заказчик.
  * Наименование и адрес выбираются, но наружу выходят только через executorDisplay (режим №6, ADR-006):
- * в HIDDEN — «Исполнитель №N», город и район. Телефон и ИИН/БИН в выборку не попадают вовсе.
+ * в HIDDEN — «Исполнитель №N» и город. Телефон и ИИН/БИН в выборку не попадают вовсе, район и улица — тоже (ADR-016).
  */
 export const EXECUTOR_DISPLAY_SELECT = {
   publicNumber: true,
   legalName: true,
   city: true,
-  district: true,
-  streetAddress: true,
 } as const satisfies Prisma.ExecutorProfileSelect;
 
 export const PUBLIC_EXECUTOR_SELECT = {

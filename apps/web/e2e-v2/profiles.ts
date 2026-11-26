@@ -17,7 +17,7 @@ import { loginV2, passOnboarding } from "./support";
 export const MASTERS = { erlan: "+77000000201", kim: "+77000000203", timur: "+77000000204", qazaq: "+77000000206" } as const;
 
 /** Улицы адресов покупателей сида (ADDR в src/seed/data.ts): ни одна не должна попасть на публичную страницу мастера. */
-export const SEED_STREETS = /Сыганак|Примерный|Образцовая|Тестовый-2|Макетная|Условный|Пробная|Шаблонная|Черновой|кв\.\s?\d/;
+export const SEED_STREETS = /Сыганак|Акмешит|Туран|Кенесары|Мангилик Ел|Кабанбай|Сауран|Достык|Бокейхана|Керей|кв\.\s?\d/;
 
 function databaseUrl(): string {
   const url = process.env.E2E_DATABASE_URL ?? "";

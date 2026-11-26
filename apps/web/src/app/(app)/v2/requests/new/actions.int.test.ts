@@ -20,7 +20,7 @@ vi.mock("@/modules/identity", async (original) => {
   };
 });
 
-const { locateAddressAction, saveStepAction, submitRequestAction } = await import("./actions");
+const { saveStepAction, submitRequestAction } = await import("./actions");
 
 /** Ответ действия или адрес, куда оно увело (redirect). */
 async function run<T>(p: Promise<ActionResult<T>>): Promise<{ redirect: string } | ActionResult<T>> {
@@ -144,7 +144,7 @@ describe("submitRequestAction", () => {
     for (const step of [
       { screen: "segment" as const, segment: "COMFORT" as const },
       { screen: "room" as const, photoFileIds: [], description: "" },
-      { screen: "place" as const, city: "Астана", address: "ул. Достык, 5", desiredDate: null, location: null },
+      { screen: "place" as const, city: "Астана", desiredDate: null },
     ]) {
       await run(saveStepAction({ requestId: id, step }));
     }
@@ -153,13 +153,5 @@ describe("submitRequestAction", () => {
     // Текст отказа — словами экрана v2 («мастер», без «исполнителя»).
     expect(await run(submitRequestAction({ requestId: id }))).toMatchObject({ ok: false, code: "CONFLICT", error: ru.app.requests.wizard.errors.targetUnavailable });
     expect((await db.request.findUniqueOrThrow({ where: { id } })).status).toBe("DRAFT");
-  });
-});
-
-describe("locateAddressAction", () => {
-  it("мок-геокодер узнаёт центр города", async () => {
-    session.user = await makeClient();
-    expect(await run(locateAddressAction({ city: "Астана", address: "ул. Достык, 5" }))).toMatchObject({ ok: true, data: { precision: "city" } });
-    expect(await run(locateAddressAction({ city: "Нигдебург", address: "" }))).toEqual({ ok: true, data: null });
   });
 });

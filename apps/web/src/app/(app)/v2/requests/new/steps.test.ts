@@ -66,13 +66,12 @@ describe("адреса и шаги мастера", () => {
 
   it("тексты модуля (словари v1) — словами экрана v2: «мастер» — человек, без «исполнителя»", () => {
     const e = ru.requests.errors;
-    for (const message of [v.addressRequired, v.chooseOrUnknown, e.targetUnavailable, e.selfDeal, e.notDraft, e.incomplete]) {
+    for (const message of [v.chooseOrUnknown, e.targetUnavailable, e.selfDeal, e.notDraft, e.incomplete]) {
       expect(v2Message(message)).not.toBe(message);
       expect(v2Message(message)).not.toMatch(/исполнител|мастера? (перед|её больше)/i);
     }
     expect(v2Message(e.notDraft)).toBe(t.errors.notDraft);
     expect(v2Message("Другой текст")).toBe("Другой текст");
-    expect(stepErrors("place", form({ city: "Астана", address: "" }))).toEqual({ address: t.errors.addressRequired });
     expect(stepErrors("start", form({ furnitureType: "k", advanced: "1", facade: "xxx" }))).toEqual({ facade: t.errors.chooseOrUnknown });
   });
 
@@ -156,27 +155,11 @@ describe("разбор формы шага и ошибки у полей", () =>
     ]);
   });
 
-  it("readStep(place) читает district/complex; ЖК без района — ошибка у complex", () => {
-    const fields = { city: "Астана", address: "ул. Достык, 5", district: "Есиль", complex: "ЖК Highvill" };
-    expect(readStep("place", form(fields))).toMatchObject({ screen: "place", district: "Есиль", complex: "ЖК Highvill" });
-    expect(readStep("place", form({ city: "Астана", address: "ул. Достык, 5" }))).toMatchObject({ district: null, complex: null });
+  it("шаг 4 (ADR-016): только город и дата; поля адреса, точки, района и ЖК в шаг не попадают", () => {
+    expect(stepErrors("place", form({ city: "" }))).toEqual({ city: v.cityRequired });
+    const fields = { city: "Астана", desiredDate: "", address: "ул. Достык, 5", district: "Есиль", complex: "ЖК", lat: "51.1", lng: "71.4" };
+    expect(readStep("place", form(fields))).toEqual({ screen: "place", city: "Астана", desiredDate: null });
     expect(stepErrors("place", form(fields))).toBeNull();
-    expect(stepErrors("place", form({ ...fields, district: "" }))).toEqual({ complex: v.complexNeedsDistrict });
-  });
-
-  it("шаг 4: город и адрес у своих полей; точка — обе координаты или ни одной", () => {
-    expect(stepErrors("place", form({ city: "", address: "" }))).toEqual({ city: v.cityRequired, address: t.errors.addressRequired });
-    expect(readStep("place", form({ city: "Астана", address: "ул. Достык, 5", desiredDate: "", lat: "51.1", lng: "71.4" }))).toEqual({
-      screen: "place",
-      city: "Астана",
-      district: null,
-      complex: null,
-      address: "ул. Достык, 5",
-      desiredDate: null,
-      location: { lat: 51.1, lng: 71.4 },
-    });
-    expect(readStep("place", form({ city: "Астана", address: "ул. Достык, 5", lat: "51.1" }))).toMatchObject({ location: null });
-    expect(stepErrors("place", form({ city: "Астана", address: "ул. Достык, 5", lat: "999", lng: "71.4" }))).toEqual({ location: v.location });
   });
 });
 
@@ -231,9 +214,6 @@ describe("сводка", () => {
     segment: "COMFORT" as const,
     photos: [{ id: "f1", src: "/x.jpg" }],
     city: "Астана",
-    district: null,
-    complex: null,
-    address: "ул. Достык, 5",
     desiredDate: null,
     design: [],
   };
@@ -259,14 +239,14 @@ describe("сводка", () => {
       [s.segment, "Комфорт", "segment"],
       [s.photos, s.photosCount(1), "room"],
       [s.description, "до потолка", "room"],
-      [s.address, "Астана, ул. Достык, 5", "place"],
+      [s.city, "Астана", "place"],
       [s.missing.label, "Дата", "place"],
     ]);
   });
 
-  it("сводка адреса: город, район, ЖК, адрес", () => {
-    const row = summaryRows({ ...draft, district: "Есиль", complex: "ЖК Highvill" }).find((r) => r.label === t.send.address);
-    expect(row?.value).toBe("Астана, Есиль, ЖК Highvill, ул. Достык, 5");
+  it("строки «Адрес» в сводке нет — только город (ADR-016)", () => {
+    expect(summaryRows(draft).some((r) => r.label === ru.app.requests.wizard.send.city)).toBe(true);
+    expect(summaryRows(draft).map((r) => r.label)).not.toContain("Адрес");
   });
 
   it("неуказанное — одной строкой «Не указано: …» последней; ведёт на первый такой шаг", () => {
@@ -308,7 +288,7 @@ describe("желаемая дата заявки: не раньше сегодн
   });
 
   it("вчерашняя дата — ошибка у поля, сегодняшняя и дальше — нет, пустая — нет", () => {
-    const place = (desiredDate: string) => form({ city: "Астана", address: "ул. Абая 1", desiredDate });
+    const place = (desiredDate: string) => form({ city: "Астана", desiredDate });
     expect(stepErrors("place", place("2026-11-16"), now)).toEqual({ desiredDate: t.place.datePast });
     expect(stepErrors("place", place("2026-11-17"), now)).toBeNull();
     expect(stepErrors("place", place("2027-01-01"), now)).toBeNull();

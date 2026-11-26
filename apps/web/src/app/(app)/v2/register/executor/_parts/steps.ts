@@ -47,8 +47,6 @@ export function initialAnswers(previous: { legalForm: LegalForm; legalName: stri
     directorName: "",
     directorIin: "",
     city: t.place.defaultCity,
-    district: "",
-    streetAddress: "",
     yearsExperience: "",
   };
 }
@@ -94,7 +92,7 @@ export type SummaryRow = { label: string; value: string; step: RegisterStep };
 
 /**
  * Сводка последнего шага: каждая строка ведёт на шаг, где её поменять. Номера — только последние 4 цифры: ИИН из
- * знакомства у самозанятого и ИП, БИН и ИИН директора у ТОО. Район и адрес — только указанные.
+ * знакомства у самозанятого и ИП, БИН и ИИН директора у ТОО.
  */
 export function summaryRows(a: Answers, ownIinLast4: string | null): SummaryRow[] {
   const c = t.check;
@@ -111,8 +109,6 @@ export function summaryRows(a: Answers, ownIinLast4: string | null): SummaryRow[
     a.legalForm === "TOO" ? { label: c.signer, value: a.directorName.trim(), step: "name" } : null,
     a.legalForm === "TOO" ? { label: c.directorIin, value: c.masked(last4(a.directorIin)), step: "name" } : null,
     { label: c.city, value: a.city.trim(), step: "place" },
-    a.district.trim() ? { label: c.district, value: a.district.trim(), step: "place" } : null,
-    a.streetAddress.trim() ? { label: c.street, value: a.streetAddress.trim(), step: "place" } : null,
     { label: c.experience, value: c.experienceValue(Number(a.yearsExperience.trim())), step: "place" },
   ];
   return rows.filter((row): row is SummaryRow => row !== null);

@@ -63,7 +63,7 @@ export default async function ExecutorCardPage({ params }: { params: Promise<{ i
               </Fact>
               <Fact label={t.executors.specializations}>{x.specializations.map((s) => s.name).join(", ") || t.none}</Fact>
               <Fact label={c.address}>
-                <span className="break-words">{[x.city, x.district, x.streetAddress].filter(Boolean).join(", ")}</span>
+                <span className="break-words">{x.city}</span>
               </Fact>
             </dl>
             <dl className="flex flex-col gap-4">

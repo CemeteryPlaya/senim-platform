@@ -89,7 +89,7 @@ export type PortfolioSpec = {
   title: string;
   description: string;
   priceFrom: number;
-  /** Где делали: город и район (встреча 31.10, п. 3) — не точный адрес. */
+  /** Где делали: только город (ADR-016) — не район и не точный адрес. */
   place: string;
   /** «Подборка Сенім» во «Вдохновении». */
   featured?: boolean;
@@ -119,8 +119,6 @@ export type ExecutorSpec = Legal &
     registeredDaysAgo: number;
     about: string;
     yearsExperience: number;
-    /** Адрес мастерской (№6): район и улица — тестовые, без реальных данных; город — Астана по умолчанию. */
-    workshop: { district: string; street: string };
     specializations: readonly FurnitureSlug[];
     portfolio: readonly PortfolioSpec[];
     /** Также заказчик на том же аккаунте (ADR-004): роли EXECUTOR и CLIENT. */
@@ -138,14 +136,13 @@ export const EXECUTORS = {
     registeredDaysAgo: 302,
     measurement: "FREE",
     yearsExperience: 9,
-    workshop: { district: "Есильский район", street: "ул. Тестовая, 1" },
     about:
       "Делаю корпусную мебель 9 лет, небольшой цех на левом берегу. ЛДСП Egger и Kronospan, фурнитура Blum и Hettich. Замер и 3D-проект бесплатно.",
     specializations: ["kitchen", "wardrobe", "hallway"],
     portfolio: [
-      { key: "erlan-kitchen", file: "kitchen-sage", type: "kitchen", style: "modern", title: "Кухня в новостройке, 3,4 м", description: "Фасады МДФ в эмали цвета шалфей, столешница под дуб, верхние шкафы до потолка.", priceFrom: 900_000, place: "Астана, Есильский район", featured: true },
-      { key: "erlan-wardrobe", file: "wardrobe-oak", type: "wardrobe", style: "modern", title: "Шкаф-купе с зеркальной дверью", description: "Зеркальная дверь-купе на алюминиевом профиле, внутри штанга, полки и ящики с доводчиками.", priceFrom: 320_000, place: "Астана, Алматинский район" },
-      { key: "erlan-hallway", file: "hallway-graphite", type: "hallway", style: "loft", title: "Прихожая с банкеткой", description: "Закрытый шкаф для верхней одежды, открытая вешалка, мягкая банкетка и зеркало.", priceFrom: 240_000, place: "Астана, Сарыаркинский район" },
+      { key: "erlan-kitchen", file: "kitchen-sage", type: "kitchen", style: "modern", title: "Кухня в новостройке, 3,4 м", description: "Фасады МДФ в эмали цвета шалфей, столешница под дуб, верхние шкафы до потолка.", priceFrom: 900_000, place: "Астана", featured: true },
+      { key: "erlan-wardrobe", file: "wardrobe-oak", type: "wardrobe", style: "modern", title: "Шкаф-купе с зеркальной дверью", description: "Зеркальная дверь-купе на алюминиевом профиле, внутри штанга, полки и ящики с доводчиками.", priceFrom: 320_000, place: "Астана" },
+      { key: "erlan-hallway", file: "hallway-graphite", type: "hallway", style: "loft", title: "Прихожая с банкеткой", description: "Закрытый шкаф для верхней одежды, открытая вешалка, мягкая банкетка и зеркало.", priceFrom: 240_000, place: "Астана" },
     ],
   },
   agash: {
@@ -157,14 +154,13 @@ export const EXECUTORS = {
     registeredDaysAgo: 400,
     measurement: "INCLUDED",
     yearsExperience: 12,
-    workshop: { district: "Алматинский район", street: "ул. Тестовая, 2" },
     about:
       "Мебельное производство полного цикла: цех 1 200 м², станки с ЧПУ, три бригады монтажников. Шпон, массив, кварцевые столешницы. Гарантия 3 года.",
     specializations: ["kitchen", "walk-in-closet", "table", "bathroom"],
     portfolio: [
-      { key: "agash-island", file: "kitchen-island-oak", type: "kitchen", style: "modern", title: "Кухня с островом, шпон дуба", description: "Остров с барной зоной, столешница из кварцевого агломерата, фурнитура Blum.", priceFrom: 2_400_000, place: "Астана, Есильский район", featured: true },
+      { key: "agash-island", file: "kitchen-island-oak", type: "kitchen", style: "modern", title: "Кухня с островом, шпон дуба", description: "Остров с барной зоной, столешница из кварцевого агломерата, фурнитура Blum.", priceFrom: 2_400_000, place: "Астана", featured: true },
       { key: "agash-closet", file: "closet-walnut", type: "walk-in-closet", style: "classic", title: "Гардеробная под потолок, орех", description: "Открытые секции, штанги на двух уровнях, ящики с бархатными вставками.", priceFrom: 1_300_000, place: "Косшы" },
-      { key: "agash-neoclassic", file: "kitchen-neoclassic", type: "kitchen", style: "neoclassic", title: "Кухня в стиле неоклассика", description: "Фрезерованные фасады в эмали, латунные ручки, столешница из искусственного камня.", priceFrom: 2_100_000, place: "Астана, район Нура" },
+      { key: "agash-neoclassic", file: "kitchen-neoclassic", type: "kitchen", style: "neoclassic", title: "Кухня в стиле неоклассика", description: "Фрезерованные фасады в эмали, латунные ручки, столешница из искусственного камня.", priceFrom: 2_100_000, place: "Астана" },
     ],
   },
   kim: {
@@ -177,13 +173,12 @@ export const EXECUTORS = {
     measurement: "FEE_IF_NO_DEAL",
     fee: FEE,
     yearsExperience: 6,
-    workshop: { district: "Сарыаркинский район", street: "ул. Тестовая, 3" },
     about:
       "Детская и корпусная мебель. Материалы класса E0.5, закруглённые кромки, мягкие доводчики. Выезд на замер — 10 000 ₸, только если сделка не состоится.",
     specializations: ["kids-room", "wardrobe", "office"],
     portfolio: [
-      { key: "kim-kids", file: "kids-bunk", type: "kids-room", style: "scandi", title: "Детская для двоих", description: "Двухъярусная кровать с ящиками, лестница-полки, письменный стол с тумбой.", priceFrom: 650_000, place: "Астана, район Байконыр", featured: true },
-      { key: "kim-office", file: "office-white", type: "office", style: "scandi", title: "Домашний кабинет со стеллажом", description: "Стеллаж с закрытыми ящиками внизу, стол с тумбой, всё в белом и дубе.", priceFrom: 420_000, place: "Астана, Алматинский район" },
+      { key: "kim-kids", file: "kids-bunk", type: "kids-room", style: "scandi", title: "Детская для двоих", description: "Двухъярусная кровать с ящиками, лестница-полки, письменный стол с тумбой.", priceFrom: 650_000, place: "Астана", featured: true },
+      { key: "kim-office", file: "office-white", type: "office", style: "scandi", title: "Домашний кабинет со стеллажом", description: "Стеллаж с закрытыми ящиками внизу, стол с тумбой, всё в белом и дубе.", priceFrom: 420_000, place: "Астана" },
     ],
   },
   timur: {
@@ -194,12 +189,11 @@ export const EXECUTORS = {
     registeredDaysAgo: 200,
     measurement: "FREE",
     yearsExperience: 5,
-    workshop: { district: "район Байконыр", street: "ул. Тестовая, 4" },
     about: "Шкафы-купе и гардеробные из ЛДСП. Профиль Aristo, зеркала с пескоструйным рисунком. Работаю быстро, замер бесплатно.",
     specializations: ["wardrobe", "walk-in-closet", "hallway"],
     portfolio: [
-      { key: "timur-wardrobe", file: "wardrobe-white", type: "wardrobe", style: "minimalism", title: "Шкаф-купе 2,8 м в нишу", description: "Белые двери-купе в нише, внутри открытые полки и тумба с ящиками.", priceFrom: 210_000, place: "Астана, Сарыаркинский район" },
-      { key: "timur-closet", file: "closet-light", type: "walk-in-closet", style: "scandi", title: "Гардеробная в спальне", description: "Открытая система: штанги, полки, ящики. Светлый дуб.", priceFrom: 280_000, place: "Астана, район Байконыр" },
+      { key: "timur-wardrobe", file: "wardrobe-white", type: "wardrobe", style: "minimalism", title: "Шкаф-купе 2,8 м в нишу", description: "Белые двери-купе в нише, внутри открытые полки и тумба с ящиками.", priceFrom: 210_000, place: "Астана" },
+      { key: "timur-closet", file: "closet-light", type: "walk-in-closet", style: "scandi", title: "Гардеробная в спальне", description: "Открытая система: штанги, полки, ящики. Светлый дуб.", priceFrom: 280_000, place: "Астана" },
     ],
   },
   asel: {
@@ -212,13 +206,12 @@ export const EXECUTORS = {
     measurement: "FEE_IF_NO_DEAL",
     fee: FEE,
     yearsExperience: 4,
-    workshop: { district: "район Нура", street: "ул. Тестовая, 5" },
     about: "Столярная мастерская: столы, комоды и тумбы для ванной из массива карагача, дуба и ореха. Масло-воск, ручная работа.",
     specializations: ["table", "bathroom", "dresser"],
     portfolio: [
-      { key: "asel-table", file: "table-karagach", type: "table", style: "modern", title: "Обеденный стол из карагача", description: "Столешница из цельных ламелей карагача, масло-воск, ножки из массива.", priceFrom: 420_000, place: "Астана, Есильский район", featured: true },
-      { key: "asel-vanity", file: "bathroom-walnut", type: "bathroom", style: "minimalism", title: "Тумба под раковину из ореха", description: "Подвесная тумба с влагостойкой пропиткой и круглое зеркало в раме.", priceFrom: 290_000, place: "Астана, район Нура" },
-      { key: "asel-dresser", file: "dresser-oak", type: "dresser", style: "scandi", title: "Комод из дуба на ножках", description: "Шесть ящиков на скрытых направляющих, ручки из латуни.", priceFrom: 360_000, place: "Астана, Алматинский район" },
+      { key: "asel-table", file: "table-karagach", type: "table", style: "modern", title: "Обеденный стол из карагача", description: "Столешница из цельных ламелей карагача, масло-воск, ножки из массива.", priceFrom: 420_000, place: "Астана", featured: true },
+      { key: "asel-vanity", file: "bathroom-walnut", type: "bathroom", style: "minimalism", title: "Тумба под раковину из ореха", description: "Подвесная тумба с влагостойкой пропиткой и круглое зеркало в раме.", priceFrom: 290_000, place: "Астана" },
+      { key: "asel-dresser", file: "dresser-oak", type: "dresser", style: "scandi", title: "Комод из дуба на ножках", description: "Шесть ящиков на скрытых направляющих, ручки из латуни.", priceFrom: 360_000, place: "Астана" },
     ],
   },
   qazaq: {
@@ -230,13 +223,12 @@ export const EXECUTORS = {
     registeredDaysAgo: 350,
     measurement: "INCLUDED",
     yearsExperience: 8,
-    workshop: { district: "Есильский район", street: "ул. Тестовая, 6" },
     about:
       "Корпусная мебель для дома и офиса. Своё производство в промзоне Астаны, замер включён в стоимость заказа. Работаем с физлицами и компаниями.",
     specializations: ["office", "kitchen", "shelving", "living-room"],
     portfolio: [
-      { key: "qazaq-office", file: "office-walnut", type: "office", style: "classic", title: "Кабинет руководителя", description: "Стеллаж под потолок из шпона ореха, стол с тумбой, скрытая проводка.", priceFrom: 750_000, place: "Астана, Есильский район" },
-      { key: "qazaq-shelving", file: "shelving-loft", type: "shelving", style: "loft", title: "Стеллаж-перегородка в стиле лофт", description: "Металлический каркас, полки из массива сосны, зонирует комнату.", priceFrom: 230_000, place: "Астана, Сарыаркинский район", featured: true },
+      { key: "qazaq-office", file: "office-walnut", type: "office", style: "classic", title: "Кабинет руководителя", description: "Стеллаж под потолок из шпона ореха, стол с тумбой, скрытая проводка.", priceFrom: 750_000, place: "Астана" },
+      { key: "qazaq-shelving", file: "shelving-loft", type: "shelving", style: "loft", title: "Стеллаж-перегородка в стиле лофт", description: "Металлический каркас, полки из массива сосны, зонирует комнату.", priceFrom: 230_000, place: "Астана", featured: true },
     ],
   },
   dala: {
@@ -250,12 +242,11 @@ export const EXECUTORS = {
     measurement: "FEE_IF_NO_DEAL",
     fee: FEE,
     yearsExperience: 7,
-    workshop: { district: "Алматинский район", street: "ул. Тестовая, 7" },
     about: "Мастерская полного цикла: кухни, спальни и ТВ-зоны. Помогаем с проектом и подбираем материалы под бюджет.",
     specializations: ["kitchen", "bedroom", "living-room", "kids-room"],
     portfolio: [
-      { key: "dala-bedroom", file: "bedroom-beige", type: "bedroom", style: "scandi", title: "Спальня с мягким изголовьем", description: "Кровать с изголовьем во всю стену и две прикроватные тумбы.", priceFrom: 560_000, place: "Астана, Алматинский район", featured: true },
-      { key: "dala-tv", file: "tv-zone-scandi", type: "living-room", style: "scandi", title: "ТВ-зона с подвесными тумбами", description: "Реечная панель, подвесная тумба на всю стену, полки для декора.", priceFrom: 380_000, place: "Астана, район Байконыр" },
+      { key: "dala-bedroom", file: "bedroom-beige", type: "bedroom", style: "scandi", title: "Спальня с мягким изголовьем", description: "Кровать с изголовьем во всю стену и две прикроватные тумбы.", priceFrom: 560_000, place: "Астана", featured: true },
+      { key: "dala-tv", file: "tv-zone-scandi", type: "living-room", style: "scandi", title: "ТВ-зона с подвесными тумбами", description: "Реечная панель, подвесная тумба на всю стену, полки для декора.", priceFrom: 380_000, place: "Астана" },
       { key: "dala-kitchen", file: "kitchen-terracotta", type: "kitchen", style: "modern", title: "Кухня терракотового цвета, 3 м", description: "Фасады МДФ в плёнке, тёмная столешница, встроенная мойка.", priceFrom: 820_000, place: "Косшы" },
     ],
   },
@@ -267,12 +258,11 @@ export const EXECUTORS = {
     registeredDaysAgo: 30,
     measurement: "FREE",
     yearsExperience: 2,
-    workshop: { district: "Сарыаркинский район", street: "ул. Тестовая, 8" },
     about: "Начинающий мастер: прихожие, шкафы и комоды из ЛДСП. Работаю аккуратно и недорого.",
     specializations: ["hallway", "wardrobe", "dresser"],
     portfolio: [
-      { key: "samat-hallway", file: "hallway-sonoma", type: "hallway", style: "modern", title: "Прихожая в коридор", description: "Открытая вешалка, тумба-банкетка с ящиками и место под обувь, всё в белом.", priceFrom: 130_000, place: "Астана, район Нура" },
-      { key: "samat-dresser", file: "dresser-white", type: "dresser", style: "scandi", title: "Комод для детской", description: "Белый комод с круглыми ручками, ящики на доводчиках.", priceFrom: 75_000, place: "Астана, Сарыаркинский район" },
+      { key: "samat-hallway", file: "hallway-sonoma", type: "hallway", style: "modern", title: "Прихожая в коридор", description: "Открытая вешалка, тумба-банкетка с ящиками и место под обувь, всё в белом.", priceFrom: 130_000, place: "Астана" },
+      { key: "samat-dresser", file: "dresser-white", type: "dresser", style: "scandi", title: "Комод для детской", description: "Белый комод с круглыми ручками, ящики на доводчиках.", priceFrom: 75_000, place: "Астана" },
     ],
   },
   almas: {
@@ -283,7 +273,6 @@ export const EXECUTORS = {
     registeredDaysAgo: 1.5,
     measurement: "FREE",
     yearsExperience: 3,
-    workshop: { district: "район Байконыр", street: "ул. Тестовая, 9" },
     about: "Три года работал в мебельном цехе, теперь беру заказы сам: кухни и прихожие.",
     specializations: ["kitchen", "hallway"],
     portfolio: [],
@@ -301,7 +290,6 @@ export const EXECUTORS = {
     registeredDaysAgo: 14,
     measurement: "FREE",
     yearsExperience: 1,
-    workshop: { district: "район Нура", street: "ул. Тестовая, 10" },
     about: "Мебель по низким ценам за 7 дней.",
     specializations: ["wardrobe", "kitchen"],
     portfolio: [],
@@ -382,6 +370,7 @@ export type RequestSpec = Targeting & {
   details: RequestDetails;
   /** Выбор заказчика; null — ещё не выбран (черновик). */
   segment: Segment | null;
+  /** Адрес сделки (ADR-016): есть только у заявок со сделкой (DEALS), у остальных — null. */
   address: Address | null;
   desiredInDays?: number;
   wishes: string;
@@ -398,22 +387,23 @@ export type RequestSpec = Targeting & {
 };
 
 /**
- * Тестовые адреса с координатами (центр Астаны): по ним — мягкая GPS-проверка сдачи работы. Район и ЖК (шаг адреса
- * заявки) — у адресов, по которым страница мастера показывает «город, район, ЖК» по выбору покупателя.
+ * Адреса заказов с координатами (Астана): по ним — мягкая GPS-проверка сдачи работы. Улицы настоящие, номера домов и квартир
+ * вымышленные. По ADR-016 адрес указывается в сделке: он есть только у заявок со сделкой (как будто покупатель указал его
+ * на экране адреса сделки); у черновиков, тендеров и сценариев без сделки адреса нет. Района и ЖК нет нигде.
  */
-type Address = { text: string; point: GeoPoint; district?: string; complex?: string };
+type Address = { text: string; point: GeoPoint };
 
 const ADDR = {
   syganak12: { text: "Астана, ул. Сыганак, 12, кв. 45", point: { lat: 51.128207, lng: 71.430411 } },
-  syganak12Esil: { text: "Астана, ул. Сыганак, 12, кв. 45", point: { lat: 51.128207, lng: 71.430411 }, district: "Есиль", complex: "Тестовый квартал" },
-  primer8: { text: "Астана, пр. Примерный, 8, кв. 101", point: { lat: 51.0905, lng: 71.4187 } },
-  obrazets3: { text: "Астана, ул. Образцовая, 3, кв. 17", point: { lat: 51.1605, lng: 71.4704 } },
-  test2: { text: "Астана, мкр. Тестовый-2, д. 5, кв. 30", point: { lat: 51.1477, lng: 71.3915 } },
-  maket21: { text: "Астана, ул. Макетная, 21, кв. 9", point: { lat: 51.1098, lng: 71.4022 } },
-  sample4: { text: "Астана, пр. Условный, 4, кв. 66", point: { lat: 51.1283, lng: 71.4606 } },
-  probny7: { text: "Астана, ул. Пробная, 7, кв. 112", point: { lat: 51.1696, lng: 71.4248 } },
-  shablon15: { text: "Астана, ул. Шаблонная, 15, кв. 3", point: { lat: 51.0767, lng: 71.4469 } },
-  chernovik9: { text: "Астана, мкр. Черновой, д. 9, кв. 54", point: { lat: 51.1352, lng: 71.3611 } },
+  akmeshit11: { text: "Астана, ул. Акмешит, 11, кв. 74", point: { lat: 51.1262, lng: 71.4318 } },
+  turan37: { text: "Астана, пр. Туран, 37, кв. 101", point: { lat: 51.0905, lng: 71.4187 } },
+  kenesary52: { text: "Астана, ул. Кенесары, 52, кв. 17", point: { lat: 51.1605, lng: 71.4704 } },
+  mangilikEl29: { text: "Астана, пр. Мангилик Ел, 29, кв. 30", point: { lat: 51.1477, lng: 71.3915 } },
+  kabanbay48: { text: "Астана, пр. Кабанбай батыра, 48, кв. 9", point: { lat: 51.1098, lng: 71.4022 } },
+  sauran14: { text: "Астана, ул. Сауран, 14, кв. 66", point: { lat: 51.1283, lng: 71.4606 } },
+  dostyk18: { text: "Астана, ул. Достык, 18, кв. 112", point: { lat: 51.1696, lng: 71.4248 } },
+  bokeikhan25: { text: "Астана, ул. Бокейхана, 25, кв. 3", point: { lat: 51.0767, lng: 71.4469 } },
+  kerey7: { text: "Астана, ул. Керей и Жанибек хандар, 7, кв. 54", point: { lat: 51.1352, lng: 71.3611 } },
 } as const satisfies Record<string, Address>;
 
 /** Заявка пути ТЗ с одним откликом — под сделку (deals.ts принимает последнюю цену торга). */
@@ -490,7 +480,7 @@ const OPEN_REQUESTS: RequestSpec[] = [
     style: "modern",
     details: { widthCm: 340, heightCm: 270, depthCm: 60, facade: "mdf_enamel", countertop: "compact", hardware: "soft_close", color: "Шалфей и светлый дуб" },
     segment: "COMFORT",
-    address: ADDR.syganak12,
+    address: null,
     desiredInDays: 45,
     wishes: "Встроить посудомойку и духовой шкаф, верхние шкафы до потолка.",
     createdDaysAgo: 3.4,
@@ -550,7 +540,7 @@ const OPEN_REQUESTS: RequestSpec[] = [
     style: "modern",
     details: { widthCm: 220, depthCm: 95, facade: "solid_wood", color: "Чуть темнее, чем на фото" },
     segment: "PREMIUM",
-    address: ADDR.primer8,
+    address: null,
     desiredInDays: 40,
     wishes: "Хочу похожий стол, но на восемь человек.",
     createdDaysAgo: 1.1,
@@ -566,7 +556,7 @@ const OPEN_REQUESTS: RequestSpec[] = [
     style: "scandi",
     details: { widthCm: 120, heightCm: 90, depthCm: 45, facade: "ldsp" },
     segment: "ECONOMY",
-    address: ADDR.obrazets3,
+    address: null,
     wishes: "Комод в детскую на шесть ящиков.",
     createdDaysAgo: 12,
     publishedDaysAgo: 11.9,
@@ -590,12 +580,12 @@ const DEAL_REQUESTS: RequestSpec[] = [
   }),
   dealRequest({
     key: "deal-signed-shelving", client: "madina", executor: "qazaq", type: "shelving", style: "loft",
-    details: { widthCm: 260, heightCm: 240, facade: "mdf_film" }, segment: "COMFORT", address: ADDR.test2,
+    details: { widthCm: 260, heightCm: 240, facade: "mdf_film" }, segment: "COMFORT", address: ADDR.mangilikEl29,
     wishes: "Стеллаж-перегородка между кухней и гостиной.", daysAgo: 8, price: 260_000, durationDays: 20, comment: "Металлический каркас, полки из массива сосны.",
   }),
   dealRequest({
     key: "deal-manual-hold-office", client: "daniyar", executor: "kim", type: "office", style: "modern",
-    details: { widthCm: 300, heightCm: 270, facade: "mdf_film", countertop: "compact", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.primer8,
+    details: { widthCm: 300, heightCm: 270, facade: "mdf_film", countertop: "compact", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.turan37,
     wishes: "Стеллаж до потолка и стол для двух мониторов.", daysAgo: 10, price: 600_000, durationDays: 25, comment: "Стеллаж под потолок и стол с тумбой.",
     rounds: [{ by: "client", priceKzt: 580_000, daysAgo: 8 }],
   }),
@@ -607,7 +597,7 @@ const DEAL_REQUESTS: RequestSpec[] = [
   }),
   dealRequest({
     key: "deal-paid-dispute-bedroom", client: "zhanna", executor: "dala", type: "bedroom", style: "scandi",
-    details: { facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.chernovik9,
+    details: { facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.kerey7,
     wishes: "Кровать с мягким изголовьем во всю стену и две тумбы.", daysAgo: 20, price: 640_000, durationDays: 30, comment: "Изголовье в ткани на выбор, тумбы с доводчиками.",
   }),
   dealRequest({
@@ -621,52 +611,52 @@ const DEAL_REQUESTS: RequestSpec[] = [
   }),
   dealRequest({
     key: "deal-ready-closet", client: "daniyar", executor: "agash", type: "walk-in-closet", style: "classic",
-    details: { facade: "veneer", hardware: "premium" }, segment: "PREMIUM", address: ADDR.primer8,
+    details: { facade: "veneer", hardware: "premium" }, segment: "PREMIUM", address: ADDR.turan37,
     wishes: "Гардеробная под потолок, открытые секции.", daysAgo: 40, price: 1_450_000, durationDays: 30, comment: "Шпон ореха, ящики с бархатными вставками.",
   }),
   dealRequest({
     key: "deal-ready-far-tv", client: "madina", executor: "dala", type: "living-room", style: "scandi",
-    details: { widthCm: 320, heightCm: 260, facade: "mdf_film", hardware: "soft_close", color: "Светлое дерево и белый" }, segment: "COMFORT", address: ADDR.obrazets3,
+    details: { widthCm: 320, heightCm: 260, facade: "mdf_film", hardware: "soft_close", color: "Светлое дерево и белый" }, segment: "COMFORT", address: ADDR.kenesary52,
     wishes: "Реечная панель за телевизором и подвесная тумба.", daysAgo: 30, price: 460_000, durationDays: 21, comment: "Похожую ТВ-зону делали в прошлом месяце, фото в портфолио.",
   }),
   dealRequest({
     key: "deal-ready-dispute-kids", client: "daniyar", executor: "kim", type: "kids-room", style: "scandi",
-    details: { facade: "mdf_film", hardware: "soft_close", color: "Белый и голубой", unknown: ["size"] }, segment: "COMFORT", address: ADDR.primer8,
+    details: { facade: "mdf_film", hardware: "soft_close", color: "Белый и голубой", unknown: ["size"] }, segment: "COMFORT", address: ADDR.turan37,
     wishes: "Двухъярусная кровать с ящиками, шкаф и стол для двоих детей.", daysAgo: 35, price: 720_000, durationDays: 28, comment: "Двухъярусная кровать, лестница-полки, стол с тумбой.",
   }),
   dealRequest({
     key: "deal-accepted-manual-kitchen", client: "olga", executor: "agash", type: "kitchen", style: "neoclassic",
-    details: { widthCm: 420, heightCm: 280, depthCm: 60, facade: "veneer", countertop: "quartz", hardware: "premium", color: "Натуральный дуб, столешница белый мрамор" }, segment: "PREMIUM", address: ADDR.maket21,
+    details: { widthCm: 420, heightCm: 280, depthCm: 60, facade: "veneer", countertop: "quartz", hardware: "premium", color: "Натуральный дуб, столешница белый мрамор" }, segment: "PREMIUM", address: ADDR.kabanbay48,
     wishes: "Остров с барной зоной, встроенная техника.", daysAgo: 60, price: 2_750_000, durationDays: 40, comment: "Кухня 4,2 м и остров 1,8 м, шпон дуба.",
   }),
   dealRequest({
     key: "deal-done-table", client: "olga", executor: "asel", type: "table", style: "modern",
-    details: { widthCm: 180, facade: "solid_wood" }, segment: "PREMIUM", address: ADDR.maket21,
+    details: { widthCm: 180, facade: "solid_wood" }, segment: "PREMIUM", address: ADDR.kabanbay48,
     wishes: "Обеденный стол из карагача на шесть человек.", daysAgo: 50, price: 450_000, durationDays: 30, comment: "Ламели карагача, масло-воск.",
   }),
   dealRequest({
     key: "deal-done-manual-wardrobe", client: "arman", executor: "timur", type: "wardrobe", style: "minimalism",
-    details: { widthCm: 200, facade: "mdf_film", hardware: "soft_close" }, segment: "ECONOMY", address: ADDR.sample4,
+    details: { widthCm: 200, facade: "mdf_film", hardware: "soft_close" }, segment: "ECONOMY", address: ADDR.sauran14,
     wishes: "Шкаф-купе в нишу.", daysAgo: 70, price: 360_000, durationDays: 20, comment: "Двери на алюминиевом профиле, внутри штанга и полки.",
   }),
   dealRequest({
     key: "deal-split-office", client: "erbolat", executor: "kim", type: "office", style: "scandi",
-    details: { facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.shablon15,
+    details: { facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.bokeikhan25,
     wishes: "Домашний кабинет: стол, стеллаж, тумба.", daysAgo: 45, price: 520_000, durationDays: 25, comment: "Стеллаж с закрытыми ящиками внизу, стол с тумбой.",
   }),
   dealRequest({
     key: "deal-cancelled-dresser", client: "saule", executor: "samat", type: "dresser", style: "scandi",
-    details: { widthCm: 100, facade: "ldsp" }, segment: "ECONOMY", address: ADDR.probny7,
+    details: { widthCm: 100, facade: "ldsp" }, segment: "ECONOMY", address: ADDR.dostyk18,
     wishes: "Комод на пять ящиков.", daysAgo: 15, price: 85_000, durationDays: 10, comment: "Белый комод, ручки на выбор.",
   }),
   dealRequest({
     key: "deal-refunded-hallway", client: "arman", executor: "samat", type: "hallway", style: "modern",
-    details: { facade: "ldsp", hardware: "standard" }, segment: "ECONOMY", address: ADDR.sample4,
+    details: { facade: "ldsp", hardware: "standard" }, segment: "ECONOMY", address: ADDR.sauran14,
     wishes: "Прихожая со шкафом и банкеткой.", daysAgo: 18, price: 180_000, durationDays: 14, comment: "Шкаф, вешалка и банкетка в цвете дуб сонома.",
   }),
   dealRequest({
     key: "deal-refund-dispute-wardrobe", client: "zhanna", executor: "erlan", type: "wardrobe", style: "modern",
-    details: { widthCm: 260, facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.chernovik9,
+    details: { widthCm: 260, facade: "mdf_film", hardware: "soft_close" }, segment: "COMFORT", address: ADDR.kerey7,
     wishes: "Шкаф-купе в спальню.", daysAgo: 28, price: 360_000, durationDays: 20, comment: "Зеркальная дверь по центру.",
   }),
 ];
@@ -680,7 +670,7 @@ export const REQUESTS: RequestSpec[] = [...OPEN_REQUESTS, ...DEAL_REQUESTS];
 export const DUAL_ROLE_REQUESTS: RequestSpec[] = [
   dealRequest({
     key: "deal-dual-role-wardrobe", client: { executor: "dala" }, executor: "timur", type: "wardrobe", style: "modern",
-    details: { widthCm: 180, facade: "ldsp", hardware: "standard" }, segment: "ECONOMY", address: ADDR.sample4,
+    details: { widthCm: 180, facade: "ldsp", hardware: "standard" }, segment: "ECONOMY", address: ADDR.sauran14,
     wishes: "Шкаф в прихожую для себя.", daysAgo: 40, price: 250_000, durationDays: 18, comment: "ЛДСП Egger, фурнитура стандартная.",
   }),
 ];
@@ -694,22 +684,22 @@ export const DUAL_ROLE_REQUESTS: RequestSpec[] = [
 export const SHOWCASE_REQUESTS: RequestSpec[] = [
   dealRequest({
     key: "showcase-erlan-wardrobe", client: "gulnara", executor: "erlan", type: "wardrobe", style: "modern",
-    details: { widthCm: 240, heightCm: 260, depthCm: 60, facade: "mdf_film", hardware: "soft_close", color: "Светлый дуб, средняя дверь — зеркало" }, segment: "COMFORT", address: ADDR.test2,
+    details: { widthCm: 240, heightCm: 260, depthCm: 60, facade: "mdf_film", hardware: "soft_close", color: "Светлый дуб, средняя дверь — зеркало" }, segment: "COMFORT", address: ADDR.mangilikEl29,
     wishes: "Шкаф-купе в спальню на всю стену, внутри штанга и ящики.", daysAgo: 80, price: 380_000, durationDays: 21, comment: "Три двери, средняя — зеркало, ящики с доводчиками Blum.",
   }),
   dealRequest({
     key: "showcase-erlan-hallway", client: "berik", executor: "erlan", type: "hallway", style: "modern",
-    details: { widthCm: 200, heightCm: 260, depthCm: 45, facade: "mdf_film", hardware: "soft_close", color: "Белый и дуб" }, segment: "COMFORT", address: ADDR.maket21,
+    details: { widthCm: 200, heightCm: 260, depthCm: 45, facade: "mdf_film", hardware: "soft_close", color: "Белый и дуб" }, segment: "COMFORT", address: ADDR.kabanbay48,
     wishes: "Прихожая до потолка: закрытый шкаф, открытая ниша с банкеткой и полки для обуви.", daysAgo: 40, price: 340_000, durationDays: 25, comment: "Шкаф до потолка, ниша с банкеткой, полки под обувь.",
   }),
   dealRequest({
     key: "showcase-qazaq-kitchen", client: "aliya", executor: "qazaq", type: "kitchen", style: "modern",
-    details: { widthCm: 280, heightCm: 270, depthCm: 60, facade: "mdf_film", countertop: "ldsp", hardware: "soft_close", color: "Тёмный орех и белый" }, segment: "COMFORT", address: ADDR.probny7,
+    details: { widthCm: 280, heightCm: 270, depthCm: 60, facade: "mdf_film", countertop: "ldsp", hardware: "soft_close", color: "Тёмный орех и белый" }, segment: "COMFORT", address: ADDR.dostyk18,
     wishes: "Прямая кухня 2,8 м, встроенная духовка и посудомойка.", daysAgo: 65, price: 760_000, durationDays: 25, comment: "Своё производство, монтаж нашей бригадой.",
   }),
   dealRequest({
     key: "showcase-dala-kitchen", client: "saule", executor: "dala", type: "kitchen", style: "modern",
-    details: { widthCm: 300, heightCm: 260, depthCm: 60, facade: "mdf_film", countertop: "compact", hardware: "soft_close", color: "Терракота, тёмная столешница" }, segment: "COMFORT", address: ADDR.probny7,
+    details: { widthCm: 300, heightCm: 260, depthCm: 60, facade: "mdf_film", countertop: "compact", hardware: "soft_close", color: "Терракота, тёмная столешница" }, segment: "COMFORT", address: ADDR.dostyk18,
     wishes: "Кухня 3 м в тёплом цвете, встроенная мойка.", daysAgo: 58, price: 820_000, durationDays: 30, comment: "Фасады МДФ в плёнке, столешница компакт-плита.",
   }),
   {
@@ -721,7 +711,7 @@ export const SHOWCASE_REQUESTS: RequestSpec[] = [
     style: "modern",
     details: { widthCm: 180, heightCm: 250, depthCm: 40, facade: "mdf_film", hardware: "soft_close", color: "Как шкаф в спальне — светлый дуб" },
     segment: "COMFORT",
-    address: ADDR.test2,
+    address: null,
     desiredInDays: 30,
     wishes: "Прихожая с зеркалом и банкеткой, в цвет шкафа в спальне.",
     createdDaysAgo: 0.5,
@@ -748,7 +738,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
     style: "modern",
     details: { widthCm: 240, heightCm: 260, depthCm: 60, facade: "ldsp", hardware: "standard", color: "Белый" },
     segment: "ECONOMY",
-    address: ADDR.obrazets3,
+    address: null,
     desiredInDays: 30,
     wishes: "Шкаф в спальню, внутри полки под бельё.",
     createdDaysAgo: 4.5,
@@ -780,7 +770,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
     style: "scandi",
     details: { widthCm: 300, heightCm: 260, facade: "mdf_film", hardware: "soft_close", color: "Светлое дерево" },
     segment: "COMFORT",
-    address: ADDR.primer8,
+    address: null,
     desiredInDays: 35,
     wishes: "ТВ-зона в спальне.",
     createdDaysAgo: 6,
@@ -809,7 +799,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
     style: "modern",
     details: { widthCm: 100, facade: "veneer", countertop: "artificial_stone" },
     segment: "PREMIUM",
-    address: ADDR.syganak12,
+    address: null,
     wishes: "Подвесная тумба под раковину и пенал.",
     createdDaysAgo: 20,
     publishedDaysAgo: 19.9,
@@ -839,7 +829,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
     style: "modern",
     details: { unknown: ["size"], facade: "mdf_film", hardware: "soft_close", color: "Белый и дуб" },
     segment: "COMFORT",
-    address: ADDR.test2,
+    address: null,
     desiredInDays: 45,
     wishes: "Кухня под потолок, встроенный холодильник.",
     createdDaysAgo: 1.2,
@@ -857,7 +847,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
     style: "minimalism",
     details: { widthCm: 240, heightCm: 260, facade: "ldsp", hardware: "standard" },
     segment: "ECONOMY",
-    address: ADDR.maket21,
+    address: null,
     desiredInDays: 30,
     wishes: "Шкаф-купе в спальню, одна дверь — зеркало.",
     createdDaysAgo: 3,
@@ -877,7 +867,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
     style: "modern",
     details: { widthCm: 160, facade: "ldsp", hardware: "standard" },
     segment: "ECONOMY",
-    address: ADDR.shablon15,
+    address: null,
     desiredInDays: 25,
     wishes: "Прихожая с банкеткой и зеркалом.",
     createdDaysAgo: 2.5,
@@ -897,7 +887,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
     details: { widthCm: 120, heightCm: 85, depthCm: 45, facade: "mdf_film", hardware: "soft_close", color: "Белый" },
     // Эконом: заявку порядка «до оферты» (её экран — в v1) не видят мастера «Комфорта», в том числе витринный Ерлан.
     segment: "ECONOMY",
-    address: ADDR.probny7,
+    address: null,
     desiredInDays: 20,
     wishes: "Комод в детскую, размеры снял сам по инструкции.",
     createdDaysAgo: 1.5,
@@ -911,7 +901,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
 ];
 
 /**
- * Профили мастеров и история покупателя (спека 2026-11-17): завершённая сделка Айгерим с фото сдачи, районом и ЖК в заявке,
+ * Профили мастеров и история покупателя (спека 2026-11-17): завершённая сделка Айгерим с фото сдачи и адресом в сделке,
  * без отзыва и без выбора показа — e2e v2 (flows/showcase.spec.ts) оставляет отзыв с выбором и меняет выбор. Мастер —
  * «Qazaq Wood» (Исп. №2). Сеется после витрины (перед сценариями до договора, они — последними); сделка — последней в DEALS:
  * номера заявок и сделок, на которые опираются сценарии, не сдвигаются.
@@ -919,7 +909,7 @@ export const PRE_CONTRACT_REQUESTS: RequestSpec[] = [
 export const PROFILE_REQUESTS: RequestSpec[] = [
   dealRequest({
     key: "profile-aigerim-tv", client: "aigerim", executor: "qazaq", type: "living-room", style: "modern",
-    details: { widthCm: 300, heightCm: 260, facade: "mdf_film", hardware: "soft_close", color: "Белый и светлый дуб" }, segment: "COMFORT", address: ADDR.syganak12Esil,
+    details: { widthCm: 300, heightCm: 260, facade: "mdf_film", hardware: "soft_close", color: "Белый и светлый дуб" }, segment: "COMFORT", address: ADDR.akmeshit11,
     wishes: "ТВ-зона в гостиной: подвесная тумба и полки по сторонам.", daysAgo: 36, price: 480_000, durationDays: 20, comment: "Тумба на скрытом креплении, полки из МДФ в плёнке.",
   }),
 ];

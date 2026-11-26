@@ -91,7 +91,6 @@ export const requestCard = {
     extras: "Дополнительно",
     description: "Описание",
     city: "Город",
-    address: "Адрес",
     wishes: "Пожелания",
     /** Ответ «не знаю» у размеров и материалов. */
     unknown: "Не знаю — подскажет мастер",

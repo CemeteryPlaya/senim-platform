@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DisputeOutcome, DisputeReason } from "@/generated/prisma/enums";
 import { ru } from "@/i18n/ru";
 import { MAX_PRICE_TIYN } from "@/modules/payments";
+import { SHOWCASE_ADDRESS_CHOICES } from "./ports";
 
 /**
  * Входы deal-core. Те же схемы использует action() на экранах; сервис тоже разбирает вход,
@@ -78,14 +79,15 @@ export const reviewSchema = z.object({
 
 /**
  * Выбор покупателя оконченной сделки: что видно в профиле мастера (спека 2026-11-17, 3.5). Строгая схема: лишнее поле —
- * отказ. Доступность адреса (район, ЖК в заявке) проверяет сервис. `clientKey` — ключ повтора формы; повтор с тем же
+ * отказ. Место — только «не показывать» или «город» (ADR-016): прежние «город и район» и «город, район и ЖК» выбрать
+ * больше нельзя (VALIDATION у поля `address`). `clientKey` — ключ повтора формы; повтор с тем же
  * содержимым ничего не меняет и журнал не пишет.
  */
 export const showcaseSchema = z.strictObject({
   dealId: id,
   photos: z.boolean(),
   price: z.boolean(),
-  address: z.enum(["NONE", "CITY", "DISTRICT", "COMPLEX"]),
+  address: z.enum(SHOWCASE_ADDRESS_CHOICES, { error: ru.deal.validation.showcaseAddress }),
   signature: z.enum(["NAME", "INITIAL"]),
   clientKey: z.uuid().optional(),
 });

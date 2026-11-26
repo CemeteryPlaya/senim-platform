@@ -41,7 +41,7 @@ async function orNotFound<T>(promise: Promise<T>): Promise<T> {
 
 /**
  * Мастер заявки покупателя: пять шагов одного адреса (`?draft=<id>&step=<экран>`, как в v1) — что и стиль → уровень → фото
- * → адрес → проверка. Черновик сохраняется на каждом шаге; открыть можно сохранённый шаг или любой до него (resumeIndex
+ * → город и дата → проверка. Черновик сохраняется на каждом шаге; открыть можно сохранённый шаг или любой до него (resumeIndex
  * модуля), «Мои заявки» без шага открывают первый незаполненный. До черновика адрес может нести кому адресована заявка:
  * `like=<работа>` («Хочу похожее») или `executor=<номер>` (профиль мастера) — чужой, несуществующий или свой — 404.
  * Отправленная заявка — на свою карточку. Путь ТЗ: шагов и полей за флагами (`ai`, `materialsCalculator`,
@@ -124,21 +124,7 @@ export default async function NewRequestPage({ searchParams }: Props) {
         />
       );
     case "place":
-      return (
-        <WizardPlace
-          key={key}
-          base={base}
-          device={device}
-          initial={{
-            city: draft.city,
-            district: draft.district ?? "",
-            complex: draft.complex ?? "",
-            address: draft.address ?? "",
-            desiredDate: draft.desiredDate ? draft.desiredDate.toISOString().slice(0, 10) : "",
-            location: draft.location,
-          }}
-        />
-      );
+      return <WizardPlace key={key} base={base} initial={{ city: draft.city, desiredDate: draft.desiredDate ? draft.desiredDate.toISOString().slice(0, 10) : "" }} />;
     case "send":
       return (
         <WizardSend

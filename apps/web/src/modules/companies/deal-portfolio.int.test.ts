@@ -130,9 +130,10 @@ describe("согласие заказчика на показ", () => {
     expect(await setPortfolioConsent(d.client, { dealId: d.dealId, consent: true })).toEqual({ changed: true });
     // Только «фото: да» — место не показано: адрес заказчика — лишь по его явному выбору.
     expect((await listInspiration({ limit: 96 })).items.find((i) => i.id === id)).toMatchObject({ doneOnPlatform: true, place: null });
-    await setDealShowcase(d.client, { dealId: d.dealId, photos: true, price: false, address: "DISTRICT", signature: "INITIAL" });
+    await setDealShowcase(d.client, { dealId: d.dealId, photos: true, price: false, address: "CITY", signature: "INITIAL" });
     const tile = (await listInspiration({ limit: 96 })).items.find((i) => i.id === id);
-    expect(tile).toMatchObject({ doneOnPlatform: true, place: "Астана, Есильский район" });
+    // Место — только город (ADR-016): района из заявки нет.
+    expect(tile).toMatchObject({ doneOnPlatform: true, place: "Астана" });
     expect(tile!.cover?.id).toBe(d.finalPhotoIds[0]);
     expect((await listPublicPortfolio(d.executor.executor.id)).map((p) => p.id)).toContain(id);
 
@@ -199,10 +200,10 @@ describe("согласие заказчика на показ", () => {
 });
 
 describe("работа из сделки публично: место и цена только по выбору покупателя", () => {
-  const show = (d: Fixture, choice: { price: boolean; address: "NONE" | "CITY" | "DISTRICT" | "COMPLEX" }) =>
+  const show = (d: Fixture, choice: { price: boolean; address: "NONE" | "CITY" }) =>
     setDealShowcase(d.client, { dealId: d.dealId, photos: true, signature: "INITIAL", ...choice });
 
-  it("фото: да, стоимость: нет, адрес: нет — карточка есть везде, без места и цены", async () => {
+  it("фото: да, стоимость: нет, место: нет — карточка есть везде, без места и цены", async () => {
     const d = await makeDealWithReport();
     await db.request.update({ where: { id: d.requestId }, data: { district: "Есильский район" } });
     const { id } = await fromDeal(d, { place: "Астана, Есильский район", priceFrom: 450_000 });
@@ -219,17 +220,17 @@ describe("работа из сделки публично: место и цен�
     expect((await listCatalog({ page: 1, price: "300-700" })).items.map((i) => i.id)).not.toContain(id);
   });
 
-  it("стоимость: да, адрес: район — цена мастера, место из заявки без улицы и без текста мастера", async () => {
+  it("стоимость: да, место: город — цена мастера, город заявки без района, ЖК, улицы и текста мастера", async () => {
     const d = await makeDealWithReport();
     await db.request.update({ where: { id: d.requestId }, data: { district: "Есильский район", complex: "Хайвил" } });
     const { id } = await fromDeal(d, { place: "Левый берег", priceFrom: 450_000 });
-    await show(d, { price: true, address: "DISTRICT" });
+    await show(d, { price: true, address: "CITY" });
 
     const card = (await listCatalog({ page: 1 })).items.find((i) => i.id === id);
-    expect(card).toMatchObject({ place: "Астана, Есильский район", priceFrom: 450_000 });
-    expect(JSON.stringify(card)).not.toContain("Тестовая");
-    expect((await getInspirationItem(id, null))?.place).toBe("Астана, Есильский район");
-    expect((await listInspiration({ limit: 96 })).items.find((i) => i.id === id)?.place).toBe("Астана, Есильский район");
+    expect(card).toMatchObject({ place: "Астана", priceFrom: 450_000 });
+    expect(JSON.stringify(card)).not.toMatch(/Тестовая|Есиль|Хайвил/);
+    expect((await getInspirationItem(id, null))?.place).toBe("Астана");
+    expect((await listInspiration({ limit: 96 })).items.find((i) => i.id === id)?.place).toBe("Астана");
     expect((await listCatalog({ page: 1, price: "300-700" })).items.map((i) => i.id)).toContain(id);
   });
 

@@ -42,8 +42,6 @@ export const LIMITS = {
   wishes: 300,
   address: 200,
   city: 60,
-  district: 60,
-  complex: 80,
   photos: 10,
   designFiles: 5,
 } as const;
@@ -96,7 +94,7 @@ export function segmentInputOf(d: RequestDetails): SegmentInput {
 /**
  * Экраны мастера по порядку (ТЗ п. 3, решение 2.2.11): на первом — только тип и стиль; всё техническое
  * (размеры, ЛДСП/МДФ, фурнитура) — в свёрнутом блоке «Для продвинутых» первого экрана, у каждого поля «не знаю».
- * Дальше — уровень → фото (можно пропустить) → адрес и точка → проверка.
+ * Дальше — уровень → фото (можно пропустить) → город и дата → проверка.
  * Шаги `type`, `style`, `size`, `materials` — не экраны: их сохраняет помощник ИИ при переносе черновика.
  */
 export const WIZARD_SCREENS = ["start", "segment", "room", "place", "send"] as const;
@@ -184,18 +182,12 @@ export function pointOf(r: { addressLat: number | null; addressLng: number | nul
   return r.addressLat !== null && r.addressLng !== null ? { lat: r.addressLat, lng: r.addressLng } : null;
 }
 
-const emptyToNull = (s: z.ZodString) => s.nullable().transform((v) => (v === "" ? null : v));
-
+/** Шаг «Где и когда» (ADR-016): только город и желаемая дата. Адрес и точка — в сделке (`dealAddressSchema`). */
 const placeStep = z.strictObject({
   screen: z.literal("place"),
   city: z.string().trim().min(2, t.cityRequired).max(LIMITS.city),
-  address: z.string().trim().min(5, t.addressRequired).max(LIMITS.address, t.tooLong(LIMITS.address)),
   desiredDate: z.iso.date(t.date).nullable(),
-  location: geoPointSchema.nullable().default(null),
-  /** Район и ЖК (необязательны): пустая строка — «не указано». ЖК без района не хранится. */
-  district: emptyToNull(z.string().trim().max(LIMITS.district)).default(null),
-  complex: emptyToNull(z.string().trim().max(LIMITS.complex)).default(null),
-}).refine((s) => s.complex === null || s.district !== null, { path: ["complex"], error: t.complexNeedsDistrict });
+});
 
 /** Проверка и отправка: всё уже сохранено на прошлых экранах. */
 const sendStep = z.strictObject({ screen: z.literal("send") });
@@ -233,6 +225,17 @@ export type SaveDraftInput = z.output<typeof saveDraftSchema>;
 export const requestRefSchema = z.strictObject({ requestId: id });
 export const cancelRequestSchema = z.strictObject({ requestId: id, reason: optionalText(300) });
 export const offerRefSchema = z.strictObject({ offerId: id });
+
+/**
+ * Адрес сделки (ADR-016): указывает покупатель на своей сделке — строка адреса и, по желанию, точка на карте. Хранится в
+ * колонках заявки этой сделки (`Request.address`, `addressLat`, `addressLng`).
+ */
+export const dealAddressSchema = z.strictObject({
+  dealId: id,
+  address: z.string().trim().min(5, t.dealAddressRequired).max(LIMITS.address, t.tooLong(LIMITS.address)),
+  location: geoPointSchema.nullable().default(null),
+});
+export type DealAddressInput = z.output<typeof dealAddressSchema>;
 
 /** Приглашений на одну заявку (покупатель зовёт мастеров своей ценовой группы). */
 export const INVITATIONS_PER_REQUEST = 10;
@@ -309,18 +312,17 @@ export function screenIndex(screen: StepInput["screen"]): number {
 
 /**
  * Экран, на который открыть мастер: запрошенный в адресе, если он не дальше сохранённого прогресса, иначе последний
- * сохранённый. Черновик прежнего мастера (уровень и адрес раньше сохранялись при отправке) возвращается к экрану,
- * где их не хватает, — иначе отправка упадёт с «заполните все шаги».
+ * сохранённый. Черновик прежнего мастера (уровень раньше сохранялся при отправке) возвращается к экрану уровня, иначе
+ * отправка упадёт с «заполните все шаги». Адрес в заявке не спрашивается (ADR-016) — прогресс от него не зависит.
  */
 export function resumeIndex(
-  draft: { wizardStep: number; segment: string | null; address: string | null; typeChosen: boolean } | null,
+  draft: { wizardStep: number; segment: string | null; typeChosen: boolean } | null,
   asked: string | undefined,
 ): number {
   if (!draft) return 0;
   let reached = Math.min(draft.wizardStep, WIZARD_SCREENS.length - 1);
   if (!draft.typeChosen) reached = 0;
   if (!draft.segment) reached = Math.min(reached, screenIndex("segment"));
-  if (!draft.address) reached = Math.min(reached, screenIndex("place"));
   const index = asked === undefined ? -1 : screenIndex(asked as WizardScreen);
   return index >= 0 && index <= reached ? index : reached;
 }

@@ -2,10 +2,13 @@
 
 import { ru } from "@/i18n/ru";
 import { Checkbox, RadioCard, RadioGroup, Stack } from "@/kit";
-import type { ShowcaseAddress, ShowcaseSignature } from "@/generated/prisma/enums";
+import type { ShowcaseSignature } from "@/generated/prisma/enums";
 
-/** Выбор покупателя (как `ShowcaseChoice` модуля deal-core; тип модуля серверный, на клиент не тянем). */
-export type ShowcaseChoice = { photos: boolean; price: boolean; address: ShowcaseAddress; signature: ShowcaseSignature };
+/**
+ * Выбор покупателя (как `ShowcaseView` модуля deal-core; тип модуля серверный, на клиент не тянем). Место — только «не
+ * показывать» или «город» (ADR-016); прежние «город и район» и «город, район и ЖК» модуль отдаёт как город.
+ */
+export type ShowcaseChoice = { photos: boolean; price: boolean; address: "NONE" | "CITY"; signature: ShowcaseSignature };
 
 const t = ru.app.deal.showcase;
 const SIGNATURES = ["NAME", "INITIAL"] as const;
@@ -13,7 +16,7 @@ const SIGNATURES = ["NAME", "INITIAL"] as const;
 type Props = {
   value: ShowcaseChoice;
   onChange: (next: ShowcaseChoice) => void;
-  /** Только доступные варианты адреса (`addressOptions` модуля). */
+  /** Варианты места (`addressOptions` модуля): не показывать или город. */
   addressOptions: readonly ShowcaseChoice["address"][];
   /** Префикс имён полей: на экране отзыва рядом другие радио. */
   prefix?: string;

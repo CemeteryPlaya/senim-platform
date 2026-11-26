@@ -79,6 +79,22 @@ describe("данные стенда", () => {
     const measurer = await db.user.findFirstOrThrow({ where: { roles: { has: "MEASURER" } }, include: { siteMeasurements: true } });
     expect(measurer).toMatchObject({ roles: ["MEASURER"] });
     expect(measurer.siteMeasurements).toHaveLength(1);
+
+    // Адрес — только в сделке (ADR-016): у заявки со сделкой адрес и точка в Астане есть, у заявки без сделки — нет.
+    // Района и ЖК нет ни у одной заявки, тестовых названий улиц — тоже.
+    const places = await db.request.findMany({ select: { number: true, address: true, addressLat: true, addressLng: true, district: true, complex: true, deal: { select: { id: true } } } });
+    for (const r of places) {
+      const at = `заявка №${r.number}`;
+      expect({ district: r.district, complex: r.complex }, at).toEqual({ district: null, complex: null });
+      if (r.deal === null) {
+        expect({ address: r.address, lat: r.addressLat, lng: r.addressLng }, at).toEqual({ address: null, lat: null, lng: null });
+        continue;
+      }
+      expect(r.address, at).toMatch(/^Астана, (ул|пр)\. .+, \d+, кв\. \d+$/);
+      expect(r.address, at).not.toMatch(/тест|пример|образц|макет|услов|пробн|шаблон|чернов/i);
+      expect(r.addressLat! > 51.0 && r.addressLat! < 51.25 && r.addressLng! > 71.3 && r.addressLng! < 71.6, at).toBe(true);
+    }
+    expect(places.some((r) => r.deal !== null) && places.some((r) => r.deal === null)).toBe(true);
   });
 
   it("сделки: все статусы ТЗ на mock и manual; тестовые операции — только мока; журнал сходится с формулами до тиына", { timeout: 120_000 }, async () => {
@@ -187,7 +203,7 @@ describe("данные стенда", () => {
     expect(await db.request.count({ where: { status: "OPEN", mode: "TENDER", segment: "COMFORT", preContractFlow: { not: null } } })).toBe(0);
   });
 
-  it("люди: мастера с тестовыми адресами, KYC во всех статусах, номера — только в identity; справочник цен", { timeout: 120_000 }, async () => {
+  it("люди: мастера только с городом, KYC во всех статусах, номера — только в identity; справочник цен", { timeout: 120_000 }, async () => {
     await seedStand(db);
     const spec = EXECUTORS.agash;
     const profile = await db.executorProfile.findFirstOrThrow({ where: { legalName: spec.legalName }, include: { user: true } });
@@ -197,12 +213,12 @@ describe("данные стенда", () => {
     expect(identityFake.partyNumbersOf(profile.userId)?.binIin).toBe(spec.bin);
 
     const profiles = await db.executorProfile.findMany({
-      select: { userId: true, district: true, streetAddress: true, kycStatus: true, status: true, payoutIbanLast4: true, kycDocuments: { select: { id: true, purpose: true } } },
+      select: { userId: true, city: true, district: true, streetAddress: true, kycStatus: true, status: true, payoutIbanLast4: true, kycDocuments: { select: { id: true, purpose: true } } },
     });
     expect(profiles.length).toBe(Object.keys(EXECUTORS).length);
     for (const p of profiles) {
-      expect(p.district).not.toBe("");
-      expect(p.streetAddress).toMatch(/^ул\. Тестовая, \d+$/);
+      // У мастера только город (ADR-016): района и адреса мастерской нет.
+      expect({ city: p.city, district: p.district, streetAddress: p.streetAddress }).toEqual({ city: "Астана", district: "", streetAddress: "" });
       const iban = identityFake.partyNumbersOf(p.userId)?.payoutIban ?? "";
       if (p.status === "APPROVED") expect(iban).toMatch(/^KZ\d{2}000DEMO/);
       expect(p.payoutIbanLast4).toBe(iban === "" ? null : iban.slice(-4));

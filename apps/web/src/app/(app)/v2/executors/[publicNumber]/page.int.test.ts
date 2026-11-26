@@ -45,7 +45,7 @@ async function seed() {
   const offPlatform = await makePortfolioItem(executor, { furnitureTypeId: kitchen.id, title: "Светлая кухня", priceFrom: 1_200_000 });
   // Сделка без выбора покупателя: закрытый вид, отзыв с инициалом.
   const plain = await makeReview(executor, 5, `Спасибо, ${SECRETS.legalName}! Мой номер ${SECRETS.phone}`);
-  // Сделка, где покупатель разрешил фото, стоимость, район и имя в подписи.
+  // Сделка, где покупатель разрешил фото, стоимость, «город и район» (прежний выбор — теперь город, ADR-016) и имя в подписи.
   const shown = await makeDealWithReport({ executor });
   await db.request.update({ where: { id: shown.requestId }, data: { district: "Есиль" } });
   await db.review.create({ data: { dealId: shown.dealId, executorId: executor.executor.id, authorId: shown.client.id, rating: 4, text: "Сделали аккуратно" } });
@@ -203,7 +203,9 @@ describe("/v2/executors/[publicNumber]: шапка и разделы", () => {
     const shown = dealCard(out, shownDealId);
     expect(shown).toContain(t.outcome.success);
     expect(shown).toContain(formatMoney(PRICE_TIYN));
-    expect(shown).toContain("Астана, Есиль");
+    expect(shown).toContain("Астана");
+    // Ни район заявки, ни район и улица мастера не показываются (ADR-016).
+    expect(out).not.toContain("Есиль");
     expect(shown).toContain("<img");
     expect(shown.indexOf("Кухня")).toBeLessThan(shown.indexOf("Сделали аккуратно"));
     expect(shown.indexOf("Сделали аккуратно")).toBeLessThan(shown.indexOf(t.reviewSignature("Айгерим")));

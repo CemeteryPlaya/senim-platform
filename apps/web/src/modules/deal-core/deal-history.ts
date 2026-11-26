@@ -27,7 +27,7 @@ export type DealHistoryItem = {
   photos: DealHistoryPhoto[];
   /** Только при выборе «стоимость». */
   priceTiyn: bigint | null;
-  /** «Город», «Город, Район» или «Город, Район, ЖК» по выбору; улица и дом (Request.address) не читаются. */
+  /** Город заявки, если покупатель разрешил показать место (прежние «город и район» и «город, район и ЖК» — тоже город); null — не показывать. */
   place: string | null;
   /** text — через маску публичного текста; signedAs — снимок выбора или инициал автора, без ФИО — пусто. */
   review: { rating: number; text: string; signedAs: string; createdAt: Date } | null;
@@ -50,7 +50,7 @@ const HISTORY_SELECT = {
   cancelledAt: true,
   updatedAt: true,
   // Request.address (улица и дом) не выбирается: на странице мастера его нет ни при каком выборе.
-  request: { select: { segment: true, city: true, district: true, complex: true } },
+  request: { select: { segment: true, city: true } },
   showcase: { select: { photos: true, price: true, address: true, signature: true, signedAs: true } },
   review: { select: { rating: true, text: true, createdAt: true, author: { select: { fullName: true } } } },
   // Фото сдачи база отдаёт, только если покупатель разрешил их показать.

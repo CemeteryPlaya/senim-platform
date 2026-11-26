@@ -25,7 +25,7 @@ function feeTiyn(raw: string): bigint | null {
 type Props = { initial: CompanyValues; types: readonly { id: string; name: string }[]; device: Device };
 
 /**
- * Форма компании: о себе, опыт, что делаете, условия замера, адрес. «Сохранить» — главное действие экрана (в доке на
+ * Форма компании: о себе, опыт, что делаете, условия замера, город. «Сохранить» — главное действие экрана (в доке на
  * телефоне). Ошибки — у полей. После сохранения «О себе» показан так, как его записал сервер (маска убрала контакты и
  * название — об этом плашка). Пояснения — по нажатию, постоянных подсказок под полями нет.
  */
@@ -36,8 +36,6 @@ export function CompanyForm({ initial, types, device }: Props) {
   const [terms, setTerms] = useState(initial.terms);
   const [fee, setFee] = useState(initial.fee);
   const [city, setCity] = useState(initial.city);
-  const [district, setDistrict] = useState(initial.district);
-  const [street, setStreet] = useState(initial.streetAddress);
   const [masked, setMasked] = useState(false);
   const [dirty, setDirty] = useState(false);
   const root = useRef<HTMLFormElement>(null);
@@ -50,8 +48,6 @@ export function CompanyForm({ initial, types, device }: Props) {
     measurementTerms: terms,
     measurementFee: terms === "FEE_IF_NO_DEAL" ? toNumber(fee) : null,
     city,
-    district,
-    streetAddress: street,
   });
   const form = useActionForm(saveCompanyAction, {
     formRef: root,
@@ -158,24 +154,6 @@ export function CompanyForm({ initial, types, device }: Props) {
             <Stack>
               <h2 className="text-title-2 text-ink">{t.address.title}</h2>
               <CityField label={t.address.city} name="city" suggestions={SUGGESTED_CITIES} value={city} onChange={setCity} maxLength={100} error={err.city} />
-              <TextField
-                label={`${t.address.district} (${t.optional})`}
-                name="district"
-                value={district}
-                onChange={(e) => setDistrict(e.target.value)}
-                autoComplete="address-level3"
-                maxLength={100}
-                error={err.district}
-              />
-              <TextField
-                label={`${t.address.street} (${t.optional})`}
-                name="streetAddress"
-                value={street}
-                onChange={(e) => setStreet(e.target.value)}
-                autoComplete="street-address"
-                maxLength={200}
-                error={err.streetAddress}
-              />
             </Stack>
             <FormError error={form.error} atField={atField} />
           </Stack>

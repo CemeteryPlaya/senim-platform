@@ -25,11 +25,12 @@ const REGISTRATION_LIMIT = { limit: 5, windowSec: 3600 };
 
 const entityOf = (profileId: string) => ({ entity: { type: "executor", id: profileId }, scope: `executor:${profileId}` });
 
-/** Поля анкеты, которые остаются в web: адрес мастерской и опыт. Реквизиты — проекция стороны identity (partyColumns). */
+/**
+ * Поля анкеты, которые остаются в web: город и опыт. Реквизиты — проекция стороны identity (partyColumns). Район и адрес
+ * мастерской не пишутся (ADR-016): у мастера только город; прежние значения колонок остаются как есть.
+ */
 const localColumns = (input: ExecutorRegistrationInput) => ({
   city: input.city,
-  district: input.district ?? "",
-  streetAddress: input.streetAddress ?? "",
   yearsExperience: input.yearsExperience,
 });
 

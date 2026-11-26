@@ -111,7 +111,6 @@ export default async function RequestPage({ params, searchParams }: Props) {
                 ...detailRows({ title: request.title, style: request.style, details: request.details }),
                 ...(pre ? siteRows(pre) : []),
                 { label: ru.requests.facts.city, value: request.city },
-                ...(request.address ? [{ label: ru.requests.facts.address, value: request.address }] : []),
                 ...(request.wishes ? [{ label: ru.requests.facts.wishes, value: request.wishes }] : []),
               ]}
             />
@@ -215,7 +214,7 @@ function AgreePanel({ request, pre, needsIdentity }: PanelProps) {
   return (
     <Panel id="agree" title={ru.requests.pre.steps.contract}>
       <ContractTerms pre={pre} />
-      <ContractSummary pre={pre} price={price} priceLabel={ru.requests.offer.price} address={request.address} />
+      <ContractSummary pre={pre} price={price} priceLabel={ru.requests.offer.price} address={null} />
       <AgreeForm requestId={request.id} needsIdentity={needsIdentity} />
     </Panel>
   );
@@ -263,7 +262,7 @@ function MeasuringPanel(props: PanelProps) {
     <>
       <Panel id="measured" title={t.measuredTitle}>
         {ready ? (
-          <ContractSummary pre={pre} price={m.finalPrice} priceLabel={t.finalPrice} address={request.address} />
+          <ContractSummary pre={pre} price={m.finalPrice} priceLabel={t.finalPrice} address={null} />
         ) : (
           <p className="flex flex-col">
             <span className="text-base text-muted">{t.finalPrice}</span>

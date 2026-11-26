@@ -20,8 +20,8 @@ const digits = z.string().transform((v) => v.replace(/\s/g, ""));
 export type ExecutorSigner = { fullName: string; iin: string | null };
 
 /**
- * Адрес мастерской или офиса (№6) — общие поля анкеты и профиля (companies): город обязателен,
- * район и улица — нет. Что из адреса видит заказчик, решает companies.executorDisplay.
+ * Место мастера — общие поля анкеты и профиля (companies): город обязателен. Район и улицу ещё присылает замороженная
+ * форма v1 — они проверяются по длине, но не пишутся и не показываются (ADR-016: у мастера только город).
  */
 export const addressFields = {
   city: z.string().trim().min(2, t.city).max(100, t.city),

@@ -314,15 +314,19 @@ describe("cancelText: последствия отмены по факту cancel
 });
 
 describe("заказ", () => {
-  const order = { city: "Астана", plannedReadyAt: null, durationDays: 30, warrantyMonths: 12, readyShownInNow: false };
+  const master = (address: string | null, signed = true, location: { lat: number; lng: number } | null = null) => ({ side: "EXECUTOR" as const, signed, address, location });
+  const buyer = (address: string | null, addressHref: string | null = "/v2/deals/d1/address", location: { lat: number; lng: number } | null = null) => ({ side: "CLIENT" as const, address, location, addressHref });
+  const order = { city: "Астана", place: master(null, false), plannedReadyAt: null, durationDays: 30, warrantyMonths: 12, readyShownInNow: false };
   it("адрес мастеру: ссылки на карты — по точке заказа, а без точки — поиск по адресу", () => {
-    const withPoint = orderRows({ ...order, address: "Астана, Абая 1", location: { lat: 51.1, lng: 71.4 } }).find((r) => r.map);
+    const withPoint = orderRows({ ...order, place: master("Астана, Абая 1", true, { lat: 51.1, lng: 71.4 }) }).find((r) => r.map);
     expect(withPoint?.map).toEqual({ point: { lat: 51.1, lng: 71.4 }, address: "Астана, Абая 1" });
-    expect(orderRows({ ...order, address: "Астана, Абая 1" }).find((r) => r.map)?.map).toEqual({ point: null, address: "Астана, Абая 1" });
+    expect(orderRows({ ...order, place: master("Астана, Абая 1") }).find((r) => r.map)?.map).toEqual({ point: null, address: "Астана, Абая 1" });
     expect(orderRows(order).some((r) => r.map)).toBe(false);
   });
-  it("до оферты: город, срок в днях, гарантия — без «Что делаем» (это заголовок экрана); строки мастера нет", () => {
+  it("до оферты: город, срок в днях, гарантия — без «Что делаем» (это заголовок экрана); строки адреса у мастера нет", () => {
     expect(orderRows(order).map((r) => r.label)).toEqual([t.order.city, t.order.duration, t.order.warranty]);
+    // Адрес до оферты мастеру не показывается, даже если его передали.
+    expect(orderRows({ ...order, place: master("ул. Абая, 1", false) }).map((r) => r.label)).toEqual([t.order.city, t.order.duration, t.order.warranty]);
   });
   it("с плановой датой: только дата готовности (без срока в днях); даты оферты нет — она в «Истории»", () => {
     const rows = orderRows({ ...order, plannedReadyAt: new Date("2026-12-20T10:00:00Z") });
@@ -333,6 +337,20 @@ describe("заказ", () => {
     const rows = orderRows({ ...order, plannedReadyAt: new Date("2026-12-20T10:00:00Z"), readyShownInNow: true });
     expect(rows.map((r) => r.label)).not.toContain(t.order.readyBy);
     expect(rows.map((r) => r.label)).not.toContain(t.order.duration);
+  });
+  it("покупатель без адреса: город и «Адрес: Не указан» со ссылкой «Указать адрес»; сделка окончена — без ссылки", () => {
+    const rows = orderRows({ ...order, place: buyer(null) });
+    expect(rows.slice(0, 2)).toEqual([
+      { label: t.order.city, value: "Астана" },
+      { label: t.order.address, value: t.order.addressNone, link: { label: t.order.addressAdd, href: "/v2/deals/d1/address" } },
+    ]);
+    expect(orderRows({ ...order, place: buyer(null, null) })[1]).toEqual({ label: t.order.address, value: t.order.addressNone });
+  });
+  it("покупатель с адресом: адрес вместо города, ссылки на карты и «Изменить»; сделка окончена — без «Изменить»", () => {
+    const [row, ...rest] = orderRows({ ...order, place: buyer("ул. Достык, 5", "/v2/deals/d1/address", { lat: 51.1, lng: 71.4 }) });
+    expect(row).toEqual({ label: t.order.address, value: "ул. Достык, 5", map: { point: { lat: 51.1, lng: 71.4 }, address: "ул. Достык, 5" }, link: { label: t.order.addressChange, href: "/v2/deals/d1/address" } });
+    expect(rest.map((r) => r.label)).toEqual([t.order.duration, t.order.warranty]);
+    expect(orderRows({ ...order, place: buyer("ул. Достык, 5", null) })[0]?.link).toBeUndefined();
   });
 });
 
@@ -757,9 +775,13 @@ describe("masterMoneyView: блок денег мастера из журнал�
 
 describe("заказ мастера и ход работ", () => {
   const order = { city: "Астана", plannedReadyAt: null, durationDays: 30, warrantyMonths: 12, readyShownInNow: false };
-  it("адрес — вместо города (адрес начинается с города), только если передан", () => {
-    expect(orderRows({ ...order, address: "Астана, ул. Абая, 12" }).map((r) => r.label)).toEqual([ru.app.masterDeal.card.order.address, t.order.duration, t.order.warranty]);
-    expect(orderRows({ ...order, address: null }).map((r) => r.label)).toEqual([t.order.city, t.order.duration, t.order.warranty]);
+  it("после оферты: адрес — вместо города; покупатель не указал — город и подсказка уточнить в чате", () => {
+    const md = ru.app.masterDeal.card.order;
+    const signed = (address: string | null) => ({ ...order, place: { side: "EXECUTOR" as const, signed: true, address, location: null } });
+    expect(orderRows(signed("Астана, ул. Абая, 12")).map((r) => r.label)).toEqual([md.address, t.order.duration, t.order.warranty]);
+    const missing = orderRows(signed(null));
+    expect(missing.map((r) => r.label)).toEqual([t.order.city, md.address, t.order.duration, t.order.warranty]);
+    expect(missing[1]).toEqual({ label: md.address, value: md.addressMissing });
   });
 
   it("отчёты: свежие сверху, без названия — «Отчёт о ходе работ», подписи фото с номером", () => {

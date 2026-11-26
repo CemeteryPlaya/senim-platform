@@ -5,42 +5,42 @@ const source: ExecutorIdentitySource = {
   publicNumber: 17,
   legalName: "ТОО «Мебель Сити»",
   city: "Астана",
-  district: "Есильский район",
-  streetAddress: "ул. Сыганак, 10",
 };
 
 describe("executorDisplay", () => {
-  it("HIDDEN: «Исполнитель №N» в нужных падежах, адрес — только город и район", () => {
+  it("HIDDEN: «Исполнитель №N» в нужных падежах, из места — только город", () => {
     expect(executorDisplay(source, "HIDDEN")).toEqual({
       label: "Исполнитель №17",
       labelGen: "Исполнителя №17",
       labelDat: "Исполнителю №17",
-      address: "Астана, Есильский район",
+      address: "Астана",
       nameShown: false,
     });
   });
 
-  it("HIDDEN: ни наименования, ни улицы в выводе", () => {
-    const json = JSON.stringify(executorDisplay(source, "HIDDEN"));
-    expect(json).not.toContain("Мебель Сити");
-    expect(json).not.toContain("Сыганак");
+  it("HIDDEN: наименования в выводе нет", () => {
+    expect(JSON.stringify(executorDisplay(source, "HIDDEN"))).not.toContain("Мебель Сити");
   });
 
-  it("SHOWN: наименование во всех падежах и полный адрес", () => {
+  it("SHOWN: наименование во всех падежах, из места — тоже только город (ADR-016)", () => {
     expect(executorDisplay(source, "SHOWN")).toEqual({
       label: "ТОО «Мебель Сити»",
       labelGen: "ТОО «Мебель Сити»",
       labelDat: "ТОО «Мебель Сити»",
-      address: "Астана, Есильский район, ул. Сыганак, 10",
+      address: "Астана",
       nameShown: true,
     });
   });
 
-  it("пустые части адреса пропускаются", () => {
-    const noDistrict = { ...source, district: " ", streetAddress: "" };
-    expect(executorDisplay(noDistrict, "HIDDEN").address).toBe("Астана");
-    expect(executorDisplay(noDistrict, "SHOWN").address).toBe("Астана");
-    expect(executorDisplay({ ...noDistrict, city: "" }, "SHOWN").address).toBe("");
+  it("район и улица из старых данных не показываются ни в одном режиме; пустой город — пустая строка", () => {
+    const legacy = { ...source, city: " Астана ", district: "Есильский район", streetAddress: "ул. Сыганак, 10" };
+    for (const mode of ["HIDDEN", "SHOWN"] as const) {
+      const json = JSON.stringify(executorDisplay(legacy, mode));
+      expect(json).not.toContain("Есиль");
+      expect(json).not.toContain("Сыганак");
+      expect(executorDisplay(legacy, mode).address).toBe("Астана");
+    }
+    expect(executorDisplay({ ...source, city: "" }, "SHOWN").address).toBe("");
   });
 });
 

@@ -88,26 +88,22 @@ test("новый покупатель: заявка от главной до «�
   await button(page, w.next).click();
   await page.waitForURL(/step=place/);
 
-  // Шаг 4: введённый, но не отправленный адрес переживает «Назад».
+  // Шаг 4 (ADR-016): только город и дата; введённый, но не отправленный город переживает «Назад».
   await expect(heading(page, w.place.title)).toBeVisible();
-  await page.getByLabel(w.place.address).fill("ул. Кенесары, 40");
+  await page.getByLabel(w.place.city, { exact: true }).fill("Караганда");
   await page.getByRole("link", { name: `${ru.app.kit.back}: ${w.steps[2]}` }).click();
   await page.waitForURL(/step=room/);
   await expect(page.getByText(ru.app.kit.uploader.done)).toHaveCount(1);
   await button(page, w.next).click();
   await page.waitForURL(/step=place/);
-  await expect(page.getByLabel(w.place.address)).toHaveValue("ул. Кенесары, 40");
+  await expect(page.getByLabel(w.place.city, { exact: true })).toHaveValue("Караганда");
 
-  // Ошибки у полей (словами v2), точка по адресу (мок-геокодер знает центр города).
-  await page.getByLabel(w.place.address).fill("");
+  // Ошибка у поля (словами v2); полей адреса, района, ЖК и точки на шаге нет.
   await page.getByLabel(w.place.city, { exact: true }).fill("");
   await button(page, w.next).click();
   await expect(page.getByText(v.cityRequired)).toBeVisible();
-  await expect(page.getByText(w.errors.addressRequired)).toBeVisible();
+  await expect(page.getByLabel(ru.app.deal.address.field)).toHaveCount(0);
   await page.getByLabel(w.place.city, { exact: true }).fill("Астана");
-  await page.getByLabel(w.place.address).fill("ул. Достык, 5");
-  await button(page, w.place.findPoint).click();
-  await expect(page.getByText(w.place.pointCity)).toBeVisible();
   await button(page, w.next).click();
   await page.waitForURL(/step=send/);
 
@@ -170,7 +166,6 @@ test("прямая заявка из профиля мастера: «Заявк
   await button(page, w.next).click();
   await page.waitForURL(/step=place/);
   await page.getByLabel(w.place.city, { exact: true }).fill("Алматы");
-  await page.getByLabel(w.place.address).fill("пр. Абая, 10");
   await button(page, w.next).click();
   await page.waitForURL(/step=send/);
   await expect(page.getByText(w.send.footnoteDirect(ru.common.executorLabel(publicNumber)))).toBeVisible();

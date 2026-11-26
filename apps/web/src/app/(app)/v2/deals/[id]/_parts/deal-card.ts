@@ -33,6 +33,7 @@ export const dealHrefs = (id: string) => ({
   dispute: to(`${dealPath(id)}/dispute`),
   review: to(`${dealPath(id)}/review`),
   showcase: to(`${dealPath(id)}/showcase`),
+  address: to(`${dealPath(id)}/address`),
   money: to(`${dealPath(id)}/money`),
   history: to(`${dealPath(id)}?history=all#history`),
 });
@@ -486,12 +487,32 @@ export function cancelText(i: { side: DealSide; canCancel: boolean; status: Deal
 
 export type OrderMap = { point: { lat: number; lng: number } | null; address: string };
 
+/** Ссылка под значением строки «Заказа» (покупателю — «Указать адрес» / «Изменить»). */
+export type OrderLink = { label: string; href: string };
+
+export type OrderRow = {
+  label: string;
+  value: string;
+  /** Под значением — ссылки «Открыть на карте» (адрес заказа): по точке, а без неё — поиск по адресу. */
+  map?: OrderMap;
+  link?: OrderLink;
+};
+
+/** Оконченная сделка (завершена, отменена, деньги возвращены): адрес больше не меняется, плашка статуса на карточке. */
+const ENDED: ReadonlySet<DealStatus> = new Set(["SPLIT_PAYOUT", "CANCELLED", "REFUNDED"]);
+export const dealEnded = (status: DealStatus): boolean => ENDED.has(status);
+
+/**
+ * Адрес заказа на карточке (ADR-016). Покупатель — свой адрес сделки (`getDealAddress`) и ссылка на экран адреса, пока сделка
+ * не окончена (`addressHref`; окончена — `null`). Мастер — адрес от модуля заявок, только после заключения оферты (`signed`).
+ */
+export type OrderAddress =
+  | { side: "CLIENT"; address: string | null; location: { lat: number; lng: number } | null; addressHref: string | null }
+  | { side: "EXECUTOR"; signed: boolean; address: string | null; location: { lat: number; lng: number } | null };
+
 export type OrderInput = {
   city: string | null;
-  /** Адрес заказа — мастеру, когда его отдал модуль заявок и оферта заключена; иначе нет. */
-  address?: string | null;
-  /** Точка заказа — вместе с адресом, из того же ответа модуля заявок; по ней ссылки на карты. */
-  location?: { lat: number; lng: number } | null;
+  place: OrderAddress;
   plannedReadyAt: Date | null;
   durationDays: number;
   warrantyMonths: number;
@@ -499,28 +520,36 @@ export type OrderInput = {
   readyShownInNow: boolean;
 };
 
+/** Строки места: город — пока адреса нет (адрес покупатель пишет полностью), и строка «Адрес» по стороне. */
+function placeRows(city: string | null, place: OrderAddress): OrderRow[] {
+  const cityRow = (address: string | null): OrderRow[] => (city && !address ? [{ label: t.order.city, value: city }] : []);
+  const shown = (label: string, address: string, location: OrderAddress["location"]): OrderRow => ({ label, value: address, map: { point: location ?? null, address } });
+  if (place.side === "EXECUTOR") {
+    // До оферты мастеру — только город; после — адрес или подсказка уточнить его в чате.
+    if (!place.signed) return cityRow(null);
+    const row: OrderRow = place.address ? shown(tmd.card.order.address, place.address, place.location) : { label: tmd.card.order.address, value: tmd.card.order.addressMissing };
+    return [...cityRow(place.address), row];
+  }
+  const link = (label: string): { link?: OrderLink } => (place.addressHref ? { link: { label, href: place.addressHref } } : {});
+  const row: OrderRow = place.address
+    ? { ...shown(t.order.address, place.address, place.location), ...link(t.order.addressChange) }
+    : { label: t.order.address, value: t.order.addressNone, ...link(t.order.addressAdd) };
+  return [...cityRow(place.address), row];
+}
+
 /**
- * «Заказ»: существенные условия — 2–3 строки, все видны сразу. Название — в заголовке экрана, дата оферты — в «Истории»:
- * здесь их нет. Город — пока нет адреса (адрес начинается с города): мастеру после оферты — адрес, покупателю — город. Срок —
- * одной строкой: известна плановая дата готовности — дата (если её уже не назвала карточка «Сейчас»), иначе — срок
- * изготовления в днях из оферты. Другая сторона — в своём блоке.
+ * «Заказ»: существенные условия — все строки видны сразу. Название — в заголовке экрана, дата оферты — в «Истории»: здесь их
+ * нет. Место — город и адрес по стороне (`placeRows`). Срок — одной строкой: известна плановая дата готовности — дата (если её
+ * уже не назвала карточка «Сейчас»), иначе — срок изготовления в днях из оферты. Другая сторона — в своём блоке.
  */
-export function orderRows(o: OrderInput): { label: string; value: string; /** Под значением — ссылки «Открыть на карте» (адрес заказа): по точке, а без неё — поиск по адресу. */ map?: OrderMap }[] {
+export function orderRows(o: OrderInput): OrderRow[] {
   const r = t.order;
   const term = o.plannedReadyAt
     ? o.readyShownInNow
       ? []
       : [{ label: r.readyBy, value: formatDate(o.plannedReadyAt) }]
     : [{ label: r.duration, value: formatDays(o.durationDays) }];
-  return [
-    ...(o.address
-      ? [{ label: tmd.card.order.address, value: o.address, map: { point: o.location ?? null, address: o.address } }]
-      : o.city
-        ? [{ label: r.city, value: o.city }]
-        : []),
-    ...term,
-    { label: r.warranty, value: formatMonths(o.warrantyMonths) },
-  ];
+  return [...placeRows(o.city, o.place), ...term, { label: r.warranty, value: formatMonths(o.warrantyMonths) }];
 }
 
 export type DocumentInput = {

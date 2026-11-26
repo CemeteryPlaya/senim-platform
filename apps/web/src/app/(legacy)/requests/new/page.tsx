@@ -117,9 +117,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
           {...base}
           initial={{
             city: draft.city,
-            address: draft.address ?? "",
             desiredDate: draft.desiredDate ? draft.desiredDate.toISOString().slice(0, 10) : "",
-            location: draft.location,
           }}
         />
       )}
@@ -169,7 +167,7 @@ function SendScreen({ draft, directLabel, frame }: { draft: Draft; directLabel: 
     })),
     ...(draft.segment ? [row(f.segment, SEGMENT_NAMES[draft.segment], "segment")] : []),
     row(f.photos, draft.photos.length > 0 ? <PhotoStrip photos={draft.photos} /> : f.notSet, "room"),
-    row(f.address, [draft.city, draft.address].filter(Boolean).join(", "), "place"),
+    row(f.address, draft.city, "place"),
     row(f.desiredDate, draft.desiredDate ? formatDate(draft.desiredDate) : f.notSet, "place"),
   ];
   const footnote = directLabel !== null ? w.send.footnoteDirect(directLabel) : draft.segment ? w.send.footnote(SEGMENT_NAMES[draft.segment]) : "";

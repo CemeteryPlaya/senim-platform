@@ -25,8 +25,6 @@ const executorRow = {
   about: true,
   yearsExperience: true,
   city: true,
-  district: true,
-  streetAddress: true,
   addedByOperator: true,
   createdAt: true,
   reviewedAt: true,

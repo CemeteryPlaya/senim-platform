@@ -233,12 +233,11 @@ describe("detailRows", () => {
     segment: "COMFORT" as const,
     details: { widthCm: 240, extras: ["lighting" as const], unknown: ["countertop" as const], description: "Угловая", facade: "ldsp" as const },
     city: "Астана",
-    address: "ул. Тестовая, 1",
     wishes: null,
     directLabel: null,
   };
 
-  it("сводка: уровень, стиль, размеры, материалы, «не знаю», адрес стопкой; тип — заголовок экрана, строки нет", () => {
+  it("сводка: уровень, стиль, размеры, материалы, «не знаю», город; тип — заголовок экрана, строки нет", () => {
     const rows = detailRows(input);
     const by = (label: string) => rows.find((r) => r.label === label);
     expect(by("Что делаем")).toBeUndefined();
@@ -250,17 +249,10 @@ describe("detailRows", () => {
     expect(by("Фасады")?.value).toBe("ЛДСП");
     expect(by("Столешница")?.value).toBe(t.details.unknown);
     expect(by("Дополнительно")?.value).toBe("Подсветка");
-    expect(by("Адрес")?.stacked).toBe(true);
+    expect(by("Город")?.value).toBe("Астана");
+    expect(by("Адрес")).toBeUndefined();
     expect(by("Пожелания")).toBeUndefined();
     expect(by(t.details.directFor)).toBeUndefined();
-  });
-
-  it("город — только если адрес начинается не с него или адреса нет", () => {
-    const city = (address: string | null) => detailRows({ ...input, address }).find((r) => r.label === t.details.city)?.value;
-    expect(city("Астана, ул. Сыганак, 12, кв. 45")).toBeUndefined();
-    expect(city("астана, ул. Сыганак, 12")).toBeUndefined();
-    expect(city("ул. Тестовая, 1")).toBe("Астана");
-    expect(city(null)).toBe("Астана");
   });
 
   it("прямая заявка: «Заявка для: Исполнитель №N»", () => {

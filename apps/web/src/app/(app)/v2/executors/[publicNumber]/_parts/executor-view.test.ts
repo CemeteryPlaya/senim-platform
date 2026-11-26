@@ -13,7 +13,7 @@ function viewOf(over: Partial<PublicExecutorView> = {}): PublicExecutorView {
     label: "Исполнитель №17",
     labelGen: "Исполнителя №17",
     labelDat: "Исполнителю №17",
-    address: "Астана, Есиль",
+    address: "Астана",
     nameShown: false,
     segment: "COMFORT",
     ratingAvg: 4.75,
@@ -121,7 +121,7 @@ describe("executorView: условия", () => {
     expect(rows.map((r) => r.label)).toEqual([t.rows.specializations, t.rows.measurement, t.rows.address, t.rows.experience]);
     expect(rows[0]).toMatchObject({ value: "Кухни, Шкафы", layout: "stacked" });
     expect(rows[1]).toMatchObject({ value: t.measurement.FREE, layout: "inline" });
-    expect(rows[2]).toMatchObject({ value: "Астана, Есиль", layout: "stacked" });
+    expect(rows[2]).toMatchObject({ value: "Астана", layout: "stacked" });
     expect(rows[3]).toMatchObject({ value: "5 лет", layout: "inline" });
   });
 
@@ -228,10 +228,10 @@ describe("executorView: сделки на площадке", () => {
 
   it("по выбору покупателя: фото (подпись — что делали), стоимость в тиынах, место — ровно как отдал модуль", () => {
     const photos = [{ id: "f1", src: "/files/a?sig=1", alt: "Кухня в ЖК, фото 1" }];
-    const [d] = executorView(page({ dealHistory: [deal({ photos, priceTiyn: 45_000_000n, place: "Астана, Есиль" })] })).deals;
+    const [d] = executorView(page({ dealHistory: [deal({ photos, priceTiyn: 45_000_000n, place: "Астана" })] })).deals;
     expect(d?.photos).toEqual([{ src: "/files/a?sig=1", alt: "Кухня в ЖК, фото 1", caption: "Кухня в ЖК" }]);
     expect(d?.priceTiyn).toBe(45_000_000n);
-    expect(d?.place).toBe("Астана, Есиль");
+    expect(d?.place).toBe("Астана");
   });
 
   it("отзыв — внизу своей сделки: оценка, текст, подпись как выбрал покупатель", () => {

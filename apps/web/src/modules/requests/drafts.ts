@@ -20,7 +20,6 @@ import { preContractView } from "./pre-contract";
 import {
   applyStep,
   parseDetails,
-  pointOf,
   screenIndex,
   segmentInputOf,
   WIZARD_SCREENS,
@@ -52,18 +51,8 @@ async function fieldsOf(tx: Tx, step: StepInput): Promise<Prisma.RequestUpdateMa
     case "segment":
       return { segment: step.segment };
     case "place":
-      // Схема это уже проверила; повтор — на случай вызова модуля мимо неё.
-      if (step.complex !== null && step.district === null) fail.validation(ru.requests.validation.complexNeedsDistrict);
-      return {
-        city: step.city,
-        address: step.address,
-        district: step.district,
-        complex: step.complex,
-        desiredDate: step.desiredDate ? new Date(`${step.desiredDate}T00:00:00Z`) : null,
-        // Точка адреса — обе координаты или ни одной (CHECK в БД); без точки адрес сохраняется как есть.
-        addressLat: step.location?.lat ?? null,
-        addressLng: step.location?.lng ?? null,
-      };
+      // Только город и дата (ADR-016): адрес и точку указывает покупатель в сделке, район и ЖК не пишутся.
+      return { city: step.city, desiredDate: step.desiredDate ? new Date(`${step.desiredDate}T00:00:00Z`) : null };
     case "room":
     case "size":
     case "materials":
@@ -121,7 +110,7 @@ function maskStepTexts(step: StepInput): StepInput {
     case "materials":
       return { ...step, color: masked(step.color), description: masked(step.description) };
     case "place":
-      return { ...step, city: masked(step.city), district: step.district === null ? null : masked(step.district), complex: step.complex === null ? null : masked(step.complex) };
+      return { ...step, city: masked(step.city) };
     case "segment":
     case "size":
     case "send":
@@ -231,7 +220,7 @@ async function saveDraftStepOnce(user: CurrentUser, input: SaveDraftInput): Prom
  * (сценарий 5) — ещё три размера и фото с рулеткой.
  */
 async function requireComplete(tx: Tx, r: RequestWithType, path: RequestPath): Promise<void> {
-  if (r.wizardStep < WIZARD_SCREENS.length || !r.segment || !r.address || !(r.furnitureTypeId || r.customType)) fail.validation(e.incomplete);
+  if (r.wizardStep < WIZARD_SCREENS.length || !r.segment || !(r.furnitureTypeId || r.customType)) fail.validation(e.incomplete);
   if (r.designConfirmedAt === null && (await tx.storedFile.count({ where: { requestId: r.id, purpose: "REQUEST_DESIGN" } })) > 0) {
     fail.validation(ru.requests.validation.designContactsRequired);
   }
@@ -345,10 +334,6 @@ export async function getDraft(user: CurrentUser, requestId: string) {
     segment: r.segment,
     segmentSuggested: r.segmentSuggested,
     city: r.city,
-    district: r.district,
-    complex: r.complex,
-    address: r.address,
-    location: pointOf(r),
     desiredDate: r.desiredDate,
     wishes: r.wishes,
     wizardStep: r.wizardStep,
@@ -443,10 +428,6 @@ export async function getClientRequest(user: CurrentUser, requestId: string) {
     style: r.style,
     details: parseDetails(r.details),
     city: r.city,
-    district: r.district,
-    complex: r.complex,
-    address: r.address,
-    location: pointOf(r),
     desiredDate: r.desiredDate,
     wishes: r.wishes,
     wizardStep: r.wizardStep,

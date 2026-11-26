@@ -2,12 +2,12 @@ import { GeolocationError, requestLocation, type RequestLocationOptions } from "
 import { ru } from "@/i18n/ru";
 import type { GeoPoint } from "@/modules/requests/client";
 
-const t = ru.app.requests.wizard.place;
+const t = ru.app.deal.address;
 
 export type LocateResult = { point: GeoPoint; accuracyM: number } | { error: string };
 
 /**
- * «Моё местоположение» на шаге адреса: место устройства общим помощником (`requestLocation` — тот же, что у сдачи работы:
+ * «Моё местоположение» на экране адреса сделки: место устройства общим помощником (`requestLocation` — тот же, что у сдачи работы:
  * https, ожидание ответа на запрос разрешения, понятные коды отказа) и текст экрана v2 по коду. Свежесть — без кэша
  * браузера: человек указывает адрес, где стоит сейчас.
  */

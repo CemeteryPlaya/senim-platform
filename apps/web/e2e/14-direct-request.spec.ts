@@ -21,7 +21,6 @@ test("«Хочу похожее» из каталога: заявка уходи
   await page.getByLabel("Опишите своими словами").fill("Такой же стол, но на восемь человек");
   await page.getByRole("button", { name: "Далее" }).click();
   await page.getByLabel("Город").fill("Астана");
-  await page.getByLabel("Адрес или район").fill("Астана, ул. Тестовая, 3, кв. 3");
   await page.getByRole("button", { name: "Далее" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Проверьте и отправьте" })).toBeVisible();
   await expect(page.getByText(/Заявку увидит только Исполнитель №7/).first()).toBeVisible();

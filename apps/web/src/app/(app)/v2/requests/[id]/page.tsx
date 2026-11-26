@@ -84,7 +84,6 @@ export default async function RequestCardPage({ params, searchParams }: Props) {
       segment: request.segment,
       details: request.details,
       city: request.city,
-      address: request.address,
       wishes: request.wishes,
       directLabel: request.mode === "DIRECT" ? own.targetLabel : null,
     }),

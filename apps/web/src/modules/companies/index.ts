@@ -121,7 +121,7 @@ export {
 } from "./highlights";
 export { dealContacts, type PartyContacts } from "./contacts";
 export { ENDED_DEAL, executorStats, isEndedSigned, type ExecutorStats } from "./deal-stats";
-export { addressOptionsOf, placeOf } from "./showcase-place";
+export { placeOf, SHOWCASE_ADDRESS_CHOICES, shownAddressOf, type ShowcaseAddressChoice } from "./showcase-place";
 export { EXECUTORS_PAGE_SIZE, listExecutors, type ExecutorListItem } from "./executors-list";
 export { CONTACTS, contactStage, type ContactStage } from "./contacts-policy";
 

@@ -5,7 +5,7 @@ import { dealContacts } from "@/modules/companies";
 import { bankConsentState, getDealShowcase, isEndedSigned, type DealView } from "@/modules/deal-core";
 import { readDealDocuments } from "@/modules/documents";
 import type { CurrentUser } from "@/modules/identity";
-import { getIncomingRequest } from "@/modules/requests";
+import { getDealAddress, getIncomingRequest } from "@/modules/requests";
 import { getDevice, type Device } from "@/platform/device";
 import { logger } from "@/platform/logger";
 import { pageHref, requireV2User } from "../../../../_shell/auth";
@@ -16,6 +16,7 @@ import { designView } from "../../../_parts/design-files";
 import { dealChip, dealStepsView, masterConsentMissing, payWaitsMaster } from "../../../_parts/deal-summary";
 import {
   cancelText,
+  dealEnded,
   dealHrefs,
   deliveryView,
   documentRows,
@@ -39,23 +40,35 @@ export const metadata: Metadata = { title: t.metaTitle };
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-/** Оконченная сделка (завершена, отменена, деньги возвращены): только у неё на карточке плашка статуса. */
-const ENDED: ReadonlySet<DealView["status"]> = new Set(["SPLIT_PAYOUT", "CANCELLED", "REFUNDED"]);
+type Place = { address: string | null; location: { lat: number; lng: number } | null };
+const NO_PLACE: Place = { address: null, location: null };
+
+/**
+ * Адрес сделки для покупателя (ADR-016) — его же адрес из модуля заявок (`getDealAddress`). Сбой чтения не роняет карточку:
+ * строка «Адрес» покажет «Не указан» со ссылкой на экран адреса, где адрес прочитается заново.
+ */
+async function buyerAddress(user: CurrentUser, deal: DealView): Promise<Place> {
+  try {
+    return await getDealAddress(user, deal.id);
+  } catch (error) {
+    logger.warn("deal buyer address failed", { dealId: deal.id, error });
+    return NO_PLACE;
+  }
+}
 
 /**
  * Адрес заказа для мастера — только то, что отдаёт модуль заявок (`getIncomingRequest`: адрес — мастеру выбранного
  * предложения), и только после заключения оферты. Сбой чтения или неодобренный мастер (`notApproved`) не роняют карточку:
- * строки адреса просто нет.
+ * строка «Адрес» — как без адреса (уточнить в чате).
  */
-async function masterAddress(user: CurrentUser, deal: DealView): Promise<{ address: string | null; location: { lat: number; lng: number } | null }> {
-  const none = { address: null, location: null };
-  if (deal.dates.signedAt === null) return none;
+async function masterAddress(user: CurrentUser, deal: DealView): Promise<Place> {
+  if (deal.dates.signedAt === null) return NO_PLACE;
   try {
     const { address, location } = await getIncomingRequest(user, deal.requestId);
     return { address, location };
   } catch (error) {
     logger.warn("deal address failed", { dealId: deal.id, error });
-    return none;
+    return NO_PLACE;
   }
 }
 
@@ -83,7 +96,7 @@ export default async function DealPage({ params, searchParams }: Props) {
           return null;
         })
       : Promise.resolve(null),
-    side === "EXECUTOR" ? masterAddress(user, deal) : Promise.resolve({ address: null, location: null }),
+    side === "EXECUTOR" ? masterAddress(user, deal) : buyerAddress(user, deal),
     // Выбор показа — только покупателю оконченной сделки с офертой; сбой чтения не роняет карточку.
     side === "CLIENT" && isEndedSigned({ status: deal.status, signedAt: deal.dates.signedAt })
       ? getDealShowcase(user, deal.id).catch((error: unknown) => {
@@ -120,7 +133,7 @@ type CardInput = {
   documents: Awaited<ReturnType<typeof readDealDocuments>>;
   contacts: Awaited<ReturnType<typeof dealContacts>>;
   bank: Awaited<ReturnType<typeof bankConsentState>> | null;
-  place: Awaited<ReturnType<typeof masterAddress>>;
+  place: Place;
   showcase: Awaited<ReturnType<typeof getDealShowcase>> | null;
   all: boolean;
   device: Device;
@@ -159,7 +172,7 @@ function cardView({ deal, side, documents, contacts, bank, place, showcase, all,
     lead: master ? tm.lead(deal.number) : t.lead(deal.number, deal.executorLabel),
     number: deal.number,
     // Плашка — только у оконченной сделки: у идущей шаг называют «Сейчас» и капсула на фото (в списке и на главной остаются плашки действия и ожидания — `quietChip`).
-    chip: ENDED.has(deal.status)
+    chip: dealEnded(deal.status)
       ? dealChip({
           side,
           status: deal.status,
@@ -178,8 +191,9 @@ function cardView({ deal, side, documents, contacts, bank, place, showcase, all,
     money: { ...money, historyHref: money.operations ? hrefs.money : null },
     order: orderRows({
       city: deal.subject.city,
-      address: place.address,
-      location: place.location,
+      place: master
+        ? { side: "EXECUTOR", signed: deal.dates.signedAt !== null, ...place }
+        : { side: "CLIENT", ...place, addressHref: dealEnded(deal.status) ? null : hrefs.address },
       plannedReadyAt: deal.dates.plannedReadyAt,
       durationDays: deal.durationDays,
       warrantyMonths: deal.warrantyMonths,

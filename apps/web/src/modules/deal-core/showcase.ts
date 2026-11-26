@@ -6,32 +6,34 @@ import { db, lockDealRow, transaction, type Db, type Tx } from "@/platform/db";
 import { fail } from "@/platform/errors";
 import { parseInput } from "@/platform/validation";
 import { isEndedSigned } from "./ended";
-import { addressOptionsOf } from "./ports";
+import { SHOWCASE_ADDRESS_CHOICES, shownAddressOf, type ShowcaseAddressChoice } from "./ports";
 import { showcaseSchema, type ShowcaseInput } from "./schemas";
 import { requireParty, requireRole, scopeOf } from "./state";
 
 /**
  * Выбор покупателя: что из оконченной сделки с офертой видно в публичном профиле мастера (спека 2026-11-17, 3.5) —
- * фото сдачи, стоимость, адрес (город / район / ЖК, улица — никогда), подпись отзыва (имя или инициал).
+ * фото сдачи, стоимость, место (город или ничего; район, ЖК и улица — никогда, ADR-016), подпись отзыва (имя или инициал).
  * Хранится при сделке (DealShowcase) с редакцией текста вопроса, временем и автором; каждое изменение — в журнал аудита
  * (deal.showcase.changed, только выбор — без имени). Подпись — снимок из ФИО проекции User в момент выбора: гостю
  * страницы мастера identity не нужен. Нет строки — закрытый вид. Отзыв согласия на ПДн — closeShowcasesOf.
  */
 
 /** Редакция текста вопроса «что показать» (ru.app.deal.showcase): записывается с каждым выбором. */
-export const SHOWCASE_TEXT_VERSION = "2026-11-26";
+export const SHOWCASE_TEXT_VERSION = "2026-11-27";
 
 export type ShowcaseChoice = { photos: boolean; price: boolean; address: ShowcaseAddress; signature: ShowcaseSignature };
 
-export type ShowcaseView = ShowcaseChoice & {
+/** Выбор для экранов: прежние DISTRICT и COMPLEX показаны как город (так они и действуют на публичных страницах). */
+export type ShowcaseView = Omit<ShowcaseChoice, "address"> & {
+  address: ShowcaseAddressChoice;
   /** Снимок подписи: «Айгерим», «А.» или пусто (ФИО нет — отзыв на странице мастера без подписи). */
   signedAs: string;
   /** Покупатель уже отвечал (есть запись выбора); нет — показан закрытый вид по умолчанию. */
   answered: boolean;
   /** Поменять может только покупатель этой сделки и только когда она окончена с офертой. */
   changeable: boolean;
-  /** Доступные варианты адреса: район — если он есть в заявке, ЖК — если есть и район, и ЖК. */
-  addressOptions: ShowcaseAddress[];
+  /** Варианты места, которые можно выбрать: не показывать или город. */
+  addressOptions: ShowcaseAddressChoice[];
 };
 
 /** Самое закрытое: без фото, стоимости и адреса, подпись — инициал. Так до ответа покупателя и после отзыва согласия на ПДн. */
@@ -50,7 +52,6 @@ async function dealForShowcase(client: Db, dealId: string) {
       executorId: true,
       status: true,
       signedAt: true,
-      request: { select: { district: true, complex: true } },
       showcase: { select: SHOWCASE_SELECT },
     },
   });
@@ -62,12 +63,14 @@ export async function getDealShowcase(user: CurrentUser, dealId: string): Promis
   if (!deal) return fail.notFound(ru.deal.errors.notFound);
   const role = requireRole(user, deal);
   const row = deal.showcase;
+  const choice = row ? choiceOf(row) : CLOSED_SHOWCASE;
   return {
-    ...(row ? choiceOf(row) : CLOSED_SHOWCASE),
+    ...choice,
+    address: shownAddressOf(choice.address),
     signedAs: row?.signedAs ?? "",
     answered: row !== null,
     changeable: role === "CLIENT" && isEndedSigned(deal),
-    addressOptions: addressOptionsOf(deal.request),
+    addressOptions: [...SHOWCASE_ADDRESS_CHOICES],
   };
 }
 
@@ -83,7 +86,6 @@ export async function setDealShowcase(user: CurrentUser, raw: ShowcaseInput): Pr
     if (!deal) return fail.notFound(ru.deal.errors.notFound);
     requireParty(user, deal, "CLIENT");
     if (!isEndedSigned(deal)) return fail.conflict(ru.deal.errors.showcaseOnlyEnded);
-    if (!addressOptionsOf(deal.request).includes(input.address)) return fail.validation(ru.deal.validation.showcaseAddress, { field: "address" });
 
     const person = await tx.user.findUnique({ where: { id: user.id }, select: { fullName: true } });
     let signedAs = publicSignatureOf(person?.fullName, input.signature);

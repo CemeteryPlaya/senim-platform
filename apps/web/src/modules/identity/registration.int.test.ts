@@ -105,12 +105,13 @@ describe("registerExecutor", () => {
     const [op1, op2] = [await makeOperator(), await makeOperator()];
     const user = await clientWithIin();
 
+    // Район и улицу от формы v1 сервис принимает, но не пишет (ADR-016): у мастера только город.
     const { profileId } = await registerExecutor(user, { ...selfEmployed, district: "Есильский район", streetAddress: "ул. Сыганак, 10" });
 
     const profile = await db.executorProfile.findUniqueOrThrow({ where: { id: profileId }, include: { user: true } });
     expect(profile).toMatchObject({
-      district: "Есильский район",
-      streetAddress: "ул. Сыганак, 10",
+      district: "",
+      streetAddress: "",
       userId: user.id,
       status: "PENDING",
       segment: null,
@@ -301,7 +302,7 @@ describe("повторная подача после отказа (Ruling T)", (
     const again = await registerExecutor(user, { ...selfEmployed, district: "Алматинский район", yearsExperience: 9 });
 
     expect(again.profileId).toBe(profileId);
-    expect(await profileOf(profileId)).toMatchObject({ status: "PENDING", rejectReason: null, reviewedAt: null, district: "Алматинский район", yearsExperience: 9 });
+    expect(await profileOf(profileId)).toMatchObject({ status: "PENDING", rejectReason: null, reviewedAt: null, district: "", yearsExperience: 9 });
     expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).roles).toEqual(["CLIENT", "EXECUTOR"]);
   });
 

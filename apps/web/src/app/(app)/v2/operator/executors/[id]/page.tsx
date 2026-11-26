@@ -47,7 +47,7 @@ function detailsOf(x: ExecutorCard): KeyValueItem[] {
     { label: c.registered, value: formatDate(x.createdAt) },
     { label: c.experience, value: c.years(x.yearsExperience) },
     { label: c.specializations, value: x.specializations.map((s) => s.name).join(", ") || q.none },
-    { label: c.address, value: [x.city, x.district, x.streetAddress].filter(Boolean).join(", ") || q.none },
+    { label: c.address, value: x.city.trim() || q.none },
     { label: c.about, value: <span className="whitespace-pre-line">{x.about || q.none}</span> },
   ];
   if (x.rejectReason) items.push({ label: c.rejectReason, value: <span className="whitespace-pre-line">{x.rejectReason}</span> });

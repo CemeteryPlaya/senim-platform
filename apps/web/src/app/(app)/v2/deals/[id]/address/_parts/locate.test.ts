@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ru } from "@/i18n/ru";
 import { locateDevice } from "./locate";
 
-const t = ru.app.requests.wizard.place;
+const t = ru.app.deal.address;
 
 /** Браузерная геолокация-заглушка: успех с точкой или отказ с кодом браузера (1 — запрет, 2 — нет места). */
 const geo = (result: { lat: number; lng: number; accuracy: number } | { code: 1 | 2 | 3 }): Pick<Geolocation, "getCurrentPosition"> => ({
@@ -12,7 +12,7 @@ const geo = (result: { lat: number; lng: number; accuracy: number } | { code: 1 
   },
 });
 
-describe("«Моё местоположение» в мастере заявки — общим помощником геолокации", () => {
+describe("«Моё местоположение» на экране адреса сделки — общим помощником геолокации", () => {
   it("место определилось — точка и точность в метрах", async () => {
     expect(await locateDevice({ geolocation: geo({ lat: 51.12, lng: 71.43, accuracy: 18.6 }), secureContext: true })).toEqual({
       point: { lat: 51.12, lng: 71.43 },

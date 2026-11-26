@@ -15,6 +15,7 @@ export {
   type ClientRequest,
   type Draft,
 } from "./drafts";
+export { getDealAddress, setDealAddress, type DealAddress } from "./deal-address";
 export { getRequestDesignFiles, setRequestFileHidden, type DesignFileView } from "./design-files";
 export { buyerHistory,type BuyerHistory, type BuyerHistoryRow, type BuyerHistoryState } from "./buyer-history";
 export {

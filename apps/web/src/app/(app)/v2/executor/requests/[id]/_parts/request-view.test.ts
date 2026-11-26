@@ -257,16 +257,17 @@ describe("requestView: экран заявки мастера", () => {
     expect(v.secondary).toEqual({ kind: "link", href: "/v2/executor/requests", label: t.actions.toRequests });
   });
 
-  it("сводка: до выбора адреса нет — пояснение; «не знаю» — «Покупатель не знает»; снимок без адреса пропущен; прямая заявка помечена", () => {
+  it("сводка: до выбора адреса нет — ни строки, ни пояснения (ADR-016), город — да; «не знаю» — «Покупатель не знает»; снимок без адреса пропущен; прямая заявка помечена", () => {
     const v = requestView(request({ mode: "DIRECT" }), null, now);
     expect(v.lead.direct).toBe(t.direct);
     const rows = Object.fromEntries(v.details.map((r) => [r.label, r.value]));
-    expect(rows[t.request.address]).toBe(t.request.addressHidden);
+    expect(t.request.address in rows).toBe(false);
     expect(rows[t.request.hardware]).toBe(t.request.unknown);
     expect(rows[t.request.size]).toBe(t.request.sizeValue(340, 270));
     expect(rows[t.request.city]).toBe("Астана");
     expect(rows[t.request.wishes]).toBe("Верхние шкафы до потолка");
-    expect(t.request.location in rows).toBe(false);
+    // Точка без адреса строкой не показывается.
+    expect(requestView(request({ location: { lat: 51.1, lng: 71.4 } }), null, now).details.some((r) => r.map)).toBe(false);
     // Что за мебель — заголовок экрана: строки «Что делаем» в разделе нет.
     expect(Object.values(rows)).not.toContain("Кухня");
     expect(v.photos).toEqual([{ id: "p1", src: "/files/p1", alt: t.request.photoAlt(1, 1) }]);

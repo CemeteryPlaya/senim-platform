@@ -35,8 +35,6 @@ const base: ProfileInput = {
   measurementTerms: "FREE",
   measurementFee: null,
   city: "Астана",
-  district: "",
-  streetAddress: "",
 };
 
 describe("профиль исполнителя", () => {
@@ -69,18 +67,28 @@ describe("профиль исполнителя", () => {
     expect(audit).toMatchObject({ actorId: executor.id, entityId: executor.executor.id, scope: `executor:${executor.executor.id}` });
   });
 
-  it("адрес мастерской или офиса (№6): город, район, улица; в журнале — до и после", async () => {
+  it("место мастера — только город (ADR-016): район и улица не пишутся, прежние значения колонок не стираются", async () => {
     const executor = await makeExecutor();
+    await db.executorProfile.update({ where: { id: executor.executor.id }, data: { district: "Есильский район", streetAddress: "ул. Сыганак, 10" } });
 
-    await updateProfile(executor, { ...base, city: " Алматы ", district: " Бостандыкский район ", streetAddress: " ул. Тимирязева, 42 " });
+    // Район и улицу ещё присылает форма v1 — схема их отбрасывает.
+    const fromV1 = { district: " Бостандыкский район ", streetAddress: " ул. Тимирязева, 42 " };
+    await updateProfile(executor, { ...base, city: " Алматы ", ...fromV1 });
 
-    expect(await getOwnProfile(executor)).toMatchObject({ city: "Алматы", district: "Бостандыкский район", streetAddress: "ул. Тимирязева, 42" });
+    const own = await getOwnProfile(executor);
+    expect(own.city).toBe("Алматы");
+    expect(own).not.toHaveProperty("district");
+    expect(own).not.toHaveProperty("streetAddress");
+    expect(await db.executorProfile.findUniqueOrThrow({ where: { id: executor.executor.id } })).toMatchObject({
+      district: "Есильский район",
+      streetAddress: "ул. Сыганак, 10",
+    });
     const audit = await db.auditEvent.findFirstOrThrow({ where: { action: "executor.profile.updated" } });
-    expect(audit.before).toMatchObject({ city: "Астана", district: "", streetAddress: "" });
-    expect(audit.after).toMatchObject({ city: "Алматы", district: "Бостандыкский район", streetAddress: "ул. Тимирязева, 42" });
+    expect(audit.before).toMatchObject({ city: "Астана" });
+    expect(audit.after).toMatchObject({ city: "Алматы" });
+    expect(JSON.stringify([audit.before, audit.after])).not.toMatch(/district|streetAddress/);
 
     await expect(updateProfile(executor, { ...base, city: "" })).rejects.toMatchObject({ code: "VALIDATION" });
-    await expect(updateProfile(executor, { ...base, streetAddress: "у".repeat(201) })).rejects.toMatchObject({ code: "VALIDATION" });
   });
 
   it("плата за выезд только при FEE_IF_NO_DEAL: без суммы — ошибка, при другом условии сумма стирается", async () => {

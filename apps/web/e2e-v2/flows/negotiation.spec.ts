@@ -87,7 +87,8 @@ test("мастер в v2 отправляет и отзывает предлож
   const kimPage = await kim.newPage();
   await openMaster(kimPage, kitchen);
   await expect(heading2(kimPage, mt.now.form.title)).toBeVisible();
-  await expect(kimPage.getByRole("main")).toContainText(mt.request.addressHidden);
+  // ADR-016: до выбора адреса нет — ни строки, ни пояснения; город — да.
+  await expect(kimPage.getByRole("main")).not.toContainText(mt.request.address);
   const before = (await offersOnKitchen()).length;
   await kimPage.getByLabel(mt.form.price).fill("0");
   await kimPage.getByLabel(mt.form.days).fill("30");

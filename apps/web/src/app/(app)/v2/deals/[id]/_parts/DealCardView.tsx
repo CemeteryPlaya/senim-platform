@@ -38,7 +38,7 @@ import { DealCoverCaption, DealCoverPhoto } from "../../../_parts/DealCoverPhoto
 import type { DesignView } from "../../../_parts/design-files";
 import { DesignFiles } from "../../../_parts/DesignFiles";
 import type { DealStepsView, DealTone } from "../../../_parts/deal-summary";
-import type { DeliveryView, DocumentRow, MoneyView, NowView, OrderMap, ReportView } from "./deal-card";
+import type { DeliveryView, DocumentRow, MoneyView, NowView, OrderRow, ReportView } from "./deal-card";
 import { dealHelpItems } from "../../_parts/help-items";
 import { DealActions } from "./DealActions";
 
@@ -69,7 +69,7 @@ export type CardView = {
   /** Блок денег карточки (`place: "card"`); `historyHref` — `null`, пока в журнале нет операций (история денег пуста). */
   money: MoneyView & { historyHref: string | null };
   /** «Заказ»: 2–3 строки (`orderRows`) — все видны сразу. */
-  order: { label: string; value: string; map?: OrderMap }[];
+  order: OrderRow[];
   /** Свой дизайн-проект покупателя из заявки — обеим сторонам, под «Заказом» (без скрытых оператором); нет файлов — нет. */
   design?: DesignView | null;
   documents: DocumentRow[];
@@ -211,10 +211,11 @@ function OrderRows({ rows }: { rows: CardView["order"] }) {
           key={row.label}
           label={row.label}
           value={
-            row.map ? (
+            row.map || row.link ? (
               <span className="flex flex-col items-start">
                 <span>{row.value}</span>
-                <MapLink point={row.map.point} address={row.map.address} />
+                {row.map && <MapLink point={row.map.point} address={row.map.address} />}
+                {row.link && <TextLink href={row.link.href}>{row.link.label}</TextLink>}
               </span>
             ) : (
               row.value

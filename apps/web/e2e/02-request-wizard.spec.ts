@@ -32,13 +32,10 @@ test("покупатель проходит мастер и видит заяв�
   await page.getByLabel("Опишите своими словами").fill("Кухня до потолка, нужна посудомойка");
   await page.getByRole("button", { name: "Далее" }).click();
 
-  // 4. Где и когда — без адреса ошибка у поля
+  // 4. Где и когда — только город и дата (ADR-016): поля адреса нет
   await expect(page.getByRole("heading", { level: 1, name: "Где и когда" })).toBeVisible();
   await page.getByLabel("Город").fill("Астана");
-  await page.getByLabel("Адрес или район").fill("");
-  await page.getByRole("button", { name: "Далее" }).click();
-  await expect(page.getByLabel("Адрес или район")).toHaveAttribute("aria-invalid", "true");
-  await page.getByLabel("Адрес или район").fill("Астана, ул. Тестовая, 1, кв. 1");
+  await expect(page.getByLabel("Адрес или район")).toHaveCount(0);
   await page.getByRole("button", { name: "Далее" }).click();
 
   // 5. Проверка и отправка

@@ -59,11 +59,9 @@ describe("анкета мастера: проверка по формам раб
     expect(errors({ ...too, binIin: DIRECTOR_IIN, directorIin: BIN })).toEqual({ binIin: t.bin, directorIin: t.directorIin });
   });
 
-  it("шаг «где работаете»: город, длины района и адреса, опыт целым от 0 до 60", () => {
-    expect(errors({ ...ip, city: " ", district: "р".repeat(101), streetAddress: "у".repeat(201), yearsExperience: "61" })).toEqual({
+  it("шаг «где работаете»: город и опыт целым от 0 до 60 (района и адреса нет, ADR-016)", () => {
+    expect(errors({ ...ip, city: " ", yearsExperience: "61" })).toEqual({
       city: t.city,
-      district: t.district,
-      streetAddress: t.street,
       yearsExperience: t.experience,
     });
     for (const bad of ["", "-1", "2,5", "семь"]) expect(errors({ ...ip, yearsExperience: bad })).toEqual({ yearsExperience: t.experience });

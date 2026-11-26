@@ -72,7 +72,7 @@ export const masterPortfolio = {
       title: (min: number, max: number) => `Название — от ${min} до ${max} символов`,
       description: (max: number) => `Описание — до ${max} символов`,
       price: "Укажите цену целым числом в тенге",
-      place: "Укажите город, район или ЖК — без улицы, дома и квартиры",
+      place: "Укажите город — без улицы, дома и квартиры",
       placeLength: (max: number) => `Место — до ${max} символов`,
       photos: (max: number) => `У работы может быть не больше ${max} фото`,
       photoAttach: "Не удалось прикрепить фото. Добавьте их ещё раз",

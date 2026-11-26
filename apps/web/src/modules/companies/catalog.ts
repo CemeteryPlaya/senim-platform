@@ -38,19 +38,19 @@ export const VISIBLE_ITEM = {
 export const NAME_MASK_SELECT = { legalForm: true, legalName: true, signerFullName: true, user: { select: { fullName: true } } } as const satisfies Prisma.ExecutorProfileSelect;
 
 /**
- * Выбор покупателя сделки для работы из неё: стоимость и уровень адреса (DealShowcase), место — из заявки.
- * Request.address (улица и дом) не выбирается: публично его нет ни при каком выборе.
+ * Выбор покупателя сделки для работы из неё: стоимость и показ места (DealShowcase), место — город заявки.
+ * Район, ЖК и Request.address (улица и дом) не выбираются: публично их нет ни при каком выборе (ADR-016).
  */
 export const DEAL_CHOICE_SELECT = {
   showcase: { select: { price: true, address: true } },
-  request: { select: { city: true, district: true, complex: true } },
+  request: { select: { city: true } },
 } satisfies Prisma.DealSelect;
 
 type DealChoiceRow = Prisma.DealGetPayload<{ select: typeof DEAL_CHOICE_SELECT }>;
 
 /**
- * Место работы публично. Работа вне площадки — текст мастера; работа из сделки — не текст мастера, а место из заявки по
- * выбранному покупателем уровню адреса (то же правило, что «Сделки на площадке» на странице мастера), через маску текста.
+ * Место работы публично. Работа вне площадки — текст мастера; работа из сделки — не текст мастера, а город заявки, если
+ * покупатель разрешил показать место (то же правило, что «Сделки на площадке» на странице мастера), через маску текста.
  * Нет выбора — закрытый вид (null).
  */
 export function publicPlaceOf(row: { place: string; dealId: string | null; deal: DealChoiceRow | null }, executor: ExecutorNameSource): string | null {

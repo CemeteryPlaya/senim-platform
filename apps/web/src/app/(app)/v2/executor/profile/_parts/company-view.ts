@@ -19,8 +19,6 @@ export type CompanyProfile = {
   measurementTerms: MeasurementTerms;
   measurementFee: number | null;
   city: string;
-  district: string;
-  streetAddress: string;
 };
 
 /** Карточка «Сейчас / Дальше» по статусу профиля. После отказа — ссылка на анкету. */
@@ -86,8 +84,6 @@ export type CompanyValues = {
   terms: MeasurementTerms;
   fee: string;
   city: string;
-  district: string;
-  streetAddress: string;
 };
 
 export function initialValues(profile: CompanyProfile): CompanyValues {
@@ -98,7 +94,5 @@ export function initialValues(profile: CompanyProfile): CompanyValues {
     terms: profile.measurementTerms,
     fee: profile.measurementFee === null ? "" : formatFee(String(profile.measurementFee)),
     city: profile.city,
-    district: profile.district,
-    streetAddress: profile.streetAddress,
   };
 }

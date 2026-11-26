@@ -79,7 +79,7 @@ describe("сделки мастера на площадке для публич�
     expect(dump([item!])).not.toContain("Айгерим");
   });
 
-  it("выбор «фото, цена, город + район + ЖК, имя» — всё есть; фото — только сдачи, превью, одна ссылка на час", async () => {
+  it("прежний выбор «фото, цена, город + район + ЖК, имя» — всё есть, место — город (ADR-016); фото — только сдачи, превью, одна ссылка на час", async () => {
     const executor = await makeExecutor();
     const d = await endedDeal(executor, { showcase: { photos: true, price: true, address: "COMPLEX", signature: "NAME", signedAs: "Айгерим" } });
     const previewKey = `delivery/test/${d.finalPhotoIds[0]}.preview.jpg`;
@@ -92,7 +92,7 @@ describe("сделки мастера на площадке для публич�
 
     expect(item).toMatchObject({
       priceTiyn: PRICE_TIYN,
-      place: "Астана, Есиль, Хайвил",
+      place: "Астана",
       review: { rating: 5, text: "Отличная кухня", signedAs: "Айгерим" },
     });
     expect(item!.photos.map((p) => p.id)).toEqual(d.finalPhotoIds);
@@ -109,22 +109,20 @@ describe("сделки мастера на площадке для публич�
     }
   });
 
-  it("место — только город / район / ЖК по выбору: улица и дом никогда; нет данных — уровень ниже, ЖК без района — нет", async () => {
+  it("место — только город по выбору (ADR-016): прежние DISTRICT и COMPLEX — тоже город; район, ЖК, улица и дом никогда", async () => {
     const cases: { address: ShowcaseAddress; district: string | null; complex: string | null; place: string | null }[] = [
       { address: "NONE", district: "Есиль", complex: "Хайвил", place: null },
       { address: "CITY", district: "Есиль", complex: "Хайвил", place: "Астана" },
-      { address: "DISTRICT", district: "Есиль", complex: "Хайвил", place: "Астана, Есиль" },
-      { address: "COMPLEX", district: "Есиль", complex: null, place: "Астана, Есиль" },
-      { address: "DISTRICT", district: null, complex: null, place: "Астана" },
-      { address: "COMPLEX", district: null, complex: "Хайвил", place: "Астана" },
-      { address: "COMPLEX", district: "  ", complex: "Хайвил", place: "Астана" },
+      { address: "DISTRICT", district: "Есиль", complex: "Хайвил", place: "Астана" },
+      { address: "COMPLEX", district: "Есиль", complex: "Хайвил", place: "Астана" },
+      { address: "COMPLEX", district: null, complex: null, place: "Астана" },
     ];
     for (const c of cases) {
       const executor = await makeExecutor();
       await endedDeal(executor, { district: c.district, complex: c.complex, showcase: { photos: true, price: true, address: c.address, signature: "NAME", signedAs: "Айгерим" } });
       const items = await listExecutorDealHistory(executor.executor.id);
       expect(items.map((i) => i.place), JSON.stringify(c)).toEqual([c.place]);
-      expect(dump(items)).not.toContain("Тестовая");
+      expect(dump(items)).not.toMatch(/Есиль|Хайвил/);
       expect(dump(items)).not.toContain(STREET);
     }
   });

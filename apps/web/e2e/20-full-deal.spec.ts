@@ -358,7 +358,6 @@ async function createKitchenRequest(page: Page): Promise<string> {
 
   await expect(page.getByRole("heading", { level: 1, name: "Где и когда" })).toBeVisible();
   await page.getByLabel("Город").fill("Астана");
-  await page.getByLabel("Адрес или район").fill("Астана, ул. Сыганак, 12, кв. 45");
   await page.getByRole("button", { name: "Указать моё местоположение" }).click();
   await expect(page.getByText(/^Точка указана: /)).toBeVisible();
   await page.getByRole("button", { name: "Далее" }).click();

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ru } from "@/i18n/ru";
 import { formatMoney } from "@/kit";
 import { computeDealMoney } from "@/modules/payments/client";
-import { acceptPrice, cancelRequest, declineInvitation, inviteExecutor, proposePrice, sendOffer, withdrawOffer } from "@/modules/requests";
+import { acceptPrice, cancelRequest, declineInvitation, inviteExecutor, proposePrice, sendOffer, setDealAddress, withdrawOffer } from "@/modules/requests";
 import { db } from "@/platform/db";
 import { makeClient, makeExecutor } from "../../../../../../../test/factories";
 import { freshBrowser } from "../../../../../../../test/factories/identity";
@@ -60,7 +60,7 @@ function expectNoBuyer(out: string) {
 }
 
 describe("заявка мастера: состояния", () => {
-  it.each(["mobile", "desktop"] as const)("%s форма: «Отправить предложение» — единственное главное, адрес скрыт, покупатель не назван", async (device) => {
+  it.each(["mobile", "desktop"] as const)("%s форма: «Отправить предложение» — единственное главное, адреса нет (ни строки, ни пояснения), покупатель не назван", async (device) => {
     h.device = device;
     const { requestId } = await buyerRequest();
     await master();
@@ -68,10 +68,11 @@ describe("заявка мастера: состояния", () => {
     expect(count(out, "<h1")).toBe(1);
     expect(primaries(out)).toEqual([t.form.submit]);
     const plain = text(out);
-    for (const s of [t.now.form.title, t.form.title, t.form.price, t.form.days, t.form.warranty, t.form.moneyEmpty, t.request.addressHidden, t.request.contacts]) {
+    for (const s of [t.now.form.title, t.form.title, t.form.price, t.form.days, t.form.warranty, t.form.moneyEmpty, t.request.contacts]) {
       expect(plain).toContain(s);
     }
     expect(plain).not.toContain(ADDRESS);
+    expect(plain).not.toContain(t.request.address);
     expect(out).toContain('id="master-offer-form"');
     expect(out).toContain('form="master-offer-form"');
     expect(out).toContain('href="/v2/executor/requests"');
@@ -122,11 +123,15 @@ describe("заявка мастера: состояния", () => {
     expect(primaries(out)).toEqual([]);
   });
 
-  it("цена принята — «Открыть сделку», адрес открыт; заявка отменена — причина, переписка остаётся", async () => {
+  it("цена принята — «Открыть сделку», адрес сделки (указал покупатель) открыт после заключения оферты; заявка отменена — причина, переписка остаётся", async () => {
     const { client, requestId } = await buyerRequest();
     const executor = await master();
     const { offerId } = await sendOffer(executor, offerInput(requestId, 500_000));
     const { dealId } = await acceptPrice(client, { proposalId: (await openProposal(offerId)).id });
+    await setDealAddress(client, dealId, { address: ADDRESS });
+    // Адрес — только после заключения оферты (ADR-016).
+    expect(text(await render(requestId))).not.toContain(ADDRESS);
+    await db.deal.update({ where: { id: dealId }, data: { signedAt: new Date() } });
     const out = await render(requestId);
     expect(primaries(out)).toEqual([t.actions.openDeal]);
     expect(out).toContain(`href="/v2/deals/${dealId}"`);
@@ -142,8 +147,7 @@ describe("заявка мастера: состояния", () => {
     expect(cancelled).toContain(`href="/v2/chats/${second.offerId}"`);
     expect(text(cancelled)).toContain(t.actions.chatClosed);
     expect(text(cancelled)).not.toContain(t.actions.chat);
-    // Договориться уже нельзя: ни подсказки об адресе, ни строки о контактах.
-    expect(text(cancelled)).not.toContain(t.request.addressHidden);
+    // Договориться уже нельзя: строки о контактах нет.
     expect(text(cancelled)).not.toContain(t.request.contacts);
     expect(primaries(cancelled)).toEqual([]);
   });
